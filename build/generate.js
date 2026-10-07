@@ -7,6 +7,7 @@ const D = require('./data');
 const { Plate, SecHead, eyebrow, facts, practice, places, quote, glyph, layout, PageHero, Closer, Catalogue } = T;
 const { partnerBody } = require('./partner');
 const Villas = require('./villas');
+const Admin = require('./admin');
 
 const OUT = path.join(__dirname, '..');
 const write = (file, html) => {
@@ -152,6 +153,10 @@ if (Villas.villasBody && Villas.villaBody && Villas.adminVillasBody) {
   page('villas.html', { title: 'Friday Villas', description: 'Considered villas and places to stay, chosen with care.', body: Villas.villasBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
   page('villa.html', { title: 'A Friday Villa', description: 'Explore a place to stay with Friday.', body: Villas.villaBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
   page('admin-villas.html', { title: 'Villa submissions', description: 'Review villa owner introductions.', body: Villas.adminVillasBody(), lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
+}
+
+if (Admin && Admin.adminBody) {
+  page('admin.html', { title: 'Operations Console', description: 'Friday team operations console for villas, quotes, and AI review.', body: Admin.adminBody(), lightHead: true, extraStyles: ['assets/css/villas.css', 'assets/css/admin.css'], extraScripts: ['assets/js/admin-auth.js', 'assets/js/admin.js'] });
 }
 
 const about = `
