@@ -17,6 +17,16 @@
     }).filter(function (item) { return item.text; });
     return profile.concat(memories);
   }
+  function summary(preferences) {
+    if (!Array.isArray(preferences) || !preferences.length) return 'Start with your own words';
+    var notes = preferences.map(function (item) {
+      if (item.label === 'Home city') return 'Home base set';
+      if (item.label === 'Departure airports') return 'Departure airport saved';
+      var text = String(item.text || '').replace(/\s+/g, ' ').trim();
+      return text.length > 30 ? text.slice(0, 27).trimEnd() + '…' : text;
+    }).filter(Boolean);
+    return 'Planning with: ' + notes.slice(0, 2).join(' · ') + (notes.length > 2 ? ' +' + (notes.length - 2) : '');
+  }
   function apply(prompt, preferences) {
     if (!Array.isArray(preferences) || !preferences.length) return String(prompt || '');
     return String(prompt || '') + '\n\nPreferences to keep in mind for this trip (you chose to apply these):\n' + preferences.map(function (item) { return '- ' + item.label + ': ' + item.text; }).join('\n');
@@ -28,5 +38,5 @@
     var note = heading + '\n' + preferences.map(function (item) { return '- ' + (item.label || 'Travel preference') + ': ' + item.text; }).join('\n');
     return [base, note].filter(Boolean).join('\n\n');
   }
-  FT.memoryContext = { list: list, apply: apply, quoteInstructions: quoteInstructions };
+  FT.memoryContext = { list: list, summary: summary, apply: apply, quoteInstructions: quoteInstructions };
 })();
