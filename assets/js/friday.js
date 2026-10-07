@@ -270,7 +270,7 @@
       e.preventDefault();if(!form.reportValidity())return;
       const btn=form.querySelector('[type=submit]');btn.disabled=true;
       try{
-        const result=await submit(form,'/api/commissions');const first=($('[name="name"]',form).value||'').trim().split(/\s+/)[0],slot=$('[data-sent-name]');
+        const result=await submit(form,'/api/commissions');if(window.FridayQuoteAnalytics)window.FridayQuoteAnalytics.track(window.FridayQuoteAnalytics.pathForEnquiry(form),result.id);const first=($('[name="name"]',form).value||'').trim().split(/\s+/)[0],slot=$('[data-sent-name]');
         if(slot)slot.textContent=first?`, ${first}`:'';
         const deliveryNote=$('[data-commission-delivery-note]');if(deliveryNote){const team=result.delivery?.notification,receipt=result.delivery?.receipt;const teamText=team==='provider_accepted'?'A notification is on its way to the Friday team.':team==='delivery_unknown'?'Friday could not confirm the team notification, so it will not retry automatically.':'Team email notifications are not configured yet.';const receiptText=receipt==='provider_accepted'?' A confirmation email is on its way.':receipt==='delivery_unknown'?' Friday could not confirm delivery of your confirmation email.':' Confirmation email delivery is not configured yet.';deliveryNote.textContent=`Your enquiry has been saved. ${teamText}${receiptText}`;}
         form.classList.add('is-sent');if(sent){sent.classList.add('is-shown');sent.setAttribute('tabindex','-1');sent.focus({preventScroll:true});sent.scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'});}

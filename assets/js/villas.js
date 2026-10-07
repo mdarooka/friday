@@ -33,7 +33,7 @@
 
   function detailHero(v) {
     var map = safeUrl(v.googleMapsUrl);
-    return '<section class="villa-detail__hero"><div class="villa-detail__art" aria-hidden="true"><span></span></div><div><p class="eyebrow">' + esc(v.city || 'Friday stay') + '</p><h1 class="villa-detail__name">' + esc(v.name || 'A Friday stay') + '</h1><p class="villa-detail__copy">' + esc(v.description || '') + '</p><div class="villa-detail__facts">' + (v.bedrooms ? '<span>' + esc(v.bedrooms) + ' bedrooms</span>' : '') + (v.maxGuests ? '<span>Up to ' + esc(v.maxGuests) + ' guests</span>' : '') + '</div><div class="villa-detail__actions">' + (map ? '<a class="btn" href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">View location <span class="arrow">&rarr;</span></a>' : '') + '<a class="btn btn--solid" href="#villa-plan">Plan around this home <span class="arrow">&darr;</span></a></div></div></section>';
+    return '<section class="villa-detail__hero"><div class="villa-detail__art" aria-hidden="true"><span></span></div><div><p class="eyebrow">' + esc(v.city || 'Friday stay') + '</p><h1 class="villa-detail__name">' + esc(v.name || 'A Friday stay') + '</h1><p class="villa-detail__copy">' + esc(v.description || '') + '</p><div class="villa-detail__facts">' + (v.bedrooms ? '<span>' + esc(v.bedrooms) + ' bedrooms</span>' : '') + (v.maxGuests ? '<span>Up to ' + esc(v.maxGuests) + ' guests</span>' : '') + '</div><div class="villa-detail__actions">' + (map ? '<a class="btn" href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">View location <span class="arrow">&rarr;</span></a>' : '') + '<a class="btn btn--solid" href="#villa-plan">Plan around this home <span class="arrow">&darr;</span></a><a class="btn" href="contact.html?quote_path=villa">Ask Friday about this home <span class="arrow">&rarr;</span></a></div></div></section>';
   }
   function initDetail(root) {
     var host = $('[data-villa-detail]', root), id = new URLSearchParams(location.search).get('id');
@@ -90,7 +90,7 @@
       }).filter(function (d) { return d.stops.length; });
       if (!days.length) { panel.insertAdjacentHTML('afterbegin', '<p class="villa-form-note" role="status">Keep at least one stop to create a trip.</p>'); return; }
       var payload = { version: 1, villa: { id: villa.id, name: villa.name, city: villa.city || '', address: villa.address || '', lat: Number.isFinite(villa.lat) ? villa.lat : null, lng: Number.isFinite(villa.lng) ? villa.lng : null, googleMapsUrl: safeUrl(villa.googleMapsUrl) }, days: days };
-      try { sessionStorage.setItem('friday.villa.plan.v1', JSON.stringify(payload)); location.href = 'trip.html#/'; } catch (err) { panel.insertAdjacentHTML('afterbegin', '<p class="villa-form-note" role="status">Your browser could not pass the reviewed plan to Friday. Please try again.</p>'); }
+      try { sessionStorage.setItem('friday.villa.plan.v1', JSON.stringify(payload)); sessionStorage.setItem('friday.quote-path.v1', 'villa'); location.href = 'trip.html#/'; } catch (err) { panel.insertAdjacentHTML('afterbegin', '<p class="villa-form-note" role="status">Your browser could not pass the reviewed plan to Friday. Please try again.</p>'); }
     });
   }
 
