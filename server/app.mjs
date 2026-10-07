@@ -90,6 +90,11 @@ export function createApp(options = {}) {
   const configuredOrigin = options.origin || env.APP_ORIGIN || (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined));
   if (production && !configuredOrigin) throw new Error('APP_ORIGIN must be set to the exact public origin (for example https://friday.example) when NODE_ENV=production.');
   const origin = configuredOrigin || 'http://localhost:4871';
+  const configuredPublicOrigin = env.PUBLIC_SITE_ORIGIN?.trim();
+  const publicSiteUrl = configuredPublicOrigin ? new URL(configuredPublicOrigin) : null;
+  if (publicSiteUrl && (!['http:', 'https:'].includes(publicSiteUrl.protocol) || publicSiteUrl.pathname !== '/' || publicSiteUrl.search || publicSiteUrl.hash)) throw new Error('PUBLIC_SITE_ORIGIN must be an http or https origin without a path.');
+  const publicSiteOrigin = publicSiteUrl?.origin || null;
+  const officialHost = publicSiteUrl?.host.toLowerCase() || null;
   const secure = new URL(origin).protocol === 'https:';
   const loopback = value => ['localhost','127.0.0.1','::1','[::1]'].includes(String(value||'').toLowerCase());
   const hexclaveAuth = options.hexclaveAuth || (env.AUTH_PROVIDER==='local'&&!production
@@ -217,10 +222,25 @@ export function createApp(options = {}) {
     res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
     res.setHeader('X-Frame-Options','DENY');
+    const forwardedHost = trustProxy ? String(req.headers['x-forwarded-host'] || '').split(',')[0].trim() : '';
+    const requestHost = (forwardedHost || String(req.headers.host || '').split(',')[0].trim()).toLowerCase();
+    const indexableHost = Boolean(officialHost && requestHost === officialHost);
+    if (!indexableHost) res.setHeader('X-Robots-Tag','noindex, nofollow');
     const ip=clientIp(req);
     const send=(status,data,extra)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...extra});res.end(JSON.stringify(data));};
     try {
       const url = new URL(req.url,origin), method=req.method;
+      if (!indexableHost && url.pathname === '/robots.txt') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end('User-agent: *\nDisallow: /\n');
+        return;
+      }
+      if (publicSiteOrigin && !indexableHost && url.pathname !== '/api/health') {
+        res.writeHead(301, { Location: `${publicSiteOrigin}${url.pathname}${url.search}`, 'Cache-Control': 'no-store' });
+        res.end();
+        return;
+      }
+      if (!publicSiteOrigin && url.pathname === '/sitemap.xml') fail(404,'Not found.');
       if (!url.pathname.startsWith('/api/')) {
         if (!['GET','HEAD'].includes(method)) fail(405,'Method not allowed.');
         // Decode first, then refuse anything that could climb out of the root: dot segments (including ones hidden as %2e or
@@ -236,6 +256,13 @@ export function createApp(options = {}) {
         if (!full.startsWith(realRoot+path.sep) || !(await stat(full)).isFile()) fail(404,'Not found.');
         const types={'.html':'text/html','.txt':'text/plain','.xml':'application/xml','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2'};
         let content=await readFile(full);
+        if (relative==='sitemap.xml' && publicSiteOrigin) content=Buffer.from(content.toString('utf8').replace(/(<loc>)https?:\/\/[^/]+/g, `$1${publicSiteOrigin}`));
+        if (relative==='robots.txt' && publicSiteOrigin) {
+          const directive=`Sitemap: ${publicSiteOrigin}/sitemap.xml`;
+          let robots=content.toString('utf8').replace(/^Sitemap:\s+\S+$/m,directive);
+          if (!/^Sitemap:/m.test(robots)) robots=robots.trimEnd()+'\n'+directive+'\n';
+          content=Buffer.from(robots);
+        }
         if (relative==='app.html') {
           const sharedToken=url.searchParams.get('share')||'';
           if (/^[a-f0-9]{64}$/.test(sharedToken)) {

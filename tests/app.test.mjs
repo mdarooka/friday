@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { createApp } from '../server/app.mjs';
@@ -18,7 +19,7 @@ async function fixture(t,options={}) {
     const res=await fetch(base+url,{method,redirect,headers:{...(data?{'Content-Type':'application/json',Origin:origin}:{}),Cookie:cookie,...headers},body:data?JSON.stringify(data):undefined});
     const result=(res.headers.get('content-type')||'').includes('application/json')?await res.json():await res.text();
     return {status:res.status,result,cookie:res.headers.get('set-cookie')?.split(';')[0],headers:res.headers};
-  };request.dbPath=path.join(dir,'db.sqlite');return request;
+  };request.dbPath=path.join(dir,'db.sqlite');request.server=server;return request;
 }
 async function signup(request,name='A') {
   const res=await request('/api/auth/signup','POST',{name,email:`${name}@example.com`,password:'long test password 123'});
@@ -73,14 +74,38 @@ test('cross-origin writes, private source paths, and missing provider fail safel
   assert.equal((await request('/api/capabilities')).result.research,false);
   assert.equal((await request('/api/research','POST',{prompt:'Kyoto',tripId:'bad'},a.cookie)).status,503);
 });
-test('public guide, robots and sitemap files are served while backend source stays private',async t=>{
-  const request=await fixture(t);
-  const guide=await request('/kerala-guide.html');
-  assert.equal(guide.status,200);assert.match(guide.headers.get('content-type'),/text\/html/);assert.match(guide.result,/Kerala Travel Guide/);
+test('temporary hosts stay out of search while the official origin keeps its robots and sitemap',async t=>{
+  const request=await fixture(t,{env:{...process.env,PUBLIC_SITE_ORIGIN:'',APP_ORIGIN:'https://fridaytravel.vercel.app',ITINERARY_PROVIDER:'local'}});
   const robots=await request('/robots.txt');
-  assert.equal(robots.status,200);assert.match(robots.headers.get('content-type'),/text\/plain/);assert.match(robots.result,/Disallow: \/api\//);assert.doesNotMatch(robots.result,/Disallow: \/kerala-guide/);
+  assert.equal(robots.status,200);assert.equal(robots.headers.get('x-robots-tag'),'noindex, nofollow');assert.match(robots.result,/Disallow: \/\n/);
   const sitemap=await request('/sitemap.xml');
-  assert.equal(sitemap.status,200);assert.match(sitemap.headers.get('content-type'),/application\/xml/);assert.match(sitemap.result,/<urlset/);
+  assert.equal(sitemap.status,404);assert.equal(sitemap.headers.get('x-robots-tag'),'noindex, nofollow');
+  const page=await request('/kerala-guide.html');
+  assert.equal(page.status,200);assert.equal(page.headers.get('x-robots-tag'),'noindex, nofollow');
+
+  const official=await fixture(t,{env:{...process.env,PUBLIC_SITE_ORIGIN:'https://friday.example',TRUST_PROXY:'1',ITINERARY_PROVIDER:'local'}});
+  const onHost=(url,host,forwardedHost)=>new Promise((resolve,reject)=>{
+    const headers={host};if(forwardedHost)headers['x-forwarded-host']=forwardedHost;
+    const req=http.request({hostname:'127.0.0.1',port:official.server.address().port,path:url,headers},res=>{
+      const chunks=[];res.on('data',chunk=>chunks.push(chunk));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks).toString()}));
+    });req.on('error',reject);req.end();
+  });
+  const guide=await onHost('/kerala-guide.html','friday.example');
+  assert.equal(guide.status,200);assert.match(guide.headers['content-type'],/text\/html/);assert.match(guide.body,/Kerala Travel Guide/);assert.equal(guide.headers['x-robots-tag'],undefined);
+  const tempRobots=await onHost('/robots.txt','deploy.example');
+  assert.equal(tempRobots.status,200);assert.match(tempRobots.body,/Disallow: \/\n/);assert.equal(tempRobots.headers['x-robots-tag'],'noindex, nofollow');
+  const normalRobots=await onHost('/robots.txt','friday.example');
+  assert.equal(normalRobots.status,200);assert.match(normalRobots.body,/Disallow: \/api\//);assert.doesNotMatch(normalRobots.body,/Disallow: \/$/);assert.match(normalRobots.body,/Sitemap: https:\/\/friday\.example\/sitemap\.xml/);assert.equal(normalRobots.headers['x-robots-tag'],undefined);
+  const normalSitemap=await onHost('/sitemap.xml','friday.example');
+  assert.equal(normalSitemap.status,200);assert.match(normalSitemap.headers['content-type'],/application\/xml/);assert.match(normalSitemap.body,/<urlset/);assert.equal(normalSitemap.headers['x-robots-tag'],undefined);
+  const redirect=await onHost('/kerala-guide.html?source=temp','deploy.example');
+  assert.equal(redirect.status,301);assert.equal(redirect.headers.location,'https://friday.example/kerala-guide.html?source=temp');assert.equal(redirect.headers['x-robots-tag'],'noindex, nofollow');
+  const proxied=await onHost('/kerala-guide.html','deploy.example','fridaytravel.vercel.app');
+  assert.equal(proxied.status,301);assert.equal(proxied.headers.location,'https://friday.example/kerala-guide.html');
+  const officialProxy=await onHost('/kerala-guide.html','deploy.example','friday.example');
+  assert.equal(officialProxy.status,200);assert.equal(officialProxy.headers['x-robots-tag'],undefined);
+  const health=await onHost('/api/health','deploy.example');
+  assert.equal(health.status,200);assert.equal(health.headers['x-robots-tag'],'noindex, nofollow');
 });
 test('Deep jobs persist progress, save drafts and do not overwrite manual edits',async t=>{
   let release;const gate=new Promise(resolve=>release=resolve);
