@@ -1,5 +1,4 @@
-/* ==========================================================================
-   FRIDAY PLANNER: core styles (trip.css)
+/* ===================================================================   FRIDAY PLANNER: core styles (trip.css)
    App frame, sidebar, pages, the new-trip prompt, modals, menus, toasts and
    the shared primitives other planner files build on.
 
@@ -15,8 +14,7 @@
    Tokens on .fx:  --fx-surface  --fx-shadow-pop
    ========================================================================== */
 
-/* ==========================================================================
-   PLANNER PALETTE: every colour the planner uses lives here. Tune freely.
+/* ===================================================================   PLANNER PALETTE: every colour the planner uses lives here. Tune freely.
    Scoped to .fx so the marketing pages (friday.css) keep their paper look.
    Primary is a confident coral-red: warm, travel-poster bright, and dark
    enough (5.0:1 on white) to carry text and links as well as fills.
@@ -267,8 +265,10 @@ input[type="search"].fx-input::-webkit-search-cancel-button { display: none; }
 .fx-tip__d { margin-top: 4px; font-size: .8125rem; line-height: 1.45; color: var(--fg-mute); }
 .fx-tip__link { display: inline-block; margin-top: 8px; font-size: .8125rem; color: var(--primary-text); }
 .fx-tip__link:hover { text-decoration: underline; text-underline-offset: 3px; }
-.fx-tip__x { position: absolute; top: -2px; right: -4px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; color: var(--fg-mute); }
-.fx-tip__x:hover { background: var(--paper-3); color: var(--ink); }
+.fx-tip__x { position: absolute; top: -11px; right: -13px; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 6px; color: var(--fg-mute); isolation: isolate; }
+.fx-tip__x::after { content: ""; position: absolute; z-index: -1; top: 50%; left: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); border-radius: 6px; pointer-events: none; }
+.fx-tip__x:hover { background: transparent; color: var(--ink); }
+.fx-tip__x:hover::after { background: var(--paper-3); }
 
 .fx-side__label { padding: 2px 10px 8px; font-size: .6875rem; text-transform: uppercase; letter-spacing: .245em; color: var(--fg-mute); }
 .fx-trips { display: grid; gap: 1px; padding-bottom: 12px; }
@@ -839,3 +839,21 @@ button[data-preview] { margin-bottom: 1rem; }
 .fx-bk-conf__badge { padding: .1rem .5rem; border: 1px solid var(--rule); border-radius: 999px; color: var(--fg-mute); }
 .fx-bk-conf__badge--verified { border-color: var(--ochre); color: var(--ink); }
 .fx-bk-conf__ask { background: none; border: 0; padding: 0; font: inherit; color: var(--fg-soft); text-decoration: underline; cursor: pointer; }
+/* Larger invisible hit areas keep planner icon controls comfortable to tap
+   without changing their visible size, border, or hover background. */
+.fx-icon-btn,
+.fx-attach button {
+  position: relative;
+}
+.fx-icon-btn::before,
+.fx-attach button::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  background: transparent;
+}

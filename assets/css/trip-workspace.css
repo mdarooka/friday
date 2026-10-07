@@ -1,5 +1,4 @@
-/* ==========================================================================
-   Friday planner — Workspace (trip view)
+/* ===================================================================   Friday planner — Workspace (trip view)
    Top bar · split · thread header · composer · right pane · overview · plan
    Uses the tokens from friday.css. Everything is scoped under .wsp.
    ========================================================================== */
@@ -586,8 +585,7 @@
   .wsp-item.is-flash { animation: none; background: rgba(217, 119, 87, .14); }
 }
 
-/* ==========================================================================
-   FRIDAY THEME: workspace (tactile paper & deep ink)
+/* ===================================================================   FRIDAY THEME: workspace (tactile paper & deep ink)
    ========================================================================== */
 .fx .wsp, .fx .wsp-right, .fx .wsp-panel, .fx .wsp-cwrap { background: var(--paper); }
 .fx .wsp-top { background: var(--paper-2); border-bottom: 1px solid var(--rule); }
@@ -824,3 +822,55 @@ body[data-route="trip"] .wsp-inlineadd {
 .fx-sharedmap__pin:focus-visible circle,.fx-sharedmap__pin.is-on circle { stroke:#1a1a1a; stroke-width:3; }
 .fx-shared__day li[data-map-stop] { cursor:pointer; }
 .fx-sharedmap__row--on { box-shadow:-3px 0 0 var(--ochre); transition:box-shadow .2s; }
+/* Invisible 44px hit areas leave the workspace controls' visible shapes and
+   surrounding layout unchanged. */
+.wsp-iconbtn,
+.wsp-seg button,
+.wsp-att__x,
+.wsp-tab__x,
+.wsp-tabplus,
+.wsp-banner__x {
+  position: relative;
+}
+.wsp-iconbtn::before,
+.wsp-seg button::before,
+.wsp-att__x::before,
+.wsp-tab__x::before,
+.wsp-tabplus::before,
+.wsp-banner__x::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  background: transparent;
+}
+
+/* Keep touch targets between tightly grouped actions from crossing into the
+   neighboring icon's target area. */
+.wsp-areahead__bed::before,
+.wsp-crow .wsp-mic::before {
+  left: -8px;
+  transform: translateY(-50%);
+}
+.wsp-areahead__chev::before {
+  left: auto;
+  right: -8px;
+  transform: translateY(-50%);
+}
+.wsp-dayhead__act .wsp-iconbtn:first-child::before {
+  left: -12px;
+  transform: translateY(-50%);
+}
+.wsp-dayhead__act .wsp-iconbtn:last-child::before {
+  left: auto;
+  right: -12px;
+  transform: translateY(-50%);
+}
+.wsp-inlineadd .wsp-iconbtn::before {
+  left: 0;
+  transform: translateY(-50%);
+}
