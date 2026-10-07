@@ -1992,7 +1992,7 @@
   function authGate(main) {
     const old = $('[data-auth-gate]'); if (old) old.remove();
     const box = doc.createElement('section'); box.className = 'fx-auth'; box.dataset.authGate = 'true';
-    box.innerHTML = '<div class="fx-auth__card"><p class="fx-eyebrow">Friday · Your journeys</p><h1 class="fx-auth__title">A place for the plans you carry.</h1><p class="fx-auth__copy">Sign in to return to your journeys, saved places and research.</p><div class="fx-auth__tabs"><button type="button" class="fx-btn fx-btn--line" data-auth-mode="signin">Sign in</button><button type="button" class="fx-btn fx-btn--line" data-auth-mode="signup">Create account</button></div><form data-auth-form><div data-auth-fields></div><p class="fx-error" role="alert" data-auth-error></p><button class="fx-btn fx-btn--ink" type="submit">Continue</button></form><p class="fx-hint" data-auth-legal hidden>Before creating an account, review Friday’s <a class="fx-link" href="privacy.html">Privacy Policy</a> and <a class="fx-link" href="terms.html">Terms of Use</a>.</p><div data-auth-extra></div><div data-auth-offline style="margin-top:1.2rem;text-align:center"><button class="fx-btn fx-btn--line" type="button" data-auth-skip>Continue without signing in</button></div></div>';
+    box.innerHTML = '<div class="fx-auth__card"><p class="fx-eyebrow">Friday · Your journeys</p><h1 class="fx-auth__title">A place for the plans you carry.</h1><p class="fx-auth__copy">Sign in to return to your journeys, saved places and research.</p><div class="fx-auth__tabs"><button type="button" class="fx-btn fx-btn--line" data-auth-mode="signin">Sign in</button><button type="button" class="fx-btn fx-btn--line" data-auth-mode="signup">Create account</button></div><form data-auth-form><div data-auth-fields></div><p class="fx-error" role="alert" data-auth-error></p><button class="fx-btn fx-btn--ink" type="submit">Continue</button></form><p class="fx-hint" data-auth-legal hidden>By continuing, you agree to Friday’s <a class="fx-link" href="terms.html">Terms of Use</a> and <a class="fx-link" href="privacy.html">Privacy Policy</a>.</p><div data-auth-extra></div><div data-auth-offline style="margin-top:1.2rem;text-align:center"><button class="fx-btn fx-btn--line" type="button" data-auth-skip>Continue without signing in</button></div></div>';
     main.prepend(box);
     main.querySelectorAll('.fx-page').forEach((p) => { p.hidden = true; });
     const side = $('[data-side]'); if (side) side.hidden = true;
@@ -2030,7 +2030,7 @@
         '<div class="fx-field"><label class="fx-label" for="auth-password">Password · at least 12 characters</label><input class="fx-input" id="auth-password" name="password" type="password" minlength="12" maxlength="128" autocomplete="'+(mode==='signup'?'new-password':'current-password')+'" required></div>';
       form.querySelector('[type=submit]').textContent = mode === 'signup' ? 'Create account' : 'Sign in';
       box.querySelectorAll('[data-auth-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.authMode === mode)));
-      legal.hidden=mode!=='signup';
+      legal.hidden=false;
       if(hexclave&&mode==='signin')extra.innerHTML='<button class="fx-btn fx-btn--line" type="button" data-forgot-password>Forgot password?</button><p class="fx-error" role="status" data-auth-message></p>';
     }
     box.addEventListener('click', (e) => {

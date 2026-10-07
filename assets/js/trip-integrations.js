@@ -147,7 +147,7 @@
     opts = opts || {};
     if (!FT.backend || !FT.backend.user) { signedOutGuidance('Email connection', 'Sign in to connect email and manage private booking confirmations. Friday has not accessed your mailbox.'); return; }
     var body = doc.createElement('div');
-    body.innerHTML = '<p class="fx-hint">Gmail access is read-only; Friday does not send mail through your account. After you connect, Friday checks upcoming and ongoing travel bookings. You can sync again for new confirmations. Dates Friday cannot verify will be shown for your review. Older bookings are included only when you ask.</p><div data-google-status><p class="fx-hint">Loading connection status…</p></div><p class="fx-error" role="alert" hidden></p>';
+    body.innerHTML = '<p class="fx-hint">By connecting, you agree to Friday’s <a href="terms.html">Terms of Use</a> and <a href="privacy.html">Privacy Policy</a>. Friday will only read Gmail messages matching travel-confirmation searches and, when you sync, up to 100 upcoming events from your primary Calendar during the next two years. The first Gmail scan searches up to 300 matching messages. Both connections are read-only: Friday never sends mail or changes calendar events. Later syncs happen only when you ask.</p><div data-google-status><p class="fx-hint">Loading connection status…</p></div><p class="fx-error" role="alert" hidden></p>';
     function error(message) { var e = body.querySelector('.fx-error'); e.textContent = message; e.hidden = false; }
     function render(data) {
       var connected = (data.connections || []).reduce(function (m, x) { m[x.kind] = x; return m; }, {});
