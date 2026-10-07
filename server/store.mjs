@@ -35,11 +35,12 @@ async function createSchema(tx, { tripsInVault = false } = {}) {
     CREATE INDEX IF NOT EXISTS friday_drafts_owner ON friday_drafts(owner_id,updated DESC);
     CREATE TABLE IF NOT EXISTS friday_handoffs(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,draft_id TEXT NOT NULL,version INTEGER NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,created TEXT NOT NULL,UNIQUE(owner_id,draft_id,version));
     CREATE INDEX IF NOT EXISTS friday_handoffs_owner ON friday_handoffs(owner_id,created DESC);
-    CREATE TABLE IF NOT EXISTS callback_requests(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL,best_time TEXT NOT NULL,entry_point TEXT NOT NULL,trip_id TEXT,villa_id TEXT,villa_name TEXT,villa_city TEXT,villa_guests INTEGER,status TEXT NOT NULL DEFAULT 'new',created TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS callback_requests(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL,best_time TEXT NOT NULL,entry_point TEXT NOT NULL,trip_id TEXT,villa_id TEXT,villa_name TEXT,villa_city TEXT,villa_guests INTEGER,"from" TEXT,status TEXT NOT NULL DEFAULT 'new',created TEXT NOT NULL);
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS villa_id TEXT;
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS villa_name TEXT;
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS villa_city TEXT;
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS villa_guests INTEGER;
+    ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS "from" TEXT;
     CREATE INDEX IF NOT EXISTS callback_requests_created ON callback_requests(created DESC);
     CREATE TABLE IF NOT EXISTS friday_quotes(id TEXT PRIMARY KEY,handoff_id TEXT NOT NULL UNIQUE REFERENCES friday_handoffs(id),owner_id TEXT NOT NULL REFERENCES users(id),customer_email TEXT NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,quote TEXT,attempted_at TEXT,created TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reel_chats(owner_id TEXT NOT NULL,conversation_id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(owner_id,conversation_id));
@@ -106,8 +107,8 @@ export const insertFridayHandoff = async (db,row) => { await db.query('INSERT IN
 export const createFridayHandoffWithQuote = (db,handoff,quote) => db.transaction(async tx => { await insertFridayHandoff(tx,handoff); await insertFridayQuote(tx,quote); return true; });
 export const listFridayHandoffs = (db,owner) => db.all('SELECT id,draft_id,version,snapshot,status,created FROM friday_handoffs WHERE owner_id=$1 ORDER BY created DESC',[owner]);
 export const listFridayQuotes = db => db.all('SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created FROM friday_quotes ORDER BY created');
-export const createCallbackRequest = async (db, row) => { await db.query('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,villa_id,villa_name,villa_city,villa_guests,status,created) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',[row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.villaId||null,row.villaName||null,row.villaCity||null,row.villaGuests??null,row.status||'new',row.created]); };
-export const listCallbackRequests = db => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,villa_id,villa_name,villa_city,villa_guests,status,created FROM callback_requests ORDER BY created DESC');
+export const createCallbackRequest = async (db, row) => { await db.query('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,villa_id,villa_name,villa_city,villa_guests,"from",status,created) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)',[row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.villaId||null,row.villaName||null,row.villaCity||null,row.villaGuests??null,row.from||null,row.status||'new',row.created]); };
+export const listCallbackRequests = db => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,villa_id,villa_name,villa_city,villa_guests,"from",status,created FROM callback_requests ORDER BY created DESC');
 export const getFridayQuote = (db,id) => db.one('SELECT * FROM friday_quotes WHERE id=$1',[id]);
 export const insertFridayQuote = async (db,row) => { await db.query('INSERT INTO friday_quotes(id,handoff_id,owner_id,customer_email,snapshot,status,created) VALUES($1,$2,$3,$4,$5,$6,$7)',[row.id,row.handoffId,row.ownerId,row.customerEmail,row.snapshot,row.status,row.created]); };
 export const claimFridayQuote = async (db,id,quote,attempted) => changes(await db.query("UPDATE friday_quotes SET status='sending',quote=$1,attempted_at=$2 WHERE id=$3 AND status='pending'",[quote,attempted,id]));

@@ -22,7 +22,10 @@ test('villa quote enquiries and callbacks carry the published villa into the Quo
   assert.equal(quote.kind, 'villa_enquiry');
   assert.deepEqual(quote.villa, { id: villaId, name: 'Palm Courtyard', city: 'Alibaug', guests: 6 });
   assert.equal(quote.customerEmail, 'jane@example.com');
-  assert.equal((await db.one('SELECT data FROM enquiries WHERE id=$1', [enquiry.result.id])).data.includes('Palm Courtyard'), true);
+  const savedEnquiry = JSON.parse((await db.one('SELECT data FROM enquiries WHERE id=$1', [enquiry.result.id])).data);
+  assert.equal(savedEnquiry.from, 'villa');
+  assert.equal(savedEnquiry.villaId, villaId);
+  assert.equal(savedEnquiry.villa.id, villaId);
 
   const callback = await request('/api/callbacks', 'POST', {
     name: 'Traveler Jane', phone: '+91 98765-43210', bestTime: 'afternoon', entryPoint: 'contact', villaId,
@@ -34,6 +37,12 @@ test('villa quote enquiries and callbacks carry the published villa into the Quo
   assert.equal(call.villaName, 'Palm Courtyard');
   assert.equal(call.villaCity, 'Alibaug');
   assert.equal(call.villaGuests, 6);
+  assert.equal(call.from, 'villa');
+  assert.equal(call.entryPoint, 'villa');
+  const savedCallback = await db.one('SELECT villa_id, entry_point, "from" FROM callback_requests WHERE id=$1', [callback.result.id]);
+  assert.equal(savedCallback.villa_id, villaId);
+  assert.equal(savedCallback.entry_point, 'villa');
+  assert.equal(savedCallback.from, 'villa');
 });
 
 test('contact quote anchor and mobile villa enquiry button are present in the generated sources', async t => {

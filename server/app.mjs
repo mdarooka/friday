@@ -687,7 +687,7 @@ export function createApp(options = {}) {
       }
       if(p==='/api/admin/quotes'){
         allow('GET');if(!user)fail(401,'Please sign in.');const quotes=await friday.adminList(user,effectiveQuoteAdmins);
-        const callbacks=(await store.listCallbackRequests(db)).map(row=>({id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,villaId:row.villa_id,villaName:row.villa_name,villaCity:row.villa_city,villaGuests:row.villa_guests,status:row.status,createdAt:row.created}));
+        const callbacks=(await store.listCallbackRequests(db)).map(row=>({id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,from:row.from,tripId:row.trip_id,villaId:row.villa_id,villaName:row.villa_name,villaCity:row.villa_city,villaGuests:row.villa_guests,status:row.status,createdAt:row.created}));
         const villaEnquiries=(await store.listEnquiries(db)).filter(row=>row.kind==='commissions').map(row=>({row,data:JSON.parse(row.data)})).filter(item=>item.data.villa).map(({row,data})=>({id:row.id,kind:'villa_enquiry',customerEmail:data.email,name:data.name,villa:data.villa,data,createdAt:row.created}));
         return send(200,{quotes:[...villaEnquiries,...callbacks,...quotes]});
       }
@@ -798,17 +798,18 @@ export function createApp(options = {}) {
         const name=str(body.name,'name',100,true),phone=indianPhone(body.phone);
         const bestTime=str(body.bestTime,'best time',20,true);
         if(!['morning','afternoon','evening'].includes(bestTime)) fail(422,'Choose a time of day for the call.');
-        const entryPoint=str(body.entryPoint,'entry point',20,true);
-        if(!['planner','contact'].includes(entryPoint)) fail(422,'This callback request could not be placed.');
+        const submittedEntryPoint=str(body.entryPoint,'entry point',20,true);
+        if(!['planner','contact'].includes(submittedEntryPoint)) fail(422,'This callback request could not be placed.');
         const tripId=body.tripId==null||body.tripId===''?null:str(body.tripId,'trip link',160);
         if(tripId&&!/^[A-Za-z0-9_-]+$/.test(tripId)) fail(422,'This trip link is not valid.');
         const villaId=body.villaId==null||body.villaId===''?null:str(body.villaId,'villa',180);
         const villaRow=villaId?await store.getPublishedVilla(db,villaId):null;
         if(villaId&&!villaRow) fail(422,'This villa is no longer available.');
         const villa=villaRow?publicVilla(villaRow):null;
+        const entryPoint=villa?'villa':submittedEntryPoint;
         const id=randomUUID(),created=new Date().toISOString();
-        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {}),...(villa?{villa:{id:villa.id,name:villa.name,city:villa.city,guests:villa.maxGuests}}:{})};
-        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,...(villa?{villaId:villa.id,villaName:villa.name,villaCity:villa.city,villaGuests:villa.maxGuests}:{}),status:'new',created});
+        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {}),...(villa?{from:'villa',villaId:villa.id,villa:{id:villa.id,name:villa.name,city:villa.city,guests:villa.maxGuests}}:{})};
+        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,from:villa?'villa':null,tripId,...(villa?{villaId:villa.id,villaName:villa.name,villaCity:villa.city,villaGuests:villa.maxGuests}:{}),status:'new',created});
         const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
         const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
         return send(201,{id,saved:true,delivery:{notification:notification?.status||'blocked'}});
@@ -824,7 +825,7 @@ export function createApp(options = {}) {
           const villaRow=villaId?await store.getPublishedVilla(db,villaId):null;
           if(villaId&&!villaRow) fail(422,'This villa is no longer available.');
           const villa=villaRow?publicVilla(villaRow):null;
-          const data={...body,email:email(body.email),name,...(villa?{villa:{id:villa.id,name:villa.name,city:villa.city,guests:villa.maxGuests}}:{})};
+          const data={...body,email:email(body.email),name,from:villa?'villa':null,villaId:villa?villa.id:null,villa:villa?{id:villa.id,name:villa.name,city:villa.city,guests:villa.maxGuests}:undefined};
           await store.saveEnquiry(db,{id,kind:'commissions',data:JSON.stringify(data),created});
           const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
           const [receipt,notification]=await Promise.all([
