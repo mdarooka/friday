@@ -14,19 +14,34 @@ Open <http://localhost:4871>. `npm start` starts the same application for deploy
 
 ## Production deployment
 
-Hexclave supplies hosted sign-in, email verification and password recovery, plus transactional email delivery. It does not host this Node server or manage/back up Friday's SQLite database. The Hexclave Vercel integration only provides environment-variable guidance; it does not make a SQLite-backed app durable on Vercel. Friday therefore ships a Docker Compose deployment for a Docker host with persistent disk, with Caddy obtaining and renewing HTTPS certificates for the chosen DNS name.
+Hexclave provides Friday's sign-in and transactional email. Friday can run on Hexclave Deploy as a Node server, with SQLite on a persistent disk; this is separate from the Hexclave project configuration in `hexclave.config.ts`.
 
-Copy `.env.example` to `.env`. The default `APP_DOMAIN=localhost` is for a local container preview with Caddy's internal certificate. For public launch, choose a Linux Docker host with persistent disk, point a DNS name at it, set `APP_DOMAIN` to that name, and set `APP_ORIGIN` to its `https://` origin. Add the Hexclave cloud project's `HEXCLAVE_PROJECT_ID` and server-only `HEXCLAVE_SECRET_SERVER_KEY`. The email app also needs `FRIDAY_ENQUIRY_EMAIL` set to the inbox chosen by the owner. Keep all keys out of client files and source control.
+### Hexclave Deploy
 
-Start the service from the repository root:
+`hexclave.deploy.ts` defines one public server built from the repository's Dockerfile. It listens on port 3000 and mounts one 10 GB persistent disk at `/data`; SQLite lives at `/data/app/friday.sqlite`. The container runs as the non-root `node` user, creates the database and backup subdirectories under that mount, and runs the daily SQLite backup loop in the same process. Seven verified snapshots are retained at `/data/backups` on the same disk. These snapshots are a recovery aid, not an off-site backup: the disk is not replicated and can be lost with its host.
+
+Before the first deploy:
+
+1. Turn on the Deploy app in the Hexclave dashboard and choose a paid plan; persistent disks and an always-running server require it. Do not push `hexclave.config.ts` as part of this step.
+2. Add the `secret()` values listed in `hexclave.deploy.ts` under Project Settings → Secrets. Deploy supplies `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY` itself.
+3. Buy or choose a domain and set its exact HTTPS origin as `APP_ORIGIN`; attach and verify that domain on the public service. Set `FRIDAY_ENQUIRY_EMAIL` to the inbox that should receive enquiries.
+4. From the repository root, run `npx @hexclave/cli@latest deploy`.
+
+The Deploy app is in alpha, and its service region is not confirmed here (it may not be in India). Pick an encrypted, access-controlled off-site backup destination and retention period before treating snapshots as a durable backup; Friday does not choose or upload to a storage provider. Disk size can only be grown, not reduced.
+
+After the first deployment, write a test record, restart and redeploy the service, and confirm that the record remains. Create a snapshot, preview it with `server/tools/restore-database.mjs`, and test an actual restore before storing important data. The public `/api/health` endpoint is available, and the Dockerfile includes a health check for it.
+
+### Self-managed Docker deployment
+
+For a separate Linux Docker host, copy `.env.example` to `.env`, choose `APP_DOMAIN`, set `APP_ORIGIN` to its exact HTTPS origin, and configure the required secrets. The Compose file runs Caddy for HTTPS, mounts persistent Docker volumes for the database and backups, and runs a separate daily backup service. On a public host, point DNS at the host and allow inbound ports 80 and 443. Keep `.env`, the database, and backup files out of public storage.
+
+Start the Compose deployment from the repository root:
 
 ```sh
 docker compose -f deploy/compose.yml up -d --build
 ```
 
-The app is only reachable through Caddy, which listens on ports 80 and 443. The Compose setup enables production mode and required sign-in, uses a persistent Docker volume for `.data/`, and runs a separate backup service that writes a verified SQLite snapshot immediately and then daily by default. Change `DATABASE_BACKUP_INTERVAL_SECONDS` to adjust the interval (minimum 60 seconds). On a public host, allow inbound ports 80 and 443 and ensure DNS is already pointed at the host before starting Caddy. Store provider API keys as server environment variables in `.env`; do not publish `.env` or the database volume.
-
-Deploy the Hexclave configuration using the CLI after reviewing the cloud project's current config first. `npm run dev` runs the Hexclave CLI wrapper, which supplies local project keys to the development server. For a cloud project, use `npx @hexclave/cli pull --config-file ./hexclave.config.ts` and compare before pushing with `npx @hexclave/cli push --config-file ./hexclave.config.ts`; the local config enables required email verification. In the Hexclave cloud dashboard, allow the production origin and configure a production email sender (Managed, Resend or SMTP). Hexclave's shared mail server is for development. Do not push the app config to an unknown project or overwrite cloud settings before reviewing them.
+`npm run dev` runs the Hexclave CLI wrapper, which supplies local project keys to the development server. Hexclave's shared mail server is for development; configure a production email sender in the project before launch.
 
 Create a consistent online database snapshot while Friday is running:
 

@@ -1,6 +1,6 @@
 import { backup, DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
-import { chmod, mkdir, stat, unlink } from 'node:fs/promises';
+import { chmod, mkdir, readdir, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,7 +9,9 @@ const databasePath = path.resolve(process.env.DATABASE_PATH || path.join(root, '
 const backupDirectory = path.resolve(process.env.DATABASE_BACKUP_DIR || path.join(root, 'backups'));
 process.umask(0o077);
 
-export async function backupDatabase({ source = databasePath, directory = backupDirectory, now = new Date() } = {}) {
+export async function backupDatabase({ source = databasePath, directory = backupDirectory, now = new Date(), retentionCount = process.env.DATABASE_BACKUP_RETENTION_COUNT || '7' } = {}) {
+  const keep = Number(retentionCount);
+  if (!Number.isSafeInteger(keep) || keep < 1) throw new Error('DATABASE_BACKUP_RETENTION_COUNT must be a positive integer.');
   const sourcePath = path.resolve(source);
   const targetDirectory = path.resolve(directory);
   if (sourcePath === targetDirectory || targetDirectory.startsWith(`${sourcePath}${path.sep}`)) {
@@ -44,6 +46,17 @@ export async function backupDatabase({ source = databasePath, directory = backup
     throw error;
   } finally {
     copied.close();
+    await Promise.all([`${destination}-wal`, `${destination}-shm`].map(file => unlink(file).catch(() => {})));
+  }
+
+  const snapshots = (await readdir(targetDirectory, { withFileTypes: true }))
+    .filter(entry => entry.isFile() && /^friday-\d{4}-\d{2}-\d{2}T.+-[0-9a-f-]{36}\.sqlite$/.test(entry.name))
+    .map(entry => entry.name)
+    .sort();
+  for (const oldSnapshot of snapshots.slice(0, Math.max(0, snapshots.length - keep))) {
+    const oldPath = path.join(targetDirectory, oldSnapshot);
+    await unlink(oldPath);
+    await Promise.all([`${oldPath}-wal`, `${oldPath}-shm`].map(file => unlink(file).catch(() => {})));
   }
   return destination;
 }

@@ -11,8 +11,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY . .
 RUN npm run build \
-    && mkdir -p /app/.data /app/backups \
-    && chown -R node:node /app
+    && mkdir -p /app/.data /app/backups /data \
+    && chown -R node:node /app /data
 
 USER node
 EXPOSE 3000 4871

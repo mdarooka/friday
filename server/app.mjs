@@ -22,6 +22,7 @@ import { createFridayWorkflow } from './friday-workflow.mjs';
 import { createReelWorkflow } from './reel-workflow.mjs';
 import { createHexclaveAuth } from './hexclave/auth.mjs';
 import { createHexclaveEmailService } from './hexclave/email.mjs';
+import { runBackupLoop } from './tools/backup-loop.mjs';
 const scrypt = promisify(scryptCallback);
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = x => createHash('sha256').update(x).digest('hex');
@@ -820,6 +821,7 @@ if (process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta
   const defaultHost = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
   const defaultPort = process.env.NODE_ENV === 'production' ? 3000 : 4871;
   const server=createApp({log:m=>console.error('[friday] '+m)});const port=Number(process.env.PORT||defaultPort);
+  if (process.env.DATABASE_BACKUP_DIR) runBackupLoop().catch(error => console.error(`[friday] SQLite backup scheduler failed: ${error.message}`));
   server.listen(port,process.env.HOST||defaultHost,()=>console.log(`Friday http://${process.env.HOST||defaultHost}:${port}`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>process.exit(0)));
 }
