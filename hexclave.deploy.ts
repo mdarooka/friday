@@ -7,18 +7,18 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, hexclave }) => ({
     web: {
       type: "server",
       public: true,
-      minInstances: 1,
+      minInstances: 0,
       ports: { 3000: { protocol: "http" } },
       dockerfilePath: "Dockerfile",
       devCommand: "node server/app.mjs",
       persistentVolumes: {
-        fridayData: { path: "/data", sizeGb: 10 },
+        fridayData: { path: "/data", sizeGb: 1 },
       },
       env: {
         NODE_ENV: "production",
         HOST: "0.0.0.0",
         PORT: "3000",
-        APP_ORIGIN: "https://p-81-we-5b6199efcb56de4167-c098b2d7396b0066.deploy.built-with-hexclave.com",
+        APP_ORIGIN: "https://fridaytravel.vercel.app",
         DATABASE_PATH: "/data/app/friday.sqlite",
         DATABASE_BACKUP_DIR: "/data/backups",
         DATABASE_BACKUP_INTERVAL_SECONDS: "86400",

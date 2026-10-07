@@ -1,0 +1,5 @@
+# Vercel is only a reverse proxy to the Hexclave Deploy origin (see vercel.json); upload config only.
+*
+!vercel.json
+!vercel-public
+!vercel-public/.gitkeep

@@ -1,10 +1,13 @@
 {
-  "buildCommand": "npm run build",
-  "cleanUrls": true,
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "",
+  "installCommand": "",
+  "outputDirectory": "vercel-public",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index.mjs"
+      "source": "/(.*)",
+      "destination": "https://p-81-we-5b6199efcb56de4167-c098b2d7396b0066.deploy.built-with-hexclave.com/$1"
     }
   ]
 }

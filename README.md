@@ -18,14 +18,15 @@ Hexclave provides Friday's sign-in and transactional email. Friday can run on He
 
 ### Hexclave Deploy
 
-`hexclave.deploy.ts` defines one public server built from the repository's Dockerfile. It listens on port 3000 and mounts one 10 GB persistent disk at `/data`; SQLite lives at `/data/app/friday.sqlite`. The container runs as the non-root `node` user, creates the database and backup subdirectories under that mount, and runs the daily SQLite backup loop in the same process. Seven verified snapshots are retained at `/data/backups` on the same disk. These snapshots are a recovery aid, not an off-site backup: the disk is not replicated and can be lost with its host.
+`hexclave.deploy.ts` defines one public server built from the repository's Dockerfile. It listens on port 3000 and mounts one 1 GB persistent disk at `/data` (disks can be grown later but never shrunk); SQLite lives at `/data/app/friday.sqlite`. The container runs as the non-root `node` user, creates the database and backup subdirectories under that mount, and runs the daily SQLite backup loop in the same process. Seven verified snapshots are retained at `/data/backups` on the same disk. These snapshots are a recovery aid, not an off-site backup: the disk is not replicated and can be lost with its host.
 
 Before the first deploy:
 
-1. Turn on the Deploy app in the Hexclave dashboard and choose a paid plan; persistent disks and an always-running server require it. Do not push `hexclave.config.ts` as part of this step.
+1. Turn on the Deploy app in the Hexclave dashboard. The service uses `minInstances: 0`, so it suspends when idle (keeping its disk) and resumes on the next request; an always-running server (`minInstances: 1`) needs a paid plan. Do not push `hexclave.config.ts` as part of this step.
 2. `APP_ORIGIN`, `FRIDAY_ENQUIRY_EMAIL`, and `QUOTE_ADMIN_EMAILS` are set directly in `hexclave.deploy.ts`; update them there when the domain or inbox changes. Under Project Settings → Secrets, the optional `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY`, `GOOGLE_PLACES_API_KEY`, and `OPENAI_API_KEY` default to empty and keep those integrations off until configured. For Gmail/Calendar, set the Google client ID, client secret, and a 64-character hexadecimal `GOOGLE_TOKEN_KEY` together. Deploy supplies `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY` itself; without a valid enquiry inbox, enquiries are saved but the team notification is not sent.
+Vercel (`vercel.json`, project `friday-travel`) is only a reverse proxy: it serves `https://fridaytravel.vercel.app` by rewriting every path to the Hexclave Deploy origin, so all data stays on the persistent server. `APP_ORIGIN` is the public proxy origin, because browsers send `Origin: https://fridaytravel.vercel.app` on API writes.
 3. To move to your own domain, attach and verify it on the public `web` service and set its exact HTTPS origin as `APP_ORIGIN` in `hexclave.deploy.ts`.
-4. From the repository root, run `npx @hexclave/cli@latest deploy`.
+4. From the repository root, run `npx @hexclave/cli@latest deploy --cloud-project-id 38c9a741-73e3-4e6a-9c1b-6438f1239457`.
 
 The Deploy app is in alpha, and its service region is not confirmed here (it may not be in India). Pick an encrypted, access-controlled off-site backup destination and retention period before treating snapshots as a durable backup; Friday does not choose or upload to a storage provider. Disk size can only be grown, not reduced.
 
