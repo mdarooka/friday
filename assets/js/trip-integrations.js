@@ -77,7 +77,7 @@
     var body = doc.createElement('div');
     var context = opts.tripContext || null;
     var contextSummary = context ? '<section class="fx-integration-card fx-designer-trip-context"><strong>' + esc(context.name || 'Your trip') + '</strong>' + (context.destination ? '<p>' + esc(context.destination) + '</p>' : '') + (context.startDate || context.endDate ? '<p>' + esc(context.startDate || 'Dates to confirm') + (context.endDate ? ' – ' + esc(context.endDate) : '') + '</p>' : '') + '<span class="fx-hint">We’ll include this trip with your request.</span></section>' : '';
-    body.innerHTML = '<p class="fx-hint">Leave your number and a good time. Friday’s team will call to talk through your trip.</p>' + contextSummary + '<form data-callback-request-form><label class="fx-field fx-label">Your name<input class="fx-input" name="name" type="text" maxlength="100" autocomplete="name" required></label><label class="fx-field fx-label">Indian mobile number<input class="fx-input" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="18" placeholder="10 digits or +91" pattern="(?:\\+?91[\\s-]?)?[6-9][0-9\\s-]{8,12}" required></label><label class="fx-field fx-label">Best time to call<select class="fx-input" name="bestTime"><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></label><p class="fx-error" role="alert" hidden></p><p class="fx-hint" data-callback-status role="status" aria-live="polite"></p></form>';
+    body.innerHTML = '<p class="fx-hint">Leave your number and a good time. Friday’s team will call to talk through your trip.</p>' + contextSummary + '<form data-callback-request-form><label class="fx-field fx-label">Your name<input class="fx-input" name="name" type="text" maxlength="100" autocomplete="name" required></label><label class="fx-field fx-label">Indian mobile number<input class="fx-input" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="18" placeholder="10 digits or +91" pattern="(?:\\+?91(?:\\s|-)?|)[6-9](?:[0-9]|\\s|-){8,12}" required></label><label class="fx-field fx-label">Best time to call<select class="fx-input" name="bestTime"><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></label><p class="fx-error" role="alert" hidden></p><p class="fx-hint" data-callback-status role="status" aria-live="polite"></p></form>';
     var form = body.querySelector('[data-callback-request-form]');
     FT.ui.modal({ title: 'Call me back', body: body, actions: [
       { label: 'Cancel' },
@@ -433,8 +433,9 @@
     function idFor(trip) { return trip && trip.id || ''; }
     function statusLabel() {
       callbackCta.classList.toggle('is-confirmed', !!currentStatus);
-      if (currentStatus) callbackCta.innerHTML = '<span>Your designer has this trip</span><span class="fx-planner-callback__promise">We’ll reply within 30 hours</span>';
-      else callbackCta.textContent = 'Talk to your designer';
+      var confirmedLabel = '<span>Your designer has this trip</span><span class="fx-planner-callback__promise">We’ll reply within 30 hours</span>';
+      if (currentStatus) { if (callbackCta.innerHTML !== confirmedLabel) callbackCta.innerHTML = confirmedLabel; }
+      else if (callbackCta.textContent !== 'Talk to your designer') callbackCta.textContent = 'Talk to your designer';
       callbackCta.setAttribute('aria-label', currentStatus ? 'Your designer has this trip. Friday will reply within 30 hours.' : 'Talk to your designer about this trip');
     }
     function refreshStatus() {
@@ -493,6 +494,6 @@
       knownNumber = /^\d{8,15}$/.test(number) ? number : ''; syncStickyContact();
     }).catch(function () { syncStickyContact(); });
     syncStickyContact();
-    doc.body.appendChild(contactRail);
+    if (!designerNav) doc.body.appendChild(contactRail);
   }
 })();
