@@ -48,6 +48,7 @@
 .villa-detail__copy { max-width: 38rem; margin-top: 1.2rem; color: var(--fg-soft); font-size: var(--t-lede); }
 .villa-detail__facts { display: flex; flex-wrap: wrap; gap: .65rem 1.5rem; margin-top: 1.5rem; color: var(--fg-mute); font-size: var(--t-sm); line-height: 1.5; }
 .villa-detail__actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.75rem; }
+.villa-detail__actions .villa-enquiry-cta { flex-basis: 100%; justify-content: center; }
 .villa-detail__section { padding-block: clamp(2.6rem, 6vw, 5rem); border-top: 1px solid var(--rule); }
 .villa-detail__section h2 { margin-bottom: 1.4rem; font: 300 clamp(2rem, 4vw, 3.3rem)/1 var(--serif); }
 .villa-amenities { display: flex; flex-wrap: wrap; gap: .55rem; margin: 0; padding: 0; list-style: none; }

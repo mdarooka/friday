@@ -413,13 +413,16 @@
       var isSel = state.selectedQuoteId === q.id;
       var snap = q.snapshot || {};
       var isCallback = q.kind === 'callback';
-      var dest = isCallback ? 'Call me back' : (snap.destination || 'Unspecified destination');
+      var isVillaEnquiry = q.kind === 'villa_enquiry';
+      var villaName = isVillaEnquiry ? q.villa && q.villa.name : q.villaName;
+      var dest = isCallback ? (villaName ? 'Villa: ' + villaName : 'Call me back') : (isVillaEnquiry ? 'Villa: ' + (villaName || 'Friday stay') : (snap.destination || 'Unspecified destination'));
       var dates = isCallback ? esc(q.phone || '') + ' · ' + esc(q.bestTime || 'time not set') : ((snap.dates && (snap.dates.start || snap.dates.end))
         ? (snap.dates.start || '') + ' &ndash; ' + (snap.dates.end || '')
         : 'Dates flexible');
       var qInfo = q.quote;
-      var amountDisplay = isCallback ? 'Callback request' : (qInfo ? esc(qInfo.currency) + ' ' + Number(qInfo.amount).toFixed(2) : 'Unquoted');
-      var isOpen = !isCallback && q.status === 'pending' && !q.firstReplyAt;
+      var amountDisplay = isCallback ? 'Callback request' : (isVillaEnquiry ? 'Villa enquiry' : (qInfo ? esc(qInfo.currency) + ' ' + Number(qInfo.amount).toFixed(2) : 'Unquoted'));
+      var villaMeta = isVillaEnquiry ? [q.villa && q.villa.city, q.villa && q.villa.guests ? 'Sleeps up to ' + q.villa.guests : ''].filter(Boolean).map(esc).join(' · ') : '';
+      var isOpen = !isCallback && !isVillaEnquiry && q.status === 'pending' && !q.firstReplyAt;
       var waitingMarkup = '';
       if (isOpen) {
         var waitedMs = Math.max(0, Date.now() - new Date(q.createdAt).getTime());
@@ -432,11 +435,11 @@
 
       return '<div class="admin-quote-card' + (isSel ? ' is-selected' : '') + (isCallback && q.status === 'done' ? ' is-done' : '') + '" data-open-quote="' + esc(q.id) + '">' +
         '<div class="admin-quote-card__head">' +
-        '<span class="admin-quote-card__client">' + esc(isCallback ? q.name : (q.customerEmail || 'Guest')) + '</span>' +
-        (isCallback ? '<span class="admin-badge">Callback' + (q.status === 'done' ? ' · done' : '') + '</span>' : badge(q.status)) +
+        '<span class="admin-quote-card__client">' + esc(isCallback || isVillaEnquiry ? (q.name || q.customerEmail || 'Guest') : (q.customerEmail || 'Guest')) + '</span>' +
+        (isCallback ? '<span class="admin-badge">Callback' + (q.status === 'done' ? ' · done' : '') + '</span>' : (isVillaEnquiry ? '<span class="admin-badge">Villa enquiry</span>' : badge(q.status))) +
         '</div>' +
         '<h4 class="admin-quote-card__dest">' + esc(dest) + '</h4>' +
-        '<div class="admin-quote-card__meta">' + (isCallback ? dates + ' · ' + esc(q.entryPoint || '') + (q.checklist ? ' · checklist ' + esc(q.checklist.done + '/' + q.checklist.total) : '') : dates + ' · ' + esc(snap.travelers || 1) + ' travellers') + '</div>' +
+        '<div class="admin-quote-card__meta">' + (isCallback ? dates + ' · ' + esc(q.entryPoint || '') + (q.checklist ? ' · checklist ' + esc(q.checklist.done + '/' + q.checklist.total) : '') : (isVillaEnquiry ? villaMeta : dates + ' · ' + esc(snap.travelers || 1) + ' travellers')) + '</div>' +
         '<div class="admin-quote-card__amount">' + amountDisplay + '</div>' + waitingMarkup +
         '</div>';
     }).join('');
@@ -459,11 +462,20 @@
     dom.quoteDrawer.hidden = false;
     dom.quoteNote.textContent = '';
     dom.quotePreviewBox.hidden = true;
-    dom.quoteForm.hidden = q.kind === 'callback';
+    dom.quoteForm.hidden = q.kind === 'callback' || q.kind === 'villa_enquiry';
+    if (q.kind === 'villa_enquiry') {
+      var v = q.villa || {}, data = q.data || {};
+      var composition = Array.isArray(data.composition) ? data.composition.join(', ') : (data.composition || '');
+      dom.quoteTitle.textContent = 'Villa enquiry';
+      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Email:</strong> <a href="mailto:' + esc(q.customerEmail || '') + '">' + esc(q.customerEmail || '') + '</a></p><p><strong>Villa:</strong> ' + esc(v.name || '') + '</p><p><strong>City:</strong> ' + esc(v.city || '') + '</p><p><strong>Guest capacity:</strong> ' + esc(v.guests || 'Not listed') + '</p>' + (data.when ? '<p><strong>When:</strong> ' + esc(data.when) + '</p>' : '') + (data.who ? '<p><strong>Who is travelling:</strong> ' + esc(data.who) + '</p>' : '') + (composition ? '<p><strong>Help with:</strong> ' + esc(composition) + '</p>' : '') + (data.shape ? '<p><strong>Request:</strong> ' + esc(data.shape) + '</p>' : '') + (data.last ? '<p><strong>Additional details:</strong> ' + esc(data.last) + '</p>' : '') + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>';
+      dom.quoteNote.textContent = 'Contact this traveler about the villa. This enquiry is saved for the Friday team and is not a quote email to send.';
+      renderQuotes(state.quotes);
+      return;
+    }
     if (q.kind === 'callback') {
       dom.quoteTitle.textContent = 'Callback request';
       var tripLink = q.tripId ? '<p><strong>Trip:</strong> <a href="trip.html#/trip/' + encodeURIComponent(q.tripId) + '" target="_blank" rel="noopener noreferrer">Open planner trip</a></p>' : '';
-      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + (q.topic ? '<p><strong>About:</strong> ' + esc(q.topic) + '</p>' : '') + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>' + checklistHtml(q.checklist) + '<p><button type="button" class="villa-text-button" data-callback-status="' + esc(q.id) + '" data-next-status="' + (q.status === 'done' ? 'open' : 'done') + '">' + (q.status === 'done' ? 'Reopen' : 'Mark done') + '</button></p>';
+      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + (q.topic ? '<p><strong>About:</strong> ' + esc(q.topic) + '</p>' : '') + (q.villaName ? '<p><strong>Villa:</strong> ' + esc(q.villaName) + '</p><p><strong>City:</strong> ' + esc(q.villaCity || '') + '</p><p><strong>Guest capacity:</strong> ' + esc(q.villaGuests || 'Not listed') + '</p>' : '') + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>' + checklistHtml(q.checklist) + '<p><button type="button" class="villa-text-button" data-callback-status="' + esc(q.id) + '" data-next-status="' + (q.status === 'done' ? 'open' : 'done') + '">' + (q.status === 'done' ? 'Reopen' : 'Mark done') + '</button></p>';
       dom.quoteNote.textContent = 'Call this traveler at their preferred time. This is a callback request, not a quote to send.';
       renderQuotes(state.quotes);
       return;
