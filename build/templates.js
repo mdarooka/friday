@@ -229,7 +229,7 @@ ${extraScripts.map((src) => `<script src="${esc(src)}"></script>`).join('\n')}
 /* ------------------------------------------------------- shared sections */
 
 /** Interior page masthead. */
-function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, image, seedReveal = 'mask' }) {
+function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedReveal = 'mask' }) {
   return `<section class="phero wrap">
     <div class="phero__grid">
       <div class="phero__title">
@@ -241,7 +241,7 @@ function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, image, se
         ${meta ? `<div class="stack stack--sm" data-reveal>${meta.map((m) => `<div><p class="eyebrow">${m.k}</p><p style="margin:.25rem 0 0;font-family:var(--serif);font-size:1.2rem">${m.v}</p></div>`).join('')}</div>` : ''}
       </div>
     </div>
-    ${seed || image ? `<div class="phero__art" style="margin-top:clamp(2.4rem,5vw,4.5rem)"${seedReveal ? ` data-reveal="${esc(seedReveal)}"` : ''}>${image ? `<div class="plate plate--ratio-w"><img class="plate__image" src="${esc(image.src)}" width="${image.width}" height="${image.height}" alt="${esc(image.alt)}" loading="lazy" decoding="async"></div>` : Plate(seed, { ratio: 'w', scene, tone, svgRatio: 'panorama' })}</div>` : ''}
+    ${seed ? `<div class="phero__art" style="margin-top:clamp(2.4rem,5vw,4.5rem)"${seedReveal ? ` data-reveal="${esc(seedReveal)}"` : ''}>${Plate(seed, { ratio: 'w', scene, tone, svgRatio: 'panorama' })}</div>` : ''}
   </section>`;
 }
 

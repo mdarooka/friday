@@ -33,7 +33,7 @@ const page = (file, opts) => {
 
 const home = `
 <section class="hero">
-  <div class="hero__bg"><img class="hero__image" src="assets/images/friday-train-window.webp" alt="" width="1672" height="941" fetchpriority="high" decoding="async"></div>
+  <div class="hero__bg">${Plate('hero-friday-vii', { fill: true, scene: 'peaks', tone: 'ember', svgRatio: 'panorama' })}</div>
   <div class="hero__scrim"></div>
   <div class="hero__in wrap">
     <p class="eyebrow" style="color:rgba(244,241,234,.7);margin-bottom:1.6rem">${D.brand.affiliation} &middot; ${D.brand.experience}</p>
@@ -317,7 +317,7 @@ ${PageHero({
   title: 'A travel designer<br>for the way you go.',
   lede: 'Friday is a travel designer from Bombay and a Kusum Travels brand, with 22 years of travel experience behind it. Begin with a villa, a sample journey, or an idea you want to shape into a trip.',
   meta: [{ k: 'Experience', v: D.brand.experience }, { k: 'Brand', v: D.brand.parentName }],
-  image: { src: 'assets/images/friday-arrival-arcade.webp', width: 1672, height: 941, alt: 'A shaded stone arcade opens onto a sunlit town square' }, seedReveal: '',
+  seed: 'about-friday', scene: 'terraces', tone: 'moss', seedReveal: 'fade',
 })}
 <section class="section section--tight"><div class="wrap">
   <div class="about-intro" data-reveal>
