@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1760 468" preserveAspectRatio="xMidYMid meet">
+  <rect width="1760" height="468" fill="#EAE5DA"/>
+  <g>
+    <rect x="20" y="20" width="560" height="428" fill="#F4F1EA" stroke="#D0C9BA"/>
+    <image href="friday-villas.svg" x="24" y="24" width="552" height="350" preserveAspectRatio="xMidYMid slice"/>
+    <text x="46" y="411" fill="#3B1410" font-family="Georgia,serif" font-size="27">Villas</text>
+    <text x="46" y="434" fill="#7E7869" font-family="Arial,sans-serif" font-size="12" letter-spacing="1.2">A HOME AMONG THE TERRACES</text>
+  </g>
+  <g>
+    <rect x="600" y="20" width="560" height="428" fill="#F4F1EA" stroke="#D0C9BA"/>
+    <image href="friday-packages.svg" x="604" y="24" width="552" height="350" preserveAspectRatio="xMidYMid slice"/>
+    <text x="626" y="411" fill="#3B1410" font-family="Georgia,serif" font-size="27">Packages</text>
+    <text x="626" y="434" fill="#7E7869" font-family="Arial,sans-serif" font-size="12" letter-spacing="1.2">A JOURNEY, THOUGHTFULLY WRAPPED</text>
+  </g>
+  <g>
+    <rect x="1180" y="20" width="560" height="428" fill="#F4F1EA" stroke="#D0C9BA"/>
+    <image href="friday-ai-planning.svg" x="1184" y="24" width="552" height="350" preserveAspectRatio="xMidYMid slice"/>
+    <text x="1206" y="411" fill="#3B1410" font-family="Georgia,serif" font-size="27">Friday AI</text>
+    <text x="1206" y="434" fill="#7E7869" font-family="Arial,sans-serif" font-size="12" letter-spacing="1.2">A FOLDED MAP, TAKING SHAPE</text>
+  </g>
+</svg>

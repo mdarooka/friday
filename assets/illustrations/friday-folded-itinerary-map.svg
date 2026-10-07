@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" fill="none">
+  <rect width="1200" height="760" fill="#E9E5DC"/>
+
+  <!-- An open, folded map with one itinerary taking shape across its panels. -->
+  <path d="m178 222 269-60 294 51 276-83 37 432-278 83-295-52-267 62-36-433Z" fill="#C5BCA9" opacity=".48"/>
+  <path d="m162 204 269-60 294 51 276-83 37 432-278 83-295-52-267 62-36-433Z" fill="#F4F1EA" stroke="#B9AE99" stroke-width="2"/>
+  <path d="m162 204 269-60 16 432-267 62-15-434Z" fill="#E8E2D4"/>
+  <path d="m431 144 294 51 15 432-295-52-14-431Z" fill="#E5E7D8"/>
+  <path d="m725 195 276-83 37 432-278 83-35-432Z" fill="#D9DED0"/>
+
+  <!-- Distinct terrain regions and coast lines. -->
+  <path d="m163 344 61-27 48 18 60-37 79 19 31-12 11 210-267 62-23-233Z" fill="#B8B99D" opacity=".78"/>
+  <path d="m434 273 69-35 53 25 69-28 79 24 15 368-295-52 10-302Z" fill="#C9D0B4"/>
+  <path d="m726 287 63-34 61 20 42-48 73-8 36 327-278 83-22-340Z" fill="#B3C3B2"/>
+  <path d="M162 490c81-20 145-15 213 6 63 19 116 21 168-1 52-21 100-22 154-4 61 21 103 21 151-4 43-23 91-32 144-20" stroke="#9B9B79" stroke-width="2" opacity=".6"/>
+  <path d="M164 514c81-20 145-15 213 6 63 19 116 21 168-1 52-21 100-22 154-4 61 21 103 21 151-4 43-23 91-32 144-20" stroke="#9B9B79" stroke-width="2" opacity=".48"/>
+  <path d="M164 538c81-20 145-15 213 6 63 19 116 21 168-1 52-21 100-22 154-4 61 21 103 21 151-4 43-23 91-32 144-20" stroke="#9B9B79" stroke-width="2" opacity=".36"/>
+  <g stroke="#75805B" stroke-width="2" opacity=".42">
+    <path d="M186 280c43-31 89-36 137-15 31 13 62 12 95-3"/><path d="M190 299c39-25 76-27 112-12 40 17 77 18 113 1"/>
+    <path d="M469 367c37-31 77-38 116-18 29 15 60 13 94-6"/><path d="M469 389c38-26 72-30 106-14 40 19 75 18 107-1"/>
+    <path d="M766 476c35-31 72-37 110-18 30 15 59 15 90-4"/><path d="M769 498c34-25 69-30 101-14 40 20 68 18 99 0"/>
+  </g>
+
+  <!-- A single solid route, with selected waypoints and one open next step. -->
+  <path d="M239 431c51-45 93-61 137-47 52 16 53 75 106 81 54 7 83-55 137-53 47 1 62 43 111 40 49-4 64-59 112-63 46-4 69 30 104 24" stroke="#F4F1EA" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M239 431c51-45 93-61 137-47 52 16 53 75 106 81 54 7 83-55 137-53 47 1 62 43 111 40 49-4 64-59 112-63 46-4 69 30 104 24" stroke="#A85A3A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="239" cy="431" r="17" fill="#F4F1EA" stroke="#A85A3A" stroke-width="4"/>
+  <circle cx="482" cy="465" r="17" fill="#F4F1EA" stroke="#A85A3A" stroke-width="4"/>
+  <circle cx="730" cy="452" r="17" fill="#F4F1EA" stroke="#A85A3A" stroke-width="4"/>
+  <circle cx="1046" cy="413" r="19" fill="#F4F1EA" stroke="#A85A3A" stroke-width="3" stroke-dasharray="3 5"/>
+  <circle cx="239" cy="431" r="5" fill="#A85A3A"/><circle cx="482" cy="465" r="5" fill="#A85A3A"/><circle cx="730" cy="452" r="5" fill="#A85A3A"/>
+
+  <!-- Map fold creases and restrained registration marks. -->
+  <path d="m431 144 16 483m278-432 35 432" stroke="#7D7967" stroke-width="2" opacity=".45" stroke-dasharray="3 7"/>
+  <path d="M1034 196h43m-21-21v43M153 634h32m-16-16v32" stroke="#8A5032" stroke-width="2" opacity=".55"/>
+  <path d="M0 0h1200v760H0z" fill="url(#grain)" opacity=".09"/>
+  <defs><pattern id="grain" width="13" height="13" patternUnits="userSpaceOnUse"><circle cx="2" cy="3" r=".65" fill="#3B1410"/><circle cx="10" cy="8" r=".45" fill="#3B1410"/><circle cx="6" cy="12" r=".4" fill="#3B1410"/></pattern></defs>
+</svg>

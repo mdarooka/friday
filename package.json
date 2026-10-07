@@ -1,0 +1,20 @@
+{
+  "name": "friday-travel",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "npx --yes @hexclave/cli@latest dev --config-file ./hexclave.config.ts -- node --env-file-if-exists=.env server/app.mjs",
+    "start": "node --env-file-if-exists=.env server/app.mjs",
+    "emails:drain": "node --env-file-if-exists=.env server/tools/drain-email-outbox.mjs",
+    "backup": "node --env-file-if-exists=.env server/tools/backup-database.mjs",
+    "restore": "node --env-file-if-exists=.env server/tools/restore-database.mjs",
+    "build": "node build/generate.js",
+    "test": "node --test tests/*.test.mjs",
+    "test:hexclave": "FRIDAY_TEST_TRIP_STORAGE=hexclave node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@hexclave/js": "^1.0.125"
+  }
+}

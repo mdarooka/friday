@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="750" viewBox="0 0 1200 750" fill="none">
+  <rect width="1200" height="750" fill="#EDE8DD"/>
+  <path d="M0 544c146-39 286-30 410 9 145 46 271 48 407 3 158-53 270-50 383-15v209H0V544Z" fill="#D9D3C3"/>
+  <path d="M0 618c139-39 262-25 387 13 132 40 239 39 373-4 148-47 291-41 440 6v117H0V618Z" fill="#AEB49A" opacity=".62"/>
+
+  <!-- The raised lid becomes a little coastal world. -->
+  <path d="M289 296c1-22 19-39 41-39h539c22 0 40 17 41 39l25 177H264l25-177Z" fill="#7F8864" stroke="#3B4534" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M323 300c2-11 11-19 23-19h530c12 0 21 8 23 19l16 135H304l19-135Z" fill="#E8E2D4"/>
+  <path d="M315 397c86-22 164-16 235 11 65 24 116 23 177-4 69-30 132-37 198-18l9 49H309l6-38Z" fill="#B9B79C"/>
+  <path d="M309 422c76-21 146-14 213 15 62 27 120 27 186-3 70-32 136-35 220-10l4 30H304l5-32Z" fill="#6F7955"/>
+  <path d="M306 443c72-17 138-9 202 16 71 28 135 24 203-5 67-28 132-30 214-8l3 23H304l2-26Z" fill="#536044"/>
+
+  <!-- A tiny terracotta villa, set into the folded landscape. -->
+  <path d="M553 348c0-28 22-50 50-50s50 22 50 50v84H553v-84Z" fill="#F4F1EA" stroke="#6B4936" stroke-width="5"/>
+  <path d="M543 350c0-34 27-61 60-61s60 27 60 61" stroke="#B85F39" stroke-width="15" stroke-linecap="round"/>
+  <path d="M579 381c0-13 11-24 24-24s24 11 24 24v51h-48v-51Z" fill="#C97850"/>
+  <path d="M579 382c0-13 11-24 24-24s24 11 24 24v14h-48v-14Z" fill="#E9B28E"/>
+  <path d="M580 432v-49c0-13 10-24 23-24s23 11 23 24v49" stroke="#6B4936" stroke-width="4"/>
+  <path d="M532 431h142" stroke="#E9E1D2" stroke-width="7" stroke-linecap="round"/>
+  <path d="M455 430v-33m-9 33h18m225-6v-28m-9 28h18" stroke="#E9E1D2" stroke-width="4" stroke-linecap="round" opacity=".86"/>
+
+  <!-- Open suitcase base, rounded corners and brass-toned fittings. -->
+  <path d="M284 469c0-24 19-43 43-43h551c24 0 43 19 43 43v155c0 24-19 43-43 43H327c-24 0-43-19-43-43V469Z" fill="#B85F39" stroke="#563D30" stroke-width="9"/>
+  <path d="M310 477c0-12 10-22 22-22h541c12 0 22 10 22 22v137c0 12-10 22-22 22H332c-12 0-22-10-22-22V477Z" fill="#D88758"/>
+  <path d="M331 478h523v131H331z" fill="#E8D8BE"/>
+  <path d="M331 478h523v22H331z" fill="#C6B596"/>
+  <path d="M331 500h523v109H331z" fill="#D5C2A4"/>
+  <path d="M345 518h495v76H345z" fill="#EEE6D8"/>
+  <path d="M345 518h495v76H345z" stroke="#A58B68" stroke-width="2" stroke-dasharray="4 9" opacity=".68"/>
+  <path d="M532 454v-19c0-18 15-33 33-33h74c18 0 33 15 33 33v19" stroke="#634733" stroke-width="12" stroke-linecap="round"/>
+  <path d="M557 454v-16c0-5 4-9 9-9h72c5 0 9 4 9 9v16" stroke="#E6C99B" stroke-width="4" stroke-linecap="round"/>
+  <path d="M420 454v-20m366 20v-20" stroke="#6B4936" stroke-width="8" stroke-linecap="round"/>
+  <path d="M425 631v-7m354 7v-7" stroke="#E9C48A" stroke-width="5" stroke-linecap="round"/>
+  <rect x="572" y="615" width="68" height="24" rx="4" fill="#E9C48A" stroke="#634733" stroke-width="4"/>
+  <circle cx="606" cy="627" r="4" fill="#634733"/>
+
+  <!-- A winding cream route leaves the case and lifts into a paper plane. -->
+  <path d="M391 562c36-28 74-24 111-2 27 17 53 18 77 3 22-14 25-34 9-47-17-14-44-7-57 8" stroke="#F4F1EA" stroke-width="7" stroke-linecap="round" stroke-dasharray="1 1"/>
+  <circle cx="391" cy="562" r="8" fill="#536044" stroke="#F4F1EA" stroke-width="4"/>
+  <circle cx="588" cy="516" r="8" fill="#B85F39" stroke="#F4F1EA" stroke-width="4"/>
+  <path d="M537 524c-13-37 6-66 34-94 30-31 37-54 29-77" stroke="#F4F1EA" stroke-width="5" stroke-linecap="round" stroke-dasharray="2 13"/>
+  <path d="m606 318 84-56-30 81-17-27-37 2Z" fill="#F4F1EA" stroke="#6B4936" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m643 316 17-24 30-30" stroke="#A85A3A" stroke-width="3" stroke-linecap="round"/>
+  <path d="m703 260 26-9m-13 23 29-1m-40-34 7-20" stroke="#A85A3A" stroke-width="3" stroke-linecap="round" opacity=".75"/>
+
+  <path d="M0 0h1200v750H0z" fill="url(#grain)" opacity=".09"/>
+  <defs>
+    <pattern id="grain" width="13" height="13" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="3" r=".65" fill="#3B1410"/>
+      <circle cx="10" cy="8" r=".45" fill="#3B1410"/>
+      <circle cx="6" cy="12" r=".4" fill="#3B1410"/>
+    </pattern>
+  </defs>
+</svg>

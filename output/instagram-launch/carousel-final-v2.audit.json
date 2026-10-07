@@ -1,0 +1,248 @@
+{
+  "target_canvas": [
+    1080,
+    1350
+  ],
+  "wordmark_bbox": [
+    69,
+    55,
+    239,
+    126
+  ],
+  "wordmark_size": [
+    170,
+    71
+  ],
+  "no_crop": true,
+  "line_removal": {
+    "03-journeys.png": {
+      "repaired_region": [
+        280,
+        75,
+        1051,
+        81
+      ],
+      "texture_clone_rows": [
+        60,
+        66
+      ],
+      "source_rows_dark_pixel_counts_before": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        771,
+        770,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "04-planner.png": {
+      "repaired_region": [
+        82,
+        124,
+        1041,
+        130
+      ],
+      "texture_clone_rows": [
+        140,
+        146
+      ],
+      "source_rows_dark_pixel_counts_before": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        958,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "slides": [
+    {
+      "file": "01-meet-friday.png",
+      "source_canvas": [
+        1122,
+        1402
+      ],
+      "export_canvas": [
+        1080,
+        1350
+      ],
+      "fit_pixels": [
+        1080,
+        1350
+      ],
+      "fit_scale": 0.96256684,
+      "content_bbox": [
+        0,
+        0,
+        1080,
+        1350
+      ],
+      "crop_pixels": 0,
+      "padding_pixels": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "old_logo_region": [
+        72,
+        57,
+        249,
+        131
+      ]
+    },
+    {
+      "file": "02-villas.png",
+      "source_canvas": [
+        1122,
+        1402
+      ],
+      "export_canvas": [
+        1080,
+        1350
+      ],
+      "fit_pixels": [
+        1080,
+        1350
+      ],
+      "fit_scale": 0.96256684,
+      "content_bbox": [
+        0,
+        0,
+        1080,
+        1350
+      ],
+      "crop_pixels": 0,
+      "padding_pixels": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "old_logo_region": [
+        91,
+        50,
+        234,
+        111
+      ]
+    },
+    {
+      "file": "03-journeys.png",
+      "source_canvas": [
+        1122,
+        1402
+      ],
+      "export_canvas": [
+        1080,
+        1350
+      ],
+      "fit_pixels": [
+        1080,
+        1350
+      ],
+      "fit_scale": 0.96256684,
+      "content_bbox": [
+        0,
+        0,
+        1080,
+        1350
+      ],
+      "crop_pixels": 0,
+      "padding_pixels": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "old_logo_region": [
+        72,
+        39,
+        215,
+        102
+      ]
+    },
+    {
+      "file": "04-planner.png",
+      "source_canvas": [
+        1122,
+        1402
+      ],
+      "export_canvas": [
+        1080,
+        1350
+      ],
+      "fit_pixels": [
+        1080,
+        1350
+      ],
+      "fit_scale": 0.96256684,
+      "content_bbox": [
+        0,
+        0,
+        1080,
+        1350
+      ],
+      "crop_pixels": 0,
+      "padding_pixels": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "old_logo_region": [
+        78,
+        48,
+        213,
+        105
+      ]
+    },
+    {
+      "file": "05-discover.png",
+      "source_canvas": [
+        1092,
+        1440
+      ],
+      "export_canvas": [
+        1080,
+        1350
+      ],
+      "fit_pixels": [
+        1024,
+        1350
+      ],
+      "fit_scale": 0.9375,
+      "content_bbox": [
+        28,
+        0,
+        1052,
+        1350
+      ],
+      "crop_pixels": 0,
+      "padding_pixels": [
+        28,
+        0,
+        28,
+        0
+      ],
+      "old_logo_region": [
+        89,
+        67,
+        241,
+        139
+      ]
+    }
+  ]
+}

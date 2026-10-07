@@ -1,0 +1,114 @@
+{
+  "method": "Deterministic pixel compositing using slide 1 glyph and cloned paper texture for original glyph restoration",
+  "slide1_byte_identical": true,
+  "slides": [
+    {
+      "file": "02-villas.png",
+      "dimensions": [
+        1122,
+        1402
+      ],
+      "old_logo_restore_region": [
+        90,
+        49,
+        237,
+        112
+      ],
+      "new_logo_master_region": [
+        72,
+        57,
+        249,
+        131
+      ],
+      "changed_pixels": 8313,
+      "changed_pixels_outside_union": 0,
+      "changed_pixel_bbox": [
+        72,
+        49,
+        249,
+        130
+      ]
+    },
+    {
+      "file": "03-journeys.png",
+      "dimensions": [
+        1122,
+        1402
+      ],
+      "old_logo_restore_region": [
+        70,
+        38,
+        217,
+        104
+      ],
+      "new_logo_master_region": [
+        72,
+        57,
+        249,
+        131
+      ],
+      "changed_pixels": 8174,
+      "changed_pixels_outside_union": 0,
+      "changed_pixel_bbox": [
+        70,
+        38,
+        249,
+        130
+      ]
+    },
+    {
+      "file": "04-planner.png",
+      "dimensions": [
+        1122,
+        1402
+      ],
+      "old_logo_restore_region": [
+        77,
+        47,
+        215,
+        106
+      ],
+      "new_logo_master_region": [
+        72,
+        57,
+        249,
+        131
+      ],
+      "changed_pixels": 7427,
+      "changed_pixels_outside_union": 0,
+      "changed_pixel_bbox": [
+        72,
+        47,
+        249,
+        130
+      ]
+    },
+    {
+      "file": "05-discover.png",
+      "dimensions": [
+        1092,
+        1440
+      ],
+      "old_logo_restore_region": [
+        89,
+        66,
+        243,
+        140
+      ],
+      "new_logo_master_region": [
+        70,
+        55,
+        242,
+        127
+      ],
+      "changed_pixels": 8119,
+      "changed_pixels_outside_union": 0,
+      "changed_pixel_bbox": [
+        70,
+        55,
+        243,
+        140
+      ]
+    }
+  ]
+}

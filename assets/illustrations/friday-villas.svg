@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" fill="none">
+  <rect width="1200" height="760" fill="#F4F1EA"/>
+  <path d="M0 0h1200v380H0z" fill="#E8E2D4"/>
+  <circle cx="893" cy="205" r="94" fill="#D98757"/>
+  <path d="M0 382 132 302l114 45 139-149 133 170 137-99 146 106 122-81 105 84 172-80v310H0V382Z" fill="#B9B396"/>
+  <path d="m0 469 144-91 130 47 156-81 117 87 129-48 120 82 138-78 132 53 134-36v310H0V469Z" fill="#87906C"/>
+  <path d="M0 527c165-76 277-68 412-20s255 73 384 19 277-68 404-19v253H0V527Z" fill="#4C5334"/>
+  <path d="M0 604c164-30 271-29 408 8 151 40 258 38 395-7 136-46 261-53 397-8v163H0V604Z" fill="#343B29"/>
+  <path d="M152 760c86-89 180-130 286-122 82 6 137 47 211 53 116 10 228-62 356-36 74 16 126 57 195 105H152Z" fill="#6A704B"/>
+
+  <path d="M347 407h478v207H347z" fill="#E9E1D2"/>
+  <path d="M315 397h530v27H315z" fill="#8A472F"/>
+  <path d="M369 434h202v180H369z" fill="#DCCCB4"/>
+  <path d="M601 434h190v180H601z" fill="#EFE8DC"/>
+  <path d="M571 434h30v180h-30z" fill="#A85A3A"/>
+  <path d="M398 460h63v91h-63z" fill="#3B3D33"/>
+  <path d="M482 460h63v91h-63z" fill="#3B3D33"/>
+  <path d="M631 460h62v91h-62z" fill="#3B3D33"/>
+  <path d="M714 460h49v91h-49z" fill="#3B3D33"/>
+  <path d="M558 550h56v64h-56z" fill="#8A472F"/>
+  <path d="M571 550h30v64h-30z" fill="#503527"/>
+  <path d="M370 577h421v18H370z" fill="#C6B596"/>
+  <path d="M320 615h550v15H320z" fill="#B8A88D"/>
+  <path d="M292 630h614v17H292z" fill="#E2D6C3"/>
+  <path d="M540 397v-61h162v61" fill="#EFE8DC"/>
+  <path d="M520 344h204v19H520z" fill="#8A472F"/>
+  <path d="M556 363h132v34H556z" fill="#E9E1D2"/>
+  <path d="M525 614v22m170-22v22" stroke="#6E5A45" stroke-width="4"/>
+
+  <path d="M238 598 268 533l30 65h-19v62h-22v-62h-19Z" fill="#303C2C"/>
+  <path d="M909 584 944 505l35 79h-22v81h-28v-81h-20Z" fill="#303C2C"/>
+  <path d="M970 620 994 565l24 55h-16v53h-17v-53h-15Z" fill="#3B4733"/>
+  <path d="M281 660c74-24 133-17 190 2m445-8c48-24 97-31 151-17" stroke="#D3C4A7" stroke-width="3" opacity=".65"/>
+
+  <path d="M0 0h1200v760H0z" fill="url(#grain)" opacity=".1"/>
+  <defs><pattern id="grain" width="13" height="13" patternUnits="userSpaceOnUse"><circle cx="2" cy="3" r=".65" fill="#3B1410"/><circle cx="10" cy="8" r=".45" fill="#3B1410"/><circle cx="6" cy="12" r=".4" fill="#3B1410"/></pattern></defs>
+</svg>

@@ -1,0 +1,79 @@
+services:
+  friday:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4871
+      APP_ORIGIN: https://${APP_DOMAIN:-localhost}
+      DATABASE_PATH: /app/.data/friday.sqlite
+      AUTH_REQUIRED: "true"
+      TRUST_PROXY: "1"
+    volumes:
+      - friday-data:/app/.data
+      - friday-backups:/app/backups
+    expose:
+      - "4871"
+    networks:
+      - friday-internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4871/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      friday:
+        condition: service_healthy
+    networks:
+      - friday-internal
+
+  friday-backup:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["node", "server/tools/backup-loop.mjs"]
+    environment:
+      NODE_ENV: production
+      DATABASE_PATH: /app/.data/friday.sqlite
+      DATABASE_BACKUP_DIR: /app/backups
+      DATABASE_BACKUP_INTERVAL_SECONDS: ${DATABASE_BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - friday-data:/app/.data
+      - friday-backups:/app/backups
+    depends_on:
+      friday:
+        condition: service_healthy
+    networks:
+      - friday-internal
+    healthcheck:
+      disable: true
+
+volumes:
+  friday-data:
+  friday-backups:
+  caddy-data:
+  caddy-config:
+
+networks:
+  friday-internal:

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Friday Villas &middot; Friday</title>
+<meta name="description" content="Considered villas and places to stay, chosen with care.">
+<meta name="theme-color" content="#F4F1EA">
+<meta property="og:title" content="Friday Villas · Friday">
+<meta property="og:description" content="Considered villas and places to stay, chosen with care.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/friday.css">
+<link rel="stylesheet" href="assets/css/villas.css">
+<style>.nav__cta{--fg:var(--paper);--bg:var(--ink);margin-left:clamp(.4rem,1vw,1rem)}
+.head.is-solid .nav__cta,.head.is-light .nav__cta{--fg:var(--ink);--bg:var(--paper)}
+.hero__cta{--bg:var(--ink);--accent:var(--ochre);flex:none;margin-right:auto}</style>
+</head>
+<body data-light-head>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="head" data-head>
+  <div class="head__in">
+    <a class="wordmark" href="index.html" aria-label="Friday — home">
+      <span class="wordmark__name">Friday</span>
+    </a>
+
+    <nav class="nav" aria-label="Primary">
+      <a class="nav__link" href="villas.html" aria-current="page">Villas</a>
+      <a class="nav__link" href="departures.html">Packages</a>
+      <a class="nav__link" href="about.html">About Friday</a>
+      <a class="nav__link" href="help.html">Help &amp; contact</a>
+      <a class="nav__link" href="trip.html" data-nav-auth>Sign in</a>
+      <a class="btn btn--sm btn--solid nav__cta" href="trip.html">Plan a trip</a>
+    </nav>
+
+    <button class="burger" aria-expanded="false" aria-controls="site-menu">
+      <span class="burger__txt">Menu</span>
+      <span class="burger__bars" aria-hidden="true"><i></i><i></i><i></i></span>
+    </button>
+  </div>
+</header>
+
+<div class="menu" id="site-menu">
+  <div class="wrap">
+    <div class="menu__grid">
+      <div class="menu__col">
+        <p class="menu__h">Explore</p>
+        <a class="menu__link" href="villas.html" aria-current="page">Villas</a>
+        <a class="menu__link" href="departures.html">Packages</a>
+      </div>
+      <div class="menu__col">
+        <p class="menu__h">Your trip</p>
+        <a class="menu__link" href="trip.html">Plan a trip</a>
+        <a class="menu__link menu__link--sm" href="trip.html#/">My trips</a>
+        <a class="menu__link menu__link--sm" href="trip.html#/bookings">Bookings</a>
+        <a class="menu__link menu__link--sm" href="trip.html" data-menu-auth>Sign in</a>
+      </div>
+      <div class="menu__col">
+        <p class="menu__h">Help</p>
+        <a class="menu__link" href="help.html">Help &amp; FAQs</a>
+        <a class="menu__link menu__link--sm" href="contact.html">Contact Friday</a>
+      </div>
+      <div class="menu__col">
+        <p class="menu__h">Friday</p>
+        <a class="menu__link" href="about.html">About Friday</a>
+        <p class="menu__h" style="margin-top:2.2rem">For villa owners</p>
+        <a class="menu__link menu__link--sm" href="partner.html">List your villa</a>
+      </div>
+    </div>
+  </div>
+</div>
+<main id="main">
+<div class="villa-site" data-villa-page="index">
+    <section class="villa-hero">
+      <p class="eyebrow">A Friday stay</p>
+      <h1 class="villa-title">A place to<br><em>begin.</em></h1>
+      <p class="villa-lede">Private homes, chosen for the way they make a journey feel.</p>
+      <form class="villa-search" data-villa-search role="search">
+        <label for="villa-location">Where would you like to stay?</label>
+        <div class="villa-search__row"><input id="villa-location" name="location" type="search" autocomplete="off" placeholder="City or region"><button class="btn btn--solid" type="submit">Find a villa <span class="arrow">&rarr;</span></button></div>
+      </form>
+    </section>
+    <section class="villa-results wrap">
+      <div class="villa-section-head"><div><p class="eyebrow">The collection</p><h2 class="h2">Somewhere considered.</h2></div><p class="villa-result-count" data-villa-count></p></div>
+      <div class="villa-grid" data-villa-list aria-live="polite"><p class="villa-state">Finding Friday stays&hellip;</p></div>
+    </section>
+    <section class="villa-host-cta inverse"><div class="wrap villa-host-cta__in"><div><p class="eyebrow">For villa owners</p><h2 class="h2">A good home deserves<br>the right guests.</h2><p class="card__d">Tell us about your property. Friday reviews every home before it joins the collection.</p></div><a class="btn" href="partner.html">Introduce your villa <span class="arrow">&rarr;</span></a></div></section>
+  </div>
+</main>
+
+<footer class="foot inverse">
+  <div class="wrap">
+    <div class="foot__grid">
+      <div class="foot__col">
+      <p class="foot__h">Explore</p>
+      <ul class="foot__list"><li><a href="villas.html">Villas</a></li><li><a href="departures.html">Packages</a></li><li><a href="trip.html">Plan a trip</a></li></ul>
+    </div>
+      <div class="foot__col">
+      <p class="foot__h">Your trip</p>
+      <ul class="foot__list"><li><a href="trip.html#/">My trips</a></li><li><a href="trip.html#/bookings">Bookings</a></li><li><a href="trip.html">Sign in</a></li></ul>
+    </div>
+      <div class="foot__col">
+      <p class="foot__h">Help</p>
+      <ul class="foot__list"><li><a href="help.html">Help & FAQs</a></li><li><a href="contact.html">Contact Friday</a></li></ul>
+    </div>
+      <div class="foot__col">
+      <p class="foot__h">Friday</p>
+      <ul class="foot__list"><li><a href="about.html">About Friday</a></li></ul>
+    </div>
+      <div class="foot__col">
+      <p class="foot__h">For villa owners</p>
+      <ul class="foot__list"><li><a href="partner.html">List your villa</a></li></ul>
+    </div>
+    </div>
+
+    <div class="foot__bar">
+      <span>&copy; <span data-year>2026</span> Friday</span>
+      <span>A Kusum Travels brand &middot; 22 years of travel design experience.</span>
+    </div>
+  </div>
+</footer>
+<script src="assets/js/friday.js"></script>
+<script src="assets/js/villas.js"></script>
+</body>
+</html>

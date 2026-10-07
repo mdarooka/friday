@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contact Friday &middot; Friday</title>
+<meta name="description" content="Contact Friday about planning a trip, a villa stay or a sample package.">
+<meta name="theme-color" content="#F4F1EA">
+<meta property="og:title" content="Contact Friday · Friday">
+<meta property="og:description" content="Contact Friday about planning a trip, a villa stay or a sample package.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/friday.css">
+
+<style>.nav__cta{--fg:var(--paper);--bg:var(--ink);margin-left:clamp(.4rem,1vw,1rem)}
+.head.is-solid .nav__cta,.head.is-light .nav__cta{--fg:var(--ink);--bg:var(--paper)}
+.hero__cta{--bg:var(--ink);--accent:var(--ochre);flex:none;margin-right:auto}</style>
+</head>
+<body data-light-head>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="head" data-head>
+  <div class="head__in">
+    <a class="wordmark" href="index.html" aria-label="Friday — home">
+      <span class="wordmark__name">Friday</span>
+    </a>
+
+    <nav class="nav" aria-label="Primary">
+      <a class="nav__link" href="villas.html">Villas</a>
+      <a class="nav__link" href="departures.html">Packages</a>
+      <a class="nav__link" href="about.html">About Friday</a>
+      <a class="nav__link" href="help.html">Help &amp; contact</a>
+      <a class="nav__link" href="trip.html" data-nav-auth>Sign in</a>
+      <a class="btn btn--sm btn--solid nav__cta" href="trip.html">Plan a trip</a>
+    </nav>
+
+    <button class="burger" aria-expanded="false" aria-controls="site-menu">
+      <span class="burger__txt">Menu</span>
+      <span class="burger__bars" aria-hidden="true"><i></i><i></i><i></i></span>
+    </button>
+  </div>
+</header>
+
+<div class="menu" id="site-menu">
+  <div class="wrap">
+    <div class="menu__grid">
+      <div class="menu__col">
+        <p class="menu__h">Explore</p>
+        <a class="menu__link" href="villas.html">Villas</a>
+        <a class="menu__link" href="departures.html">Packages</a>
+      </div>
+      <div class="menu__col">
+        <p class="menu__h">Your trip</p>
+        <a class="menu__link" href="trip.html">Plan a trip</a>
+        <a class="menu__link menu__link--sm" href="trip.html#/">My trips</a>
+        <a class="menu__link menu__link--sm" href="trip.html#/bookings">Bookings</a>
+        <a class="menu__link menu__link--sm" href="trip.html" data-menu-auth>Sign in</a>
+      </div>
+      <div class="menu__col">
+        <p class="menu__h">Help</p>
+        <a class="menu__link" href="help.html">Help &amp; FAQs</a>
+        <a class="menu__link menu__link--sm" href="contact.html" aria-current="page">Contact Friday</a>
+      </div>
+      <div class="menu__col">
+        <p class="menu__h">Friday</p>
+        <a class="menu__link" href="about.html">About Friday</a>
+        <p class="menu__h" style="margin-top:2.2rem">For villa owners</p>
+        <a class="menu__link menu__link--sm" href="partner.html">List your villa</a>
+      </div>
+    </div>
+  </div>
+</div>
+<main id="main">
+
+<section class="phero wrap">
+    <div class="phero__grid">
+      <div class="phero__title">
+        <p class="eyebrow ">Contact Friday</p>
+        <h1 class="h1" style="margin-top:1.1rem" data-reveal>Tell us where<br>you&rsquo;d like to go.</h1>
+        <p class="lede" style="margin-top:1.6rem" data-reveal>Share the destination, dates or kind of trip you have in mind. You can also start with Friday&rsquo;s AI planner.</p>
+      </div>
+      <div class="phero__side">
+        
+      </div>
+    </div>
+    
+  </section>
+
+<section class="section section--flush-top">
+  <div class="wrap">
+    <div class="grid">
+      <div class="c-7 c-md-12">
+        <form class="form" data-commission novalidate>
+          <div class="grid" style="gap:2.1rem var(--gap)">
+            <div class="c-6 c-sm-12 field">
+              <label class="field__label" for="f-name">Your name</label>
+              <input class="field__input" id="f-name" name="name" type="text" required autocomplete="name" placeholder="First and last">
+            </div>
+            <div class="c-6 c-sm-12 field">
+              <label class="field__label" for="f-mail">Email</label>
+              <input class="field__input" id="f-mail" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+            </div>
+            <div class="c-6 c-sm-12 field">
+              <label class="field__label" for="f-when">When are you thinking of travelling?</label>
+              <input class="field__input" id="f-when" name="when" type="text" placeholder="A month, season or flexible">
+            </div>
+            <div class="c-6 c-sm-12 field">
+              <label class="field__label" for="f-who">Who is travelling?</label>
+              <select class="field__select" id="f-who" name="who">
+                <option>Two of us</option>
+                <option>A family</option>
+                <option>Three generations</option>
+                <option>A small group of friends</option>
+                <option>On my own</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field__label">What would you like help with?</span>
+            <div class="chips">
+              <label class="chip"><input type="checkbox" name="composition" value="Villa stay">Villa stay</label>
+              <label class="chip"><input type="checkbox" name="composition" value="Sample package">Sample package</label>
+              <label class="chip"><input type="checkbox" name="composition" value="AI trip planning">AI trip planning</label>
+              <label class="chip"><input type="checkbox" name="composition" value="Something else">Something else</label>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="f-shape">Where would you like to go, or what are you imagining?</label>
+            <textarea class="field__area" id="f-shape" name="shape" placeholder="A destination, a place to stay, a particular experience, or the first idea that came to mind."></textarea>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="f-last">Anything else we should know?</label>
+            <textarea class="field__area" id="f-last" name="last" placeholder="Optional details that could help us understand your trip."></textarea>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="f-heard">How did you find Friday? <span style="color:var(--fg-mute)">Optional</span></label>
+            <input class="field__input" id="f-heard" name="heard" type="text">
+          </div>
+
+          <div>
+            <button class="btn btn--solid" type="submit">Send your enquiry <span class="arrow">&rarr;</span></button>
+            <p style="margin-top:1.2rem;font-size:.8125rem;color:var(--fg-mute);max-width:34em">Your enquiry will be sent to Friday. You can also email <a class="link" href="mailto:studio@friday.com">studio@friday.com</a>.</p>
+          </div>
+        </form>
+
+        <div class="form-sent" data-commission-sent>
+          <p class="eyebrow ">Received</p>
+          <h2 class="h2" style="margin:1rem 0 1.2rem">Thank you<span data-sent-name></span>.</h2>
+          <p class="lede" style="margin-inline:auto" data-commission-delivery-note role="status">Your enquiry has been saved.</p>
+          <p style="margin-top:2rem"><a class="link" href="trip.html#/">Open my trips <span class="arrow">&rarr;</span></a></p>
+        </div>
+      </div>
+
+      <div class="c-4 s-9 c-md-12" style="align-self:start">
+        <div style="position:sticky;top:calc(var(--head-h) + 2.5rem)">
+          <div data-reveal="mask"><div class="plate plate--ratio-t plate--arch-deep"><svg class="plate__svg" viewBox="0 0 800 1040" preserveAspectRatio="xMidYMid slice" role="img" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M0 0H800V582.4000000000001H0Z" fill="#E6EEF2"/><path d="M0 198.02H800V582.4H0Z" fill="#B4D0DC" opacity=".7"/><circle cx="592" cy="232.96" r="64" fill="#F4CE7E"/><circle cx="592" cy="232.96" r="78" fill="none" stroke="#F4CE7E" stroke-width="1" opacity=".45"/><path d="M32 582.4L32 582.4L58.67 548.95L85.33 511.07L112 479.86L138.67 465.04L165.33 469.08L192 485.97L218.67 505.35L245.33 519.32L272 527.29L298.67 535.71L325.33 552.88L352 582.4L352 582.4Z" fill="#74A5BC"/><path d="M288 582.4L288 582.4L322.67 534.61L357.33 480.49L392 435.91L426.67 414.74L461.33 420.51L496 444.64L530.67 472.33L565.33 492.29L600 503.67L634.67 515.71L669.33 540.23L704 582.4L704 582.4Z" fill="#3E7391"/><path d="M592 582.4L592 582.4L613.33 558.51L634.67 531.45L656 509.16L677.33 498.57L698.67 501.46L720 513.52L741.33 527.36L762.67 537.34L784 543.04L805.33 549.05L826.67 561.32L848 582.4L848 582.4Z" fill="#74A5BC"/><path d="M0 582.4H800V1040H0Z" fill="#1F4560"/><rect x="186.83" y="609.86" width="267.72" height="2" fill="#B4D0DC" opacity=".3"/><rect x="155.35" y="655.62" width="434" height="2" fill="#B4D0DC" opacity=".3"/><rect x="59.59" y="701.38" width="504.18" height="2" fill="#B4D0DC" opacity=".3"/><rect x="74.19" y="747.14" width="411.66" height="2" fill="#B4D0DC" opacity=".3"/><rect x="160.51" y="792.9" width="521.27" height="2" fill="#B4D0DC" opacity=".3"/><rect x="142.85" y="838.66" width="364.16" height="2" fill="#B4D0DC" opacity=".3"/><rect x="144.89" y="884.42" width="222.71" height="2" fill="#B4D0DC" opacity=".3"/><rect x="101.16" y="930.18" width="266.66" height="2" fill="#B4D0DC" opacity=".3"/><rect x="177.3" y="975.94" width="194.37" height="2" fill="#B4D0DC" opacity=".3"/><path d="M-4 956.48C2.22 956.03,21.56 954.57,33.33 953.81C45.11 953.04,55.56 952.37,66.67 951.87C77.78 951.37,88.89 950.99,100 950.78C111.11 950.57,122.22 950.51,133.33 950.6C144.44 950.7,155.56 950.95,166.67 951.34C177.78 951.73,188.89 952.28,200 952.95C211.11 953.62,222.22 954.44,233.33 955.35C244.44 956.26,255.56 957.31,266.67 958.41C277.78 959.51,288.89 960.72,300 961.95C311.11 963.18,322.22 964.49,333.33 965.78C344.44 967.07,355.56 968.41,366.67 969.69C377.78 970.97,388.89 972.26,400 973.46C411.11 974.66,422.22 975.84,433.33 976.89C444.44 977.94,455.56 978.93,466.67 979.78C477.78 980.63,488.89 981.38,500 981.97C511.11 982.57,522.22 983.04,533.33 983.35C544.44 983.66,555.56 983.83,566.67 983.84C577.78 983.85,588.89 983.7,600 983.41C611.11 983.11,622.22 982.66,633.33 982.08C644.44 981.5,655.56 980.76,666.67 979.93C677.78 979.09,688.89 978.12,700 977.07C711.11 976.03,722.22 974.87,733.33 973.67C744.44 972.48,754.89 971.19,766.67 969.92C778.44 968.64,797.78 966.66,804 966.01L800 1040L0 1040Z" fill="#0E2233"/></svg></div></div>
+          <div style="margin-top:1.8rem"><p class="eyebrow ">Start with Friday</p>
+            <p class="card__d">Plan a trip with the AI planner, browse villas, or explore a sample package.</p>
+            <div style="margin-top:1rem;display:grid;gap:.65rem">
+              <a class="link" href="trip.html">AI trip planner <span class="arrow">&rarr;</span></a>
+              <a class="link" href="villas.html">Friday villas <span class="arrow">&rarr;</span></a>
+              <a class="link" href="departures.html">Sample packages <span class="arrow">&rarr;</span></a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+</main>
+
+<footer class="foot inverse">
+  <div class="wrap">
+    <div class="foot__grid">
+      <div class="foot__col">
+      <p class="foot__h">Explore</p>
+      <ul class="foot__list"><li><a href="villas.html">Villas</a></li><li><a href="departures.html">Packages</a></li><li><a href="trip.html">Plan a trip</a></li></ul>
+    </div>
+      <div class="foot__col">
+      <p class="foot__h">Your trip</p>
+      <ul class="foot__list"><li><a href="trip.html#/">My trips</a></li><li><a href="trip.html#/bookings">Bookings</a></li><li><a href="trip.html">Sign in</a></li></ul>
+    </div>
+      <div class="foot__col">
+      <p class="foot__h">Help</p>
+      <ul class="foot__list"><li><a href="help.html">Help & FAQs</a></li><li><a href="contact.html">Contact Friday</a></li></ul>
+    </div>
+      <div class="foot__col">
+      <p class="foot__h">Friday</p>
+      <ul class="foot__list"><li><a href="about.html">About Friday</a></li></ul>
+    </div>
+      <div class="foot__col">
+      <p class="foot__h">For villa owners</p>
+      <ul class="foot__list"><li><a href="partner.html">List your villa</a></li></ul>
+    </div>
+    </div>
+
+    <div class="foot__bar">
+      <span>&copy; <span data-year>2026</span> Friday</span>
+      <span>A Kusum Travels brand &middot; 22 years of travel design experience.</span>
+    </div>
+  </div>
+</footer>
+<script src="assets/js/friday.js"></script>
+
+</body>
+</html>

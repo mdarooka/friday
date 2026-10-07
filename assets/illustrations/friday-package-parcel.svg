@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" fill="none">
+  <rect width="1200" height="760" fill="#E9E5DC"/>
+  <path d="M0 548c154-38 284-30 405 11 128 44 252 46 384 2 152-51 271-51 411-7v206H0V548Z" fill="#D7D3C2"/>
+  <path d="M0 625c136-35 256-24 374 11 146 43 248 34 386-7 151-45 285-38 440 10v121H0V625Z" fill="#B9B79C" opacity=".57"/>
+
+  <!-- Low, fully wrapped parcel with softly irregular folded paper edges. -->
+  <path d="m246 321 640-72 73 47-676 82-52-30 15-27Z" fill="#E3D3B8"/>
+  <path d="m283 378 676-82-12 244-652 78-12-240Z" fill="#C9B392"/>
+  <path d="m959 296 45-3-13 250-44-3 12-244Z" fill="#B69B75"/>
+  <path d="m246 321 640-72 73 47-676 82-52-30 15-27Z" stroke="#A58B68" stroke-width="2" opacity=".62"/>
+  <path d="m283 378 27 9-15 231m652-322-13 25-1 218m-667-425 34-10 21 17m560-84 32-3 28 18" stroke="#A58B68" stroke-width="2" opacity=".58"/>
+  <path d="m303 388 637-77m-629 289 631-75" stroke="#8A806D" stroke-width="1.5" opacity=".26"/>
+  <path d="m286 603 23 15 37-5m586-72 19-8 17 8" stroke="#9C815E" stroke-width="2" opacity=".56"/>
+
+  <!-- Thin crossed parcel twine, following the folds across top and front. -->
+  <path d="m579 283 8 279m-4-279 14-2-5 283" stroke="#806445" stroke-width="4" opacity=".88"/>
+  <path d="m252 344 738-88m-709 119 687-84" stroke="#806445" stroke-width="4" opacity=".9"/>
+  <path d="m581 410 9 1m-9 10 10 1m-9 160 11-2" stroke="#D9C6A5" stroke-width="2" opacity=".8"/>
+  <!-- A small practical knot, with short twine ends. -->
+  <path d="m581 347c-14-8-28-6-30 2-2 7 10 13 31 14 20-2 32-8 30-15-2-7-16-9-31-1Z" stroke="#806445" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m581 358-8 16m10-15 10 16" stroke="#806445" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- A blank address panel and quiet travel-postmark detail. -->
+  <path d="m691 444 180-22-3 105-179 22 2-105Z" fill="#EADFCA" stroke="#A58B68" stroke-width="2"/>
+  <path d="m709 462 104-13m-104 25 137-17m-138 29 92-11" stroke="#A58B68" stroke-width="2" stroke-linecap="round" opacity=".62"/>
+  <path d="m836 477 15-2m-15 10 14-2" stroke="#A58B68" stroke-width="2" stroke-linecap="round" opacity=".38"/>
+  <circle cx="843" cy="346" r="31" stroke="#8A472F" stroke-width="2.5" opacity=".6"/>
+  <circle cx="843" cy="346" r="24" stroke="#8A472F" stroke-width="1.5" stroke-dasharray="2 5" opacity=".6"/>
+  <path d="m829 354 13-16 14 16m-22 0h28" stroke="#8A472F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity=".72"/>
+  <path d="m886 329 36-5m-34 13 38-5m-36 13 37-5" stroke="#8A472F" stroke-width="2" stroke-linecap="round" opacity=".5"/>
+
+  <path d="M166 690h872" stroke="#8A806D" stroke-width="1" opacity=".34"/>
+  <path d="M166 705h298" stroke="#8A806D" stroke-width="2" opacity=".2"/>
+  <path d="M0 0h1200v760H0z" fill="url(#grain)" opacity=".09"/>
+  <defs><pattern id="grain" width="13" height="13" patternUnits="userSpaceOnUse"><circle cx="2" cy="3" r=".65" fill="#3B1410"/><circle cx="10" cy="8" r=".45" fill="#3B1410"/><circle cx="6" cy="12" r=".4" fill="#3B1410"/></pattern></defs>
+</svg>

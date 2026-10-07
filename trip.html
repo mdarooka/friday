@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plan a trip · Friday</title>
+<meta name="description" content="Friday’s trip planner: a conversation on the left, a living plan and map on the right.">
+<meta name="theme-color" content="#F4F1EA">
+<meta property="og:title" content="Plan a trip · Friday">
+<meta property="og:description" content="Friday’s trip planner: a conversation on the left, a living plan and map on the right.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/friday.css">
+<link rel="stylesheet" href="assets/css/trip.css">
+<link rel="stylesheet" href="assets/css/trip-workspace.css">
+<link rel="stylesheet" href="assets/css/trip-map.css">
+<link rel="stylesheet" href="assets/css/trip-chat.css">
+<script src="assets/js/trip-data.js" defer></script>
+<script src="assets/js/trip-art.js" defer></script>
+<script src="assets/js/trip-generator.js" defer></script>
+<script src="assets/js/trip-app.js" defer></script>
+<script src="assets/js/trip-backend.js" defer></script>
+<script src="assets/js/trip-integrations.js" defer></script>
+<script src="assets/js/trip-reel.js" defer></script>
+<script src="assets/js/trip-map.js" defer></script>
+<script src="assets/js/trip-chatgpt.js" defer></script>
+<script src="assets/js/trip-chat.js" defer></script>
+<script src="assets/js/trip-workspace.js" defer></script>
+<script src="assets/js/trip-villa.js" defer></script>
+</head>
+<body class="fx">
+<header class="fx-start-header" data-start-header>
+  <a class="fx-start-header__wordmark" href="index.html" aria-label="Friday home">Friday</a>
+  <nav class="fx-start-header__nav" aria-label="Friday website">
+    <a href="villas.html">Villas</a><a href="departures.html">Packages</a><a href="about.html">About Friday</a>
+  </nav>
+</header>
+<div class="fx-app" data-app>
+  <aside class="fx-side" data-side aria-label="Planner navigation"></aside>
+  <main class="fx-main" data-main>
+    <section class="fx-page" data-page="home" hidden></section>
+    <section class="fx-page" data-page="new" hidden></section>
+    <section class="fx-page" data-page="bookings" hidden></section>
+    <section class="fx-page" data-page="saved" hidden></section>
+    <section class="fx-page" data-page="notifications" hidden></section>
+    <section class="fx-page" data-page="preferences" hidden></section>
+    <section class="fx-page fx-page--trip" data-page="trip" hidden><div data-trip-root></div></section>
+  </main>
+</div>
+<div data-layer></div>
+<noscript><p style="padding:2rem;font-family:sans-serif">Friday's planner needs JavaScript. The rest of the site does not: <a href="index.html">back to Friday</a>.</p></noscript>
+</body>
+</html>
