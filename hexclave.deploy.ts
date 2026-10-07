@@ -29,6 +29,7 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         HEXCLAVE_PROJECT_ID: hexclave.projectId,
         HEXCLAVE_SECRET_SERVER_KEY: hexclave.secretServerKey,
         FRIDAY_ENQUIRY_EMAIL: "manavdarooka1@gmail.com",
+        FRIDAY_WHATSAPP_NUMBER: secret("FRIDAY_WHATSAPP_NUMBER", ""),
         QUOTE_ADMIN_EMAILS: "manavdarooka1@gmail.com",
         AI_PROVIDER: "claude",
         AI_MODEL: "claude-sonnet-5-5",

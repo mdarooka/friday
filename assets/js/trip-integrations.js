@@ -62,11 +62,22 @@
   }
 
   async function connectionStatus() { return request('/api/integrations/google/status'); }
+  function tripContext(trip) {
+    if (!trip) return null;
+    var dates = trip.prefs && trip.prefs.dates || {};
+    var destination = trip.destination || trip.destName || '';
+    try { var dest = trip.destId && FT.dest && FT.dest(trip.destId); if (dest && dest.name) destination = dest.name; } catch (e) {}
+    var context = { name: String(trip.title || trip.name || 'Your trip').slice(0, 120), destination: String(destination || '').slice(0, 120), startDate: String(dates.start || '').slice(0, 10), endDate: String(dates.end || '').slice(0, 10) };
+    return context;
+  }
+
   function openCallbackRequest(opts) {
     opts = opts || {};
     if (!FT.ui || !FT.ui.modal) return;
     var body = doc.createElement('div');
-    body.innerHTML = '<p class="fx-hint">Leave your number and a good time. Friday’s team will call to talk through your trip.</p><form data-callback-request-form><label class="fx-field fx-label">Your name<input class="fx-input" name="name" type="text" maxlength="100" autocomplete="name" required></label><label class="fx-field fx-label">Indian mobile number<input class="fx-input" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="18" placeholder="10 digits or +91" pattern="(?:\\+?91[\\s-]?)?[6-9][0-9\\s-]{8,12}" required></label><label class="fx-field fx-label">Best time to call<select class="fx-input" name="bestTime"><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></label><p class="fx-error" role="alert" hidden></p><p class="fx-hint" data-callback-status role="status" aria-live="polite"></p></form>';
+    var context = opts.tripContext || null;
+    var contextSummary = context ? '<section class="fx-integration-card fx-designer-trip-context"><strong>' + esc(context.name || 'Your trip') + '</strong>' + (context.destination ? '<p>' + esc(context.destination) + '</p>' : '') + (context.startDate || context.endDate ? '<p>' + esc(context.startDate || 'Dates to confirm') + (context.endDate ? ' – ' + esc(context.endDate) : '') + '</p>' : '') + '<span class="fx-hint">We’ll include this trip with your request.</span></section>' : '';
+    body.innerHTML = '<p class="fx-hint">Leave your number and a good time. Friday’s team will call to talk through your trip.</p>' + contextSummary + '<form data-callback-request-form><label class="fx-field fx-label">Your name<input class="fx-input" name="name" type="text" maxlength="100" autocomplete="name" required></label><label class="fx-field fx-label">Indian mobile number<input class="fx-input" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="18" placeholder="10 digits or +91" pattern="(?:\\+?91[\\s-]?)?[6-9][0-9\\s-]{8,12}" required></label><label class="fx-field fx-label">Best time to call<select class="fx-input" name="bestTime"><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></label><p class="fx-error" role="alert" hidden></p><p class="fx-hint" data-callback-status role="status" aria-live="polite"></p></form>';
     var form = body.querySelector('[data-callback-request-form]');
     FT.ui.modal({ title: 'Call me back', body: body, actions: [
       { label: 'Cancel' },
@@ -76,11 +87,12 @@
         var status = body.querySelector('[data-callback-status]'), error = body.querySelector('.fx-error');
         error.hidden = true; status.textContent = 'Sending your request…';
         try {
-          var response = await fetch('/api/callbacks', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.querySelector('[name="name"]').value, phone: form.querySelector('[name="phone"]').value, bestTime: form.querySelector('[name="bestTime"]').value, entryPoint: 'planner', tripId: opts.tripId || undefined }) });
+          var response = await fetch('/api/callbacks', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.querySelector('[name="name"]').value, phone: form.querySelector('[name="phone"]').value, bestTime: form.querySelector('[name="bestTime"]').value, entryPoint: 'planner', tripId: opts.tripId || undefined, tripContext: context || undefined }) });
           var result = await response.json(); if (!response.ok) throw new Error(result.error || 'Your request could not be saved. Please try again.');
           if (window.FridayCallbackAnalytics) window.FridayCallbackAnalytics.track('planner', result.id);
           status.textContent = result.delivery && result.delivery.notification === 'provider_accepted' ? 'Thanks. Friday’s team has your number and will call at that time.' : 'Your request is saved. The team will call at that time.';
           form.reset(); button.textContent = 'Request saved';
+          if (typeof opts.onSubmitted === 'function') opts.onSubmitted(result);
         } catch (e) { error.textContent = e.message || 'Your request could not be saved. Please try again.'; error.hidden = false; status.textContent = ''; button.disabled = false; }
       } }
     ] });
@@ -95,12 +107,27 @@
     if (!trip && FT.store && FT.store.trip) trip = FT.store.trip();
     if (!trip && FT.trips && FT.trips.create) { trip = FT.trips.create(); if (FT.trips.open) FT.trips.open(trip.id); }
     var rememberedPreferences = trip && Array.isArray(trip.rememberedPreferences) ? trip.rememberedPreferences.filter(function (item) { return item && typeof item.text === 'string' && item.text.trim(); }) : [];
-    var body = doc.createElement('div'), state = { scope: opts.scope || 'upcoming', draft: opts.draft || null, draftFresh: false, text: opts.message || '', answers: Object.assign({}, opts.answers || {}), listings: Array.from(new Set((opts.listingIds || []).concat(opts.draft && opts.draft.listingIds || []))), workflowId: opts.workflowId || ('friday_' + Math.random().toString(36).slice(2, 10)), conversationId:opts.conversationId || opts.workflowId || ('friday_' + Math.random().toString(36).slice(2, 10)), ownerId:opts.ownerId||FT.backend.auditOwnerId, includeRemembered: rememberedPreferences.length > 0 };
+    var currentTripContext = tripContext(trip), initialAnswers = {};
+    if (currentTripContext) {
+      if (currentTripContext.destination) initialAnswers.destination = currentTripContext.destination;
+      if (currentTripContext.startDate) initialAnswers.startDate = currentTripContext.startDate;
+      if (currentTripContext.endDate) initialAnswers.endDate = currentTripContext.endDate;
+    }
+    if (opts.draft) {
+      if (opts.draft.destination) initialAnswers.destination = opts.draft.destination;
+      if (opts.draft.dates && opts.draft.dates.start) initialAnswers.startDate = opts.draft.dates.start;
+      if (opts.draft.dates && opts.draft.dates.end) initialAnswers.endDate = opts.draft.dates.end;
+      if (opts.draft.travelers) initialAnswers.travelers = opts.draft.travelers;
+      if (opts.draft.budget) initialAnswers.budget = opts.draft.budget;
+    }
+    Object.assign(initialAnswers, opts.answers || {});
+    var body = doc.createElement('div'), state = { scope: opts.scope || 'upcoming', draft: opts.draft || null, draftFresh: false, text: opts.message || '', answers: initialAnswers, listings: Array.from(new Set((opts.listingIds || []).concat(opts.draft && opts.draft.listingIds || []))), workflowId: opts.workflowId || ('friday_' + Math.random().toString(36).slice(2, 10)), conversationId:opts.conversationId || opts.workflowId || ('friday_' + Math.random().toString(36).slice(2, 10)), ownerId:opts.ownerId||FT.backend.auditOwnerId, includeRemembered: rememberedPreferences.length > 0 };
     function field(label,key,type,value,attrs) { var input = type === 'textarea' ? '<textarea class="fx-input" data-answer="' + esc(key) + '" ' + (attrs || '') + '>' + esc(value || '') + '</textarea>' : '<input class="fx-input" data-answer="' + esc(key) + '" type="' + (type || 'text') + '" value="' + esc(value || '') + '" ' + (attrs || '') + '>'; return '<label class="fx-field fx-label">' + esc(label) + input + '</label>'; }
     function renderIntro() {
       var bookings = FT.store && FT.store.get ? (FT.store.get().bookings || []) : [];
       var ambiguous = bookings.filter(function (b) { return b.dateStatus === 'needs-clarification'; });
-      body.innerHTML = '<p class="fx-hint">Confirm the details below.</p>' +
+      var tripSummary = currentTripContext ? '<section class="fx-integration-card fx-designer-trip-context"><strong>' + esc(currentTripContext.name || 'Your trip') + '</strong>' + (currentTripContext.destination ? '<p>' + esc(currentTripContext.destination) + '</p>' : '') + (currentTripContext.startDate || currentTripContext.endDate ? '<p>' + esc(currentTripContext.startDate || 'Dates to confirm') + (currentTripContext.endDate ? ' – ' + esc(currentTripContext.endDate) : '') + '</p>' : '') + '<span class="fx-hint">We’ll start your quote request with these trip details.</span></section>' : '';
+      body.innerHTML = '<p class="fx-hint">Confirm the details below.</p>' + tripSummary +
         (rememberedPreferences.length ? '<section class="fx-integration-card"><div><strong>Preferences remembered for this trip</strong><p class="fx-hint">If included, Friday’s travel designer will see these details with your quote request.</p>' + rememberedPreferences.map(function (item) { return '<p><strong>' + esc(item.label || 'Travel preference') + ':</strong> ' + esc(item.text) + '</p>'; }).join('') + '<label class="fx-check"><input type="checkbox" data-include-memory ' + (state.includeRemembered ? 'checked' : '') + '> Include these preferences with my request to the travel designer</label></div></section>' : '') +
         (ambiguous.length ? '<details class="fx-integration-card"><summary>Review ' + ambiguous.length + ' booking' + (ambiguous.length === 1 ? '' : 's') + ' with unclear dates</summary><p class="fx-hint">Choose the emails to consider and confirm exact dates below.</p>' + ambiguous.map(function (b) { var selected=(state.answers.bookingIds||[]).indexOf(b.serverId||b.id)>=0; return '<label><input type="checkbox" data-booking-choice="' + esc(b.serverId||b.id) + '" ' + (selected?'checked':'') + '><span><strong>' + esc(b.title || b.name || 'Travel booking') + '</strong>' + (b.start || b.end ? ' · ' + esc(b.start || 'date unclear') + (b.end ? ' to ' + esc(b.end) : '') : ' · dates unclear') + '</span></label>'; }).join('') + '</details>' : '') +
         '<label class="fx-field fx-label">Trip request<textarea class="fx-input" data-plan-message rows="2" placeholder="Add a trip or package request">' + esc(state.text) + '</textarea></label>' +
@@ -118,7 +145,7 @@
         state.pendingInstructions = edit ? edit.value : (state.pendingInstructions !== undefined ? state.pendingInstructions : state.draft && state.draft.instructions || state.text || '');
         var memoryChoice = body.querySelector('[data-include-memory]'); if (memoryChoice) state.includeRemembered = memoryChoice.checked;
         state.answers.instructions = FT.memoryContext ? FT.memoryContext.quoteInstructions(state.pendingInstructions, rememberedPreferences, state.includeRemembered) : state.pendingInstructions;
-        var payload = { message: state.text || 'Help me plan around my travel bookings', scope: state.scope, answers: state.answers, listingIds: state.listings, conversationId:state.conversationId, ownerId:state.ownerId };
+        var payload = { message: state.text || 'Help me plan around my travel bookings', scope: state.scope, answers: state.answers, listingIds: state.listings, conversationId:state.conversationId, ownerId:state.ownerId, plannerTripId: trip && trip.id || undefined };
         if (trip && trip.serverId) payload.tripId = trip.serverId;
         if (state.draft) { payload.draftId = state.draft.id; payload.draftVersion = state.draft.version; }
         var result = body.querySelector('[data-plan-result]'); result.innerHTML = '<p class="fx-hint">Checking your bookings and Friday listings…</p>';
@@ -154,12 +181,12 @@
     renderIntro();
     var close = FT.ui.modal({ title: 'Plan around bookings', body: body, actions: [
       { label: 'Done' },
-      { label: 'Call me back', onClick: function () { openCallbackRequest({ tripId: opts.tripId || trip && (trip.serverId || trip.id) }); } },
+      { label: 'Call me back', onClick: function () { openCallbackRequest({ tripId: trip && trip.id || opts.tripId, tripContext: tripContext(trip) }); } },
       { label: 'Review with Friday', primary: true, onClick: function (c, button) { button.disabled = true; submit(c).finally(function () { button.disabled = false; }); } },
       { label: 'Send for a human quote', onClick: async function (c, button) {
         if (!state.draft || !state.draftFresh) { error('Review the latest version with Friday before sending it for a quote.'); return; }
         button.disabled = true;
-        try { var r = await request('/api/friday/handoffs', 'POST', { draftId: state.draft.id, version: state.draft.version, confirmed: true }); if (window.FridayQuoteAnalytics) window.FridayQuoteAnalytics.track(window.FridayQuoteAnalytics.plannerPath(), r.handoff && r.handoff.id); body.querySelector('[data-plan-result]').insertAdjacentHTML('beforeend', '<p role="status">Sent to Friday’s team for a quote. Status: ' + esc(r.handoff.status) + (r.handoff.customerEmail ? ' · Customer email: ' + esc(r.handoff.customerEmail) : '') + '</p>'); }
+        try { var r = await request('/api/friday/handoffs', 'POST', { draftId: state.draft.id, version: state.draft.version, confirmed: true }); if (window.FridayQuoteAnalytics) window.FridayQuoteAnalytics.track(window.FridayQuoteAnalytics.plannerPath(), r.handoff && r.handoff.id); doc.dispatchEvent(new Event('friday:handoff-created')); body.querySelector('[data-plan-result]').insertAdjacentHTML('beforeend', '<p role="status">Sent to Friday’s team for a quote. Status: ' + esc(r.handoff.status) + (r.handoff.customerEmail ? ' · Customer email: ' + esc(r.handoff.customerEmail) : '') + '</p>'); }
         catch (e) { error(e.message || 'Could not send this draft.'); } finally { button.disabled = false; }
       } }
     ] });
@@ -387,17 +414,85 @@
   }
 
   FT.integrations = { reviewImport: reviewImport, openConnections: openConnections, openFridayPlan: openFridayPlan, requestCallback: openCallbackRequest, shouldUseFridayPlan: function (text) { return /\b(villas?|(?:travel\s+)?packages?)\b/i.test(text || '') || /\b(my|existing|upcoming|these|the)\s+(bookings?|reservations?|confirmations?)\b/i.test(text || '') || /\b(plan|work around|use)\b.{0,80}\b(bookings?|reservations?|confirmations?)\b/i.test(text || ''); }, shouldDecline: function (text) { var s = String(text || ''); if (/\b(trip|travel|booking|villa|package|hotel|reservation|itinerary|visa|airport|flight|destination|nights?)\b/i.test(s)) return false; return /\b(write|generate|debug|review|explain|build|fix|compose|draft)\b.{0,60}\b(code|python|javascript|typescript|sql|program|script|software|app|poem|essay|short story|recipe)\b|\b(homework help|help with homework|solve (this )?(equation|math problem)|political debate|stock price|medical diagnosis)\b/i.test(s); }, connectionStatus: connectionStatus, checkFare: checkFare, openFareWatch: openFareWatch, openFareWatches: openFareWatches, editMemory: editMemory, openMemories: openMemories };
-  if (doc.querySelector('[data-app]')) {
-    var callbackCta = doc.createElement('button');
-    callbackCta.type = 'button'; callbackCta.className = 'fx-btn fx-btn--ink fx-planner-callback';
-    callbackCta.textContent = 'Call me back'; callbackCta.setAttribute('aria-label', 'Ask Friday to call you back');
-    function syncCallbackVisibility() { callbackCta.hidden = !!doc.querySelector('.fx-auth[data-auth-gate]'); }
-    new MutationObserver(syncCallbackVisibility).observe(doc.body, { childList: true, subtree: true });
-    syncCallbackVisibility();
+  var shareToken = new URLSearchParams(window.location.search).get('share');
+  if (doc.querySelector('[data-app]') && !shareToken) {
+    var contactRail = doc.createElement('div');
+    contactRail.className = 'fx-planner-contact';
+    contactRail.setAttribute('role', 'group');
+    contactRail.setAttribute('aria-label', 'Talk with your Friday travel designer');
+    contactRail.innerHTML = '<button type="button" class="fx-btn fx-btn--ink fx-planner-callback" data-designer-cta>Talk to your designer</button><a class="fx-btn fx-btn--line fx-planner-whatsapp" data-designer-whatsapp target="_blank" rel="noopener noreferrer" hidden><span class="fx-planner-whatsapp__full">WhatsApp your designer</span><span class="fx-planner-whatsapp__short">WhatsApp</span></a>';
+    var designerNav = doc.querySelector('[data-start-header] .fx-start-header__nav');
+    if (designerNav) designerNav.appendChild(contactRail);
+    var callbackCta = contactRail.querySelector('[data-designer-cta]');
+    var whatsappCta = contactRail.querySelector('[data-designer-whatsapp]');
+    var knownNumber = '';
+    var loadedStatus = Object.create(null);
+    var currentStatus = null;
+    var statusTripId = '';
+    function currentTrip() { return FT.store && FT.store.trip ? FT.store.trip() : null; }
+    function idFor(trip) { return trip && trip.id || ''; }
+    function statusLabel() {
+      callbackCta.classList.toggle('is-confirmed', !!currentStatus);
+      if (currentStatus) callbackCta.innerHTML = '<span>Your designer has this trip</span><span class="fx-planner-callback__promise">We’ll reply within 30 hours</span>';
+      else callbackCta.textContent = 'Talk to your designer';
+      callbackCta.setAttribute('aria-label', currentStatus ? 'Your designer has this trip. Friday will reply within 30 hours.' : 'Talk to your designer about this trip');
+    }
+    function refreshStatus() {
+      var trip = currentTrip(), tripId = idFor(trip);
+      if (!tripId || !FT.backend || !FT.backend.user) { currentStatus = null; statusTripId = ''; statusLabel(); return; }
+      if (tripId === statusTripId && (currentStatus || loadedStatus[tripId])) return;
+      statusTripId = tripId; currentStatus = null; statusLabel();
+      if (!loadedStatus[tripId]) loadedStatus[tripId] = Promise.all([
+        FT.backend.request('/api/callbacks?tripId=' + encodeURIComponent(tripId)),
+        FT.backend.request('/api/friday/handoffs').catch(function () { return { handoffs: [] }; })
+      ]).then(function (results) {
+        var callbacks = results[0].requests || [];
+        var handoffs = (results[1].handoffs || []).filter(function (item) { return item.snapshot && (item.snapshot.tripId === tripId || item.snapshot.tripId === (trip && trip.id || '')); });
+        var requests = callbacks.concat(handoffs.map(function (item) { return { id: item.id, status: item.status, created: item.createdAt, kind: 'quote' }; }));
+        requests.sort(function (a, b) { return String(b.created || '').localeCompare(String(a.created || '')); });
+        return requests[0] || null;
+      }).catch(function () { return null; });
+      loadedStatus[tripId].then(function (result) { if (statusTripId !== tripId) return; currentStatus = result; statusLabel(); });
+    }
+    function updateWhatsApp(trip) {
+      if (!knownNumber) { whatsappCta.hidden = true; whatsappCta.removeAttribute('href'); return; }
+      var context = tripContext(trip) || { name: 'my trip' };
+      var visible = [context.name, context.startDate && context.endDate ? context.startDate + ' to ' + context.endDate : context.startDate || context.endDate].filter(Boolean).join(' · ');
+      whatsappCta.href = 'https://wa.me/' + knownNumber + '?text=' + encodeURIComponent('Hi, I’d like to talk about ' + visible + '.');
+      whatsappCta.hidden = false;
+    }
+    function syncStickyContact() {
+      callbackCta.hidden = !!doc.querySelector('.fx-auth[data-auth-gate]');
+      var trip = currentTrip(); updateWhatsApp(trip); refreshStatus();
+    }
     callbackCta.addEventListener('click', function () {
-      var trip = FT.store && FT.store.trip ? FT.store.trip() : null;
-      openCallbackRequest({ tripId: trip && (trip.serverId || trip.id) });
+      var trip = currentTrip();
+      if (currentStatus) {
+        var body = doc.createElement('div');
+        body.innerHTML = '<p class="fx-integration-card" role="status"><strong>Your designer has this trip.</strong><br>We’ll reply within 30 hours. Your request stays with Friday’s travel-design team.</p>';
+        FT.ui.modal({ title: 'Trip request received', body: body, actions: [{ label: 'Close' }] });
+        return;
+      }
+      openCallbackRequest({
+        tripId: trip && trip.id || undefined,
+        tripContext: tripContext(trip),
+        onSubmitted: function () {
+          currentStatus = { status: 'new', kind: 'callback' }; statusLabel();
+          if (statusTripId) { delete loadedStatus[statusTripId]; refreshStatus(); }
+        }
+      });
     });
-    doc.body.appendChild(callbackCta);
+    new MutationObserver(syncStickyContact).observe(doc.body, { childList: true, subtree: true });
+    if (FT.store && FT.store.on) FT.store.on('change', syncStickyContact);
+    doc.addEventListener('friday:handoff-created', function () {
+      currentStatus = { status: 'queued', kind: 'quote' }; statusLabel();
+      if (statusTripId) { delete loadedStatus[statusTripId]; refreshStatus(); }
+    });
+    fetch('/api/capabilities', { credentials: 'same-origin' }).then(function (response) { return response.ok ? response.json() : {}; }).then(function (data) {
+      var number = String(data.whatsappNumber || '').replace(/\D/g, '');
+      knownNumber = /^\d{8,15}$/.test(number) ? number : ''; syncStickyContact();
+    }).catch(function () { syncStickyContact(); });
+    syncStickyContact();
+    doc.body.appendChild(contactRail);
   }
 })();

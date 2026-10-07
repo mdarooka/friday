@@ -1071,6 +1071,7 @@ ${PageHero({
           <p class="eyebrow">A quicker start</p>
           <h2 class="h3" id="callback-title" style="margin-top:.6rem">Prefer a call?</h2>
           <p class="card__d" style="margin:.5rem 0 1rem">Leave your number and a good time. Friday’s team will call to talk through your trip.</p>
+          <p style="margin:-.35rem 0 1rem"><a class="link" href="trip.html">Already planning? Talk to your designer in Friday’s planner <span class="arrow">&rarr;</span></a></p>
           <form class="form callback-form" data-callback-form data-entry-point="contact" novalidate>
             <div class="grid" style="gap:1rem var(--gap)">
               <div class="c-6 c-sm-12 field"><label class="field__label" for="callback-name">Your name</label><input class="field__input" id="callback-name" name="name" type="text" maxlength="100" required autocomplete="name"></div>

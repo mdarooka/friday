@@ -16,7 +16,8 @@ test('callback requests validate Indian numbers, enter the quotes queue, and not
   const admin = await signUp(request, 'QuoteAdmin');
   assert.equal((await request('/api/callbacks', 'POST', { name: 'Traveler', phone: '12345', bestTime: 'morning', entryPoint: 'contact' })).status, 422);
   assert.equal((await request('/api/callbacks', 'POST', { name: 'Traveler', phone: '9876543210', bestTime: 'whenever', entryPoint: 'contact' })).status, 422);
-  const submitted = await request('/api/callbacks', 'POST', { name: 'Traveler Jane', phone: '+91 98765-43210', bestTime: 'afternoon', entryPoint: 'planner', tripId: 'trip_123' });
+  const tripContext = { name: 'Goa weekend', destination: 'Goa', startDate: '2026-11-12', endDate: '2026-11-16' };
+  const submitted = await request('/api/callbacks', 'POST', { name: 'Traveler Jane', phone: '+91 98765-43210', bestTime: 'afternoon', entryPoint: 'planner', tripId: 'trip_123', tripContext }, { cookie: admin.cookie });
   assert.equal(submitted.status, 201);
   assert.equal(submitted.result.saved, true);
   assert.equal(submitted.result.delivery.notification, 'provider_accepted');
@@ -27,6 +28,8 @@ test('callback requests validate Indian numbers, enter the quotes queue, and not
   assert.match(notification, /Call me back/);
   assert.match(notification, /\+919876543210/);
   assert.match(notification, /afternoon/);
+  assert.match(notification, /Goa weekend/);
+  assert.match(notification, /2026-11-12/);
 
   const response = await request('/api/admin/quotes', 'GET', undefined, { cookie: admin.cookie });
   assert.equal(response.status, 200);
@@ -37,6 +40,13 @@ test('callback requests validate Indian numbers, enter the quotes queue, and not
   assert.equal(callback.bestTime, 'afternoon');
   assert.equal(callback.entryPoint, 'planner');
   assert.equal(callback.tripId, 'trip_123');
+  assert.deepEqual(callback.tripContext, tripContext);
+  const ownStatus = await request('/api/callbacks?tripId=trip_123', 'GET', undefined, { cookie: admin.cookie });
+  assert.equal(ownStatus.status, 200);
+  assert.deepEqual(ownStatus.result.requests.map(row => row.status), ['new']);
+  const other = await signUp(request, 'OtherTraveler');
+  const otherStatus = await request('/api/callbacks?tripId=trip_123', 'GET', undefined, { cookie: other.cookie });
+  assert.deepEqual(otherStatus.result.requests, []);
   assert.equal((await db.one('SELECT count(*) AS n FROM callback_requests')).n, 1);
 });
 
@@ -86,6 +96,30 @@ test('callback analytics sends one privacy-safe event with source attribution', 
   assert.equal(serialized.includes('token=secret'), false);
 });
 
+test('WhatsApp number is exposed only when a valid international number is configured', async t => {
+  const { request } = await startApp(t, { env: { FRIDAY_WHATSAPP_NUMBER: '+91 98765-43210' } });
+  const valid = await request('/api/capabilities');
+  assert.equal(valid.result.whatsappNumber, '919876543210');
+  const { request: invalidRequest } = await startApp(t, { env: { FRIDAY_WHATSAPP_NUMBER: 'not-a-number' } });
+  assert.equal((await invalidRequest('/api/capabilities')).result.whatsappNumber, '');
+});
+
+test('planner contact rail stays off shared-trip links', async () => {
+  const integrations = await readFile(new URL('../assets/js/trip-integrations.js', import.meta.url), 'utf8');
+  let appended = 0;
+  const document = {
+    body: { appendChild: () => { appended += 1; } },
+    querySelector: selector => selector === '[data-app]' ? {} : null,
+    createElement: () => { throw new Error('shared links should not create a contact rail'); },
+  };
+  vm.runInNewContext(integrations, {
+    window: { location: { search: '?share=shared-trip-token' }, FridayTrip: {} },
+    document,
+    URLSearchParams,
+  });
+  assert.equal(appended, 0);
+});
+
 test('generated contact page and planner include callback form and analytics script', async () => {
   const contact = await readFile(new URL('../contact.html', import.meta.url), 'utf8');
   const planner = await readFile(new URL('../trip.html', import.meta.url), 'utf8');
@@ -96,5 +130,16 @@ test('generated contact page and planner include callback form and analytics scr
   const integrations = await readFile(new URL('../assets/js/trip-integrations.js', import.meta.url), 'utf8');
   assert.match(integrations, /label: 'Call me back'/);
   assert.match(integrations, /fx-planner-callback/);
-  assert.match(await readFile(new URL('../assets/css/trip.css', import.meta.url), 'utf8'), /\.fx-planner-callback\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(integrations, /Your designer has this trip/);
+  assert.match(integrations, /We’ll reply within 30 hours/);
+  assert.match(integrations, /https:\/\/wa\.me\//);
+  assert.match(integrations, /startDate.*endDate/);
+  assert.match(integrations, /answers: initialAnswers/);
+  assert.match(integrations, /currentTripContext\.destination/);
+  assert.match(integrations, /We’ll start your quote request with these trip details/);
+  const plannerCss = await readFile(new URL('../assets/css/trip.css', import.meta.url), 'utf8');
+  assert.match(plannerCss, /\.fx-planner-contact\s*\{[\s\S]*display:\s*flex/);
+  assert.doesNotMatch(plannerCss, /\.fx-planner-contact\s*\{[^}]*position:\s*fixed/);
+  assert.match(plannerCss, /\.fx-start-header__nav \.fx-planner-contact/);
+  assert.match(contact, /Already planning\? Talk to your designer/);
 });

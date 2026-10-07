@@ -324,7 +324,7 @@ export function createApp(options = {}) {
         await store.updateAiConversationEvent(db,{eventKey:audit.eventKey,ownerId:user.id,conversationId:audit.conversationId,content:auditContent(content),status,updated:new Date().toISOString()});
       };
       if (p==='/api/health') {allow('GET','HEAD');return send(200,{ok:true,itineraryProvider:itineraries.name,knowledge:{sources:knowledge.sources,chars:knowledge.chars}});}
-      if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportMetroCount:metros.length,chatgpt:publicChatgpt(chatgpt)});}
+      if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));const whatsappRaw=String(env.FRIDAY_WHATSAPP_NUMBER||'').trim();const whatsappNumber=/^\+?[0-9\s().-]+$/.test(whatsappRaw)?whatsappRaw.replace(/\D/g,''):'';return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportMetroCount:metros.length,whatsappNumber:/^\d{8,15}$/.test(whatsappNumber)?whatsappNumber:'',chatgpt:publicChatgpt(chatgpt)});}
       if (p==='/api/newsletter/unsubscribe') {
         allow('GET','HEAD','POST');
         const token=method==='POST'?(typeof body.token==='string'?body.token:''):url.searchParams.get('token')||'';
@@ -687,7 +687,7 @@ export function createApp(options = {}) {
       }
       if(p==='/api/admin/quotes'){
         allow('GET');if(!user)fail(401,'Please sign in.');const quotes=await friday.adminList(user,effectiveQuoteAdmins);
-        const callbacks=(await store.listCallbackRequests(db)).map(row=>({id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,status:row.status,createdAt:row.created}));
+        const callbacks=(await store.listCallbackRequests(db)).map(row=>({id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,tripContext:row.trip_context?JSON.parse(row.trip_context):null,status:row.status,createdAt:row.created}));
         return send(200,{quotes:[...callbacks,...quotes]});
       }
       const quotePreview=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/preview$/i);
@@ -791,6 +791,12 @@ export function createApp(options = {}) {
         const result=await google({path:p,method,body,user,url});
         if(result){if(result.redirect){res.writeHead(result.status,{Location:result.redirect,'Cache-Control':'no-store'});res.end();return;}return send(result.status,result.data);}
       }
+      if (p==='/api/callbacks' && method==='GET') {
+        if(!user)fail(401,'Please sign in.');
+        const tripId=str(url.searchParams.get('tripId'),'trip link',160,true);
+        if(!/^[A-Za-z0-9_-]+$/.test(tripId))fail(422,'This trip link is not valid.');
+        return send(200,{requests:await store.listCallbackRequestsForTrip(db,user.id,tripId)});
+      }
       if (p==='/api/callbacks' && method==='POST') {
         rate('form:'+ip,5);
         if(Buffer.byteLength(JSON.stringify(body))>20000) fail(413,'Your request is too long.');
@@ -801,9 +807,17 @@ export function createApp(options = {}) {
         if(!['planner','contact'].includes(entryPoint)) fail(422,'This callback request could not be placed.');
         const tripId=body.tripId==null||body.tripId===''?null:str(body.tripId,'trip link',160);
         if(tripId&&!/^[A-Za-z0-9_-]+$/.test(tripId)) fail(422,'This trip link is not valid.');
+        let tripContext=null;
+        if(body.tripContext&&typeof body.tripContext==='object'&&!Array.isArray(body.tripContext)){
+          const context=body.tripContext;
+          tripContext={name:str(context.name,'trip name',120),destination:str(context.destination,'destination',120),startDate:str(context.startDate,'trip start date',10),endDate:str(context.endDate,'trip end date',10)};
+          const validTripDate=value=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const date=new Date(`${value}T00:00:00.000Z`);return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;};
+          if(tripContext.startDate&&!validTripDate(tripContext.startDate)||tripContext.endDate&&!validTripDate(tripContext.endDate))fail(422,'Trip dates must be valid calendar dates.');
+          if(!tripContext.name&&!tripContext.destination&&!tripContext.startDate&&!tripContext.endDate)tripContext=null;
+        }
         const id=randomUUID(),created=new Date().toISOString();
-        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {})};
-        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,status:'new',created});
+        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {}),...(tripContext?{tripContext:[tripContext.name,tripContext.destination,tripContext.startDate&&tripContext.endDate?`${tripContext.startDate} to ${tripContext.endDate}`:tripContext.startDate||tripContext.endDate].filter(Boolean).join(' · ')}:{})};
+        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,ownerId:user?.id,tripContext,status:'new',created});
         const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
         const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
         return send(201,{id,saved:true,delivery:{notification:notification?.status||'blocked'}});

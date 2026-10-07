@@ -86,7 +86,8 @@ export function createFridayWorkflow({db,store,env=process.env,fetch:fetcher=fet
       ? clean(answers.instructions,6000)
       : clean([draft?.instructions, message && message!==draft?.instructions ? message : ''].filter(Boolean).join('\n'),6000);
     const instruction=clean([submittedInstructions,clarificationAnswers].filter(Boolean).join('\n'),8000);
-    const next={destination,dates,travelers,budget,flexibleBudget,listingIds,items:draft?.items||[],instructions:instruction,designerReview:answers.designerReview===true,scope,bookingIds:selectedBookings.map(b=>b.id),selectedBookings};
+    const plannerTripId=clean(body.plannerTripId||body.tripId||draft?.tripId||'',160);
+    const next={destination,dates,travelers,budget,flexibleBudget,listingIds,items:draft?.items||[],instructions:instruction,designerReview:answers.designerReview===true,scope,bookingIds:selectedBookings.map(b=>b.id),selectedBookings,...(plannerTripId?{tripId:plannerTripId}:{})};
     if((await Promise.all((answers.bookingIds||[]).map(async id=>id!=='none'&&!await store.findRecord(db,id,owner.id,'bookings')))).some(Boolean))fail(422,'Choose a booking from your saved records.');
     const questions=essentials(next);
     if(selectedBookings.some(b=>!b.dateVerified&&!b.userConfirmedDates))questions.push(ask('startDate','This saved email does not establish its actual travel dates. Please enter and confirm the trip start and end dates.'));

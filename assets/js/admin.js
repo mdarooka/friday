@@ -385,7 +385,7 @@
       var isSel = state.selectedQuoteId === q.id;
       var snap = q.snapshot || {};
       var isCallback = q.kind === 'callback';
-      var dest = isCallback ? 'Call me back' : (snap.destination || 'Unspecified destination');
+      var dest = isCallback ? ((q.tripContext && (q.tripContext.name || q.tripContext.destination)) || 'Call me back') : (snap.destination || 'Unspecified destination');
       var dates = isCallback ? esc(q.phone || '') + ' · ' + esc(q.bestTime || 'time not set') : ((snap.dates && (snap.dates.start || snap.dates.end))
         ? (snap.dates.start || '') + ' &ndash; ' + (snap.dates.end || '')
         : 'Dates flexible');
@@ -417,7 +417,9 @@
     if (q.kind === 'callback') {
       dom.quoteTitle.textContent = 'Callback request';
       var tripLink = q.tripId ? '<p><strong>Trip:</strong> <a href="trip.html#/trip/' + encodeURIComponent(q.tripId) + '" target="_blank" rel="noopener noreferrer">Open planner trip</a></p>' : '';
-      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>';
+      var tripContext = q.tripContext || {};
+      var tripSummary = q.tripContext ? '<p><strong>Trip:</strong> ' + esc(tripContext.name || 'Your trip') + (tripContext.destination ? ' · ' + esc(tripContext.destination) : '') + '</p>' + ((tripContext.startDate || tripContext.endDate) ? '<p><strong>Dates:</strong> ' + esc(tripContext.startDate || 'Not set') + (tripContext.endDate ? ' to ' + esc(tripContext.endDate) : '') + '</p>' : '') : '';
+      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + tripSummary + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>';
       dom.quoteNote.textContent = 'Call this traveler at their preferred time. This is a callback request, not a quote to send.';
       renderQuotes(state.quotes);
       return;
