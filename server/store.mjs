@@ -43,13 +43,16 @@ async function createSchema(tx, { tripsInVault = false } = {}) {
     CREATE INDEX IF NOT EXISTS friday_drafts_owner ON friday_drafts(owner_id,updated DESC);
     CREATE TABLE IF NOT EXISTS friday_handoffs(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,draft_id TEXT NOT NULL,version INTEGER NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,created TEXT NOT NULL,UNIQUE(owner_id,draft_id,version));
     CREATE INDEX IF NOT EXISTS friday_handoffs_owner ON friday_handoffs(owner_id,created DESC);
-    CREATE TABLE IF NOT EXISTS callback_requests(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL,best_time TEXT NOT NULL,entry_point TEXT NOT NULL,trip_id TEXT,status TEXT NOT NULL DEFAULT 'new',created TEXT NOT NULL,topic TEXT,villa_id TEXT,villa_name TEXT,villa_city TEXT,villa_guests INTEGER,"from" TEXT);
+    CREATE TABLE IF NOT EXISTS callback_requests(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL,best_time TEXT NOT NULL,entry_point TEXT NOT NULL,trip_id TEXT,status TEXT NOT NULL DEFAULT 'new',created TEXT NOT NULL,topic TEXT,villa_id TEXT,villa_name TEXT,villa_city TEXT,villa_guests INTEGER,"from" TEXT,owner_id TEXT,trip_context TEXT);
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS villa_id TEXT;
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS villa_name TEXT;
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS villa_city TEXT;
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS villa_guests INTEGER;
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS "from" TEXT;
+    ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS owner_id TEXT;
+    ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS trip_context TEXT;
     CREATE INDEX IF NOT EXISTS callback_requests_created ON callback_requests(created DESC);
+    CREATE INDEX IF NOT EXISTS callback_requests_owner_trip ON callback_requests(owner_id,trip_id,created DESC);
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS topic TEXT;   -- optional booking question ("Ask designer about this"); added after the first release
     CREATE TABLE IF NOT EXISTS friday_quotes(id TEXT PRIMARY KEY,handoff_id TEXT NOT NULL UNIQUE REFERENCES friday_handoffs(id),owner_id TEXT NOT NULL REFERENCES users(id),customer_email TEXT NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,quote TEXT,attempted_at TEXT,created TEXT NOT NULL,first_reply_at TEXT);
     ALTER TABLE friday_quotes ADD COLUMN IF NOT EXISTS first_reply_at TEXT;
@@ -126,9 +129,10 @@ export const createFridayHandoffWithQuote = (db,handoff,quote) => db.transaction
 export const listFridayHandoffs = (db,owner) => db.all('SELECT id,draft_id,version,snapshot,status,created FROM friday_handoffs WHERE owner_id=$1 ORDER BY created DESC',[owner]);
 export const listFridayQuotes = db => db.all("SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created,first_reply_at FROM friday_quotes ORDER BY CASE WHEN status='pending' AND first_reply_at IS NULL THEN 0 ELSE 1 END,created ASC");
 export const markFridayQuoteReplied = async (db,id,repliedAt) => changes(await db.query("UPDATE friday_quotes SET first_reply_at=$1 WHERE id=$2 AND status='pending' AND first_reply_at IS NULL",[repliedAt,id]));
-export const createCallbackRequest = async (db, row) => { await db.query('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created,topic,villa_id,villa_name,villa_city,villa_guests,"from") VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',[row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created,row.topic||null,row.villaId||null,row.villaName||null,row.villaCity||null,row.villaGuests??null,row.from||null]); };
+export const createCallbackRequest = async (db, row) => { await db.query('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created,topic,villa_id,villa_name,villa_city,villa_guests,"from",owner_id,trip_context) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)',[row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created,row.topic||null,row.villaId||null,row.villaName||null,row.villaCity||null,row.villaGuests??null,row.from||null,row.ownerId||null,row.tripContext?JSON.stringify(row.tripContext):null]); };
+export const listCallbackRequestsForTrip = (db, ownerId, tripId) => db.all('SELECT id,status,created FROM callback_requests WHERE owner_id=$1 AND trip_id=$2 ORDER BY created DESC',[ownerId,tripId]);
 export const setCallbackStatus = async (db, id, status) => changes(await db.query('UPDATE callback_requests SET status=$1 WHERE id=$2',[status,id]));
-export const listCallbackRequests = db => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,status,created,topic,villa_id,villa_name,villa_city,villa_guests,"from" FROM callback_requests ORDER BY created DESC');
+export const listCallbackRequests = db => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,status,created,topic,villa_id,villa_name,villa_city,villa_guests,"from",trip_context FROM callback_requests ORDER BY created DESC');
 export const getFridayQuote = (db,id) => db.one('SELECT * FROM friday_quotes WHERE id=$1',[id]);
 export const insertFridayQuote = async (db,row) => { await db.query('INSERT INTO friday_quotes(id,handoff_id,owner_id,customer_email,snapshot,status,created) VALUES($1,$2,$3,$4,$5,$6,$7)',[row.id,row.handoffId,row.ownerId,row.customerEmail,row.snapshot,row.status,row.created]); };
 export const claimFridayQuote = async (db,id,quote,attempted) => changes(await db.query("UPDATE friday_quotes SET status='sending',quote=$1,attempted_at=$2 WHERE id=$3 AND status='pending'",[quote,attempted,id]));

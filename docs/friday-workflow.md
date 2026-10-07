@@ -9,6 +9,7 @@ Travelers paste a reel URL and place name into Friday's existing chat. There is 
 OpenAI researches and checks the itinerary. Every stop must have a returned source citation, the named anchor must appear, the day count and dates must match, and generated prices are rejected. Travelers request changes in chat and review a newly researched draft; existing drafts remain untouched. **Request quotation** displays the exact saved itinerary and **Send for quotation** confirms transmission. The owner-scoped server state binds that approval to the current draft version. Edits invalidate the approval. Queue snapshots are immutable; repeated handoffs are deduplicated.
 
 The owner's inbox and quote allowlist live in server environment settings only. Hexclave's durable email outbox delivers the approved itinerary and customer contact to the team. Provider acceptance is not claimed as delivery. No booking or payment is made. Existing browser drafts are not migrated.
+AI provider credentials are required for reel research. If research is unavailable, generation fails safely with a retry message; the customer may still save the reel link and note through the existing social import flow. `QUOTE_ADMIN_EMAILS` controls access to the human quote queue, and `FRIDAY_ENQUIRY_EMAIL` is the server-side recipient for Friday team notifications. `FRIDAY_WHATSAPP_NUMBER` is an optional server setting for the planner’s WhatsApp click-to-chat link; it must be an international phone number and is omitted when empty. The link message contains only the trip name and dates, not account or itinerary details. Friday callback requests can carry the trip name, destination, and dates into the existing staff quote queue. Email delivery requires Hexclave Emails configuration described below. Browser drafts already present are left untouched and are not migrated.
 
 The first booking context is limited to future or ongoing records. A booking can anchor the conversation only when its actual travel date has explicit provenance (`dateStatus: "confirmed"`, `dateProvenance: "booking-date"`, or `dateSource: "extractor"`). Legacy Gmail imports use the email timestamp for sorting and do not qualify as travel dates. Friday asks the traveler to select a booking and separately confirm exact travel dates. The user can set `scope: "all"` to include past bookings.
 
@@ -20,7 +21,7 @@ Friday asks for destination, exact start and end dates, traveler count, a budget
 - `GET /api/friday/drafts` lists only the signed-in owner's drafts.
 - `POST /api/friday/handoffs` accepts `{draftId, version, confirmed: true}`. The response contains the immutable reviewed snapshot. Repeating the same handoff returns the existing queue item.
 - `GET /api/friday/handoffs` lists the signed-in owner's handoffs.
-- `GET /api/friday/status` returns `{quoteAdmin, emailConfigured}` for the signed-in user.
+- `GET /api/friday/status` returns `{quoteAdmin, emailConfigured}` for the signed-in user. `GET /api/callbacks?tripId=...` returns only the signed-in traveler’s callback request status for that trip; the planner uses it alongside existing quote handoffs to keep the request confirmation visible.
 
 Browser drafts are not imported or changed by this workflow.
 

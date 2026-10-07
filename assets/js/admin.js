@@ -415,7 +415,7 @@
       var isCallback = q.kind === 'callback';
       var isVillaEnquiry = q.kind === 'villa_enquiry';
       var villaName = isVillaEnquiry ? q.villa && q.villa.name : q.villaName;
-      var dest = isCallback ? (villaName ? 'Villa: ' + villaName : 'Call me back') : (isVillaEnquiry ? 'Villa: ' + (villaName || 'Friday stay') : (snap.destination || 'Unspecified destination'));
+      var dest = isCallback ? (villaName ? 'Villa: ' + villaName : ((q.tripContext && (q.tripContext.name || q.tripContext.destination)) || 'Call me back')) : (isVillaEnquiry ? 'Villa: ' + (villaName || 'Friday stay') : (snap.destination || 'Unspecified destination'));
       var dates = isCallback ? esc(q.phone || '') + ' · ' + esc(q.bestTime || 'time not set') : ((snap.dates && (snap.dates.start || snap.dates.end))
         ? (snap.dates.start || '') + ' &ndash; ' + (snap.dates.end || '')
         : 'Dates flexible');
@@ -475,7 +475,9 @@
     if (q.kind === 'callback') {
       dom.quoteTitle.textContent = 'Callback request';
       var tripLink = q.tripId ? '<p><strong>Trip:</strong> <a href="trip.html#/trip/' + encodeURIComponent(q.tripId) + '" target="_blank" rel="noopener noreferrer">Open planner trip</a></p>' : '';
-      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + (q.topic ? '<p><strong>About:</strong> ' + esc(q.topic) + '</p>' : '') + (q.villaName ? '<p><strong>Villa:</strong> ' + esc(q.villaName) + '</p><p><strong>City:</strong> ' + esc(q.villaCity || '') + '</p><p><strong>Guest capacity:</strong> ' + esc(q.villaGuests || 'Not listed') + '</p>' : '') + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>' + checklistHtml(q.checklist) + '<p><button type="button" class="villa-text-button" data-callback-status="' + esc(q.id) + '" data-next-status="' + (q.status === 'done' ? 'open' : 'done') + '">' + (q.status === 'done' ? 'Reopen' : 'Mark done') + '</button></p>';
+      var tripContext = q.tripContext || {};
+      var tripSummary = q.tripContext ? '<p><strong>Trip:</strong> ' + esc(tripContext.name || 'Your trip') + (tripContext.destination ? ' · ' + esc(tripContext.destination) : '') + '</p>' + ((tripContext.startDate || tripContext.endDate) ? '<p><strong>Dates:</strong> ' + esc(tripContext.startDate || 'Not set') + (tripContext.endDate ? ' to ' + esc(tripContext.endDate) : '') + '</p>' : '') : '';
+      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + (q.topic ? '<p><strong>About:</strong> ' + esc(q.topic) + '</p>' : '') + (q.villaName ? '<p><strong>Villa:</strong> ' + esc(q.villaName) + '</p><p><strong>City:</strong> ' + esc(q.villaCity || '') + '</p><p><strong>Guest capacity:</strong> ' + esc(q.villaGuests || 'Not listed') + '</p>' : '') + tripSummary + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>' + checklistHtml(q.checklist) + '<p><button type="button" class="villa-text-button" data-callback-status="' + esc(q.id) + '" data-next-status="' + (q.status === 'done' ? 'open' : 'done') + '">' + (q.status === 'done' ? 'Reopen' : 'Mark done') + '</button></p>';
       dom.quoteNote.textContent = 'Call this traveler at their preferred time. This is a callback request, not a quote to send.';
       renderQuotes(state.quotes);
       return;

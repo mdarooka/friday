@@ -12,8 +12,9 @@ test('Friday workflow routes enforce session, ownership, admin allowlist, previe
   assert.deepEqual((await request('/api/friday/status','GET',undefined,{cookie:customer.cookie})).result,{quoteAdmin:false,emailConfigured:true,commissionEmailConfigured:false});
   assert.equal((await request('/api/admin/quotes','GET',undefined,{cookie:customer.cookie})).status,403);
   const answer={destination:'Kenya',startDate:'2026-11-01',endDate:'2026-11-10',travelers:2,budget:'4200 USD',listingIds:['departure:super-tuskers'],bookingIds:[],instructions:'Preferences the traveler chose to share with the travel designer:\n- Travel memory: Slow mornings and small locally owned hotels'};
-  const planned=await request('/api/friday/plan','POST',{message:'Plan a Kenya trip around this package',answers:answer},{cookie:customer.cookie});
-  assert.equal(planned.status,200);const draft=planned.result.draft;assert.ok(draft);
+  const trip=(await request('/api/trips','POST',{data:{title:'Kenya safari',destination:'Kenya',startDate:'2026-11-01',endDate:'2026-11-10',days:[]}},{cookie:customer.cookie})).result.record;
+  const planned=await request('/api/friday/plan','POST',{message:'Plan a Kenya trip around this package',answers:answer,tripId:trip.id,plannerTripId:trip.id},{cookie:customer.cookie});
+  assert.equal(planned.status,200);const draft=planned.result.draft;assert.ok(draft);assert.equal(draft.tripId,trip.id);
   assert.equal((await request('/api/friday/plan','POST',{message:'Change it',tripId:'00000000-0000-4000-8000-000000000001',answers:answer},{cookie:customer.cookie})).status,404);
   assert.equal((await request('/api/friday/plan','POST',{message:'Adjust the trip',draftId:draft.id,draftVersion:0,answers:answer},{cookie:customer.cookie})).status,409);
   assert.equal((await request('/api/friday/plan','POST',{message:'Adjust the trip',draftId:draft.id,draftVersion:draft.version,answers:answer},{cookie:other.cookie})).status,404);
@@ -33,5 +34,6 @@ test('Friday workflow routes enforce session, ownership, admin allowlist, previe
   const mismatch=await request(`/api/admin/quotes/${quote.id}/send`,'POST',{amount:4201,currency:'USD',details:'Includes the stated trip design.',previewHash:preview.result.preview.previewHash},{cookie:admin.cookie});assert.equal(mismatch.status,409);
   const sent=await request(`/api/admin/quotes/${quote.id}/send`,'POST',{amount:4200,currency:'USD',details:'Includes the stated trip design.',previewHash:preview.result.preview.previewHash},{cookie:admin.cookie});assert.equal(sent.status,200);assert.equal(sent.result.quote.status,'provider_accepted');
   assert.equal((await request(`/api/admin/quotes/${quote.id}/send`,'POST',{amount:4200,currency:'USD',details:'Includes the stated trip design.',previewHash:preview.result.preview.previewHash},{cookie:admin.cookie})).status,409);
-  assert.equal((await request('/api/friday/handoffs','GET',undefined,{cookie:customer.cookie})).result.handoffs[0].status,'provider_accepted');
+  const statusHandoffs=(await request('/api/friday/handoffs','GET',undefined,{cookie:customer.cookie})).result.handoffs;
+  assert.equal(statusHandoffs[0].status,'provider_accepted');assert.equal(statusHandoffs[0].snapshot.tripId,trip.id);
 });

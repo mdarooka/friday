@@ -344,7 +344,7 @@ export function createApp(options = {}) {
         await store.updateAiConversationEvent(db,{eventKey:audit.eventKey,ownerId:user.id,conversationId:audit.conversationId,content:auditContent(content),status,updated:new Date().toISOString()});
       };
       if (p==='/api/health') {allow('GET','HEAD');return send(200,{ok:true,itineraryProvider:itineraries.name,knowledge:{sources:knowledge.sources,chars:knowledge.chars}});}
-      if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportMetroCount:metros.length,chatgpt:publicChatgpt(chatgpt)});}
+      if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));const whatsappRaw=String(env.FRIDAY_WHATSAPP_NUMBER||'').trim();const whatsappNumber=/^\+?[0-9\s().-]+$/.test(whatsappRaw)?whatsappRaw.replace(/\D/g,''):'';return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportMetroCount:metros.length,whatsappNumber:/^\d{8,15}$/.test(whatsappNumber)?whatsappNumber:'',chatgpt:publicChatgpt(chatgpt)});}
       if (p==='/api/newsletter/unsubscribe') {
         allow('GET','HEAD','POST');
         const token=method==='POST'?(typeof body.token==='string'?body.token:''):url.searchParams.get('token')||'';
@@ -829,7 +829,7 @@ export function createApp(options = {}) {
       }
       if(p==='/api/admin/quotes'){
         allow('GET');if(!user)fail(401,'Please sign in.');const quotes=await friday.adminList(user,effectiveQuoteAdmins);
-        const callbacks=await Promise.all((await store.listCallbackRequests(db)).map(async row=>({checklist:{items:PREQUOTE_ITEMS.map(i=>({id:i.id,label:i.label})),...await getChecklist(db,row.id)},id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,topic:row.topic||null,from:row.from,villaId:row.villa_id,villaName:row.villa_name,villaCity:row.villa_city,villaGuests:row.villa_guests,status:row.status,createdAt:row.created})));
+        const callbacks=await Promise.all((await store.listCallbackRequests(db)).map(async row=>({checklist:{items:PREQUOTE_ITEMS.map(i=>({id:i.id,label:i.label})),...await getChecklist(db,row.id)},id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,tripContext:row.trip_context?JSON.parse(row.trip_context):null,topic:row.topic||null,from:row.from,villaId:row.villa_id,villaName:row.villa_name,villaCity:row.villa_city,villaGuests:row.villa_guests,status:row.status,createdAt:row.created})));
         const villaEnquiries=(await store.listEnquiries(db)).filter(row=>row.kind==='commissions').map(row=>({row,data:JSON.parse(row.data)})).filter(item=>item.data.villa).map(({row,data})=>({id:row.id,kind:'villa_enquiry',customerEmail:data.email,name:data.name,villa:data.villa,data,createdAt:row.created}));
         return send(200,{quotes:[...villaEnquiries,...callbacks,...quotes]});
       }
@@ -957,6 +957,12 @@ export function createApp(options = {}) {
         if(!saved) fail(403,'These answers could not be saved to that request.');
         return send(200,saved);
       }
+      if (p==='/api/callbacks' && method==='GET') {
+        if(!user)fail(401,'Please sign in.');
+        const tripId=str(url.searchParams.get('tripId'),'trip link',160,true);
+        if(!/^[A-Za-z0-9_-]+$/.test(tripId))fail(422,'This trip link is not valid.');
+        return send(200,{requests:await store.listCallbackRequestsForTrip(db,user.id,tripId)});
+      }
       if (p==='/api/callbacks' && method==='POST') {
         rate('form:'+ip,5);
         if(Buffer.byteLength(JSON.stringify(body))>20000) fail(413,'Your request is too long.');
@@ -973,9 +979,17 @@ export function createApp(options = {}) {
         if(villaId&&!villaRow) fail(422,'This villa is no longer available.');
         const villa=villaRow?publicVilla(villaRow):null;
         const entryPoint=villa?'villa':submittedEntryPoint;
+        let tripContext=null;
+        if(body.tripContext&&typeof body.tripContext==='object'&&!Array.isArray(body.tripContext)){
+          const context=body.tripContext;
+          tripContext={name:str(context.name,'trip name',120),destination:str(context.destination,'destination',120),startDate:str(context.startDate,'trip start date',10),endDate:str(context.endDate,'trip end date',10)};
+          const validTripDate=value=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const date=new Date(`${value}T00:00:00.000Z`);return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;};
+          if(tripContext.startDate&&!validTripDate(tripContext.startDate)||tripContext.endDate&&!validTripDate(tripContext.endDate))fail(422,'Trip dates must be valid calendar dates.');
+          if(!tripContext.name&&!tripContext.destination&&!tripContext.startDate&&!tripContext.endDate)tripContext=null;
+        }
         const id=randomUUID(),created=new Date().toISOString();
-        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {}),...(topic?{topic}:{}),...(villa?{from:'villa',villaId:villa.id,villa:{id:villa.id,name:villa.name,city:villa.city,guests:villa.maxGuests}}:{})};
-        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,status:'new',created,topic,from:villa?'villa':null,...(villa?{villaId:villa.id,villaName:villa.name,villaCity:villa.city,villaGuests:villa.maxGuests}:{})});
+        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {}),...(topic?{topic}:{}),...(tripContext?{tripContext:[tripContext.name,tripContext.destination,tripContext.startDate&&tripContext.endDate?`${tripContext.startDate} to ${tripContext.endDate}`:tripContext.startDate||tripContext.endDate].filter(Boolean).join(' · ')}:{}),...(villa?{from:'villa',villaId:villa.id,villa:{id:villa.id,name:villa.name,city:villa.city,guests:villa.maxGuests}}:{})};
+        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,ownerId:user?.id||null,tripContext,status:'new',created,topic,from:villa?'villa':null,...(villa?{villaId:villa.id,villaName:villa.name,villaCity:villa.city,villaGuests:villa.maxGuests}:{})});
         const checklistToken=await issueChecklist(db,{callbackId:id,ownerId:user?.id||null,now:created});
         const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
         const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
