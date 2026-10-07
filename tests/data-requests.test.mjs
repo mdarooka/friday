@@ -6,6 +6,21 @@ import * as store from '../server/store.mjs';
 
 const callback = (request, cookie, name) => request('/api/callbacks', 'POST', { name, phone: '9876543210', bestTime: 'morning', entryPoint: 'planner' }, { cookie });
 
+async function ensureFriendResponseTables(db) {
+  await db.script(`
+    CREATE TABLE IF NOT EXISTS trip_share_participants(token_hash TEXT NOT NULL REFERENCES shares(token_hash) ON DELETE CASCADE,participant_id TEXT NOT NULL,name TEXT NOT NULL,can_make_dates TEXT NOT NULL DEFAULT 'unsure' CHECK(can_make_dates IN ('yes','no','unsure')),created TEXT NOT NULL,updated TEXT NOT NULL,PRIMARY KEY(token_hash,participant_id));
+    CREATE TABLE IF NOT EXISTS trip_share_responses(token_hash TEXT NOT NULL,participant_id TEXT NOT NULL,day_index INTEGER NOT NULL,stop_index INTEGER NOT NULL DEFAULT -1,reaction TEXT,note TEXT NOT NULL DEFAULT '',updated TEXT NOT NULL,PRIMARY KEY(token_hash,participant_id,day_index,stop_index),FOREIGN KEY(token_hash,participant_id) REFERENCES trip_share_participants(token_hash,participant_id) ON DELETE CASCADE);
+  `);
+}
+
+async function addFriendResponse(db, userId, tripId, participantId, name, note) {
+  const share = await db.one('SELECT token_hash FROM shares WHERE user_id=$1 AND trip_id=$2 ORDER BY created DESC LIMIT 1',[userId,tripId]);
+  assert.ok(share, 'test trip has a share link');
+  const now = new Date().toISOString();
+  await db.query('INSERT INTO trip_share_participants(token_hash,participant_id,name,can_make_dates,created,updated) VALUES($1,$2,$3,$4,$5,$6)',[share.token_hash,participantId,name,'yes',now,now]);
+  await db.query('INSERT INTO trip_share_responses(token_hash,participant_id,day_index,stop_index,reaction,note,updated) VALUES($1,$2,$3,$4,$5,$6,$7)',[share.token_hash,participantId,0,-1,'in',note,now]);
+}
+
 test('data export is owner-scoped, includes account records and excludes integration secrets and live share tokens', async t => {
   const { request, db } = await startApp(t);
   const owner = await signUp(request, 'ExportOwner');
@@ -22,6 +37,11 @@ test('data export is owner-scoped, includes account records and excludes integra
   await request('/api/ai-conversations/events', 'POST', { ownerId: other.result.user.id, conversationId: 'thread_other', eventId: 'event_other', role: 'user', content: { text: 'Do not export me' } }, { cookie: other.cookie });
   const share = await request('/api/trips/' + trip.result.record.id + '/share', 'POST', {}, { cookie: owner.cookie });
   assert.equal(share.status, 201);
+  const otherShare = await request('/api/trips/' + otherTrip.result.record.id + '/share', 'POST', {}, { cookie: other.cookie });
+  assert.equal(otherShare.status, 201);
+  await ensureFriendResponseTables(db);
+  await addFriendResponse(db, owner.result.user.id, trip.result.record.id, '10000000-0000-4000-8000-000000000001', 'Asha', 'I can join for lunch.');
+  await addFriendResponse(db, other.result.user.id, otherTrip.result.record.id, '20000000-0000-4000-8000-000000000001', 'Private friend', 'Do not export their note.');
   await db.query('INSERT INTO google_connections(user_id,kind,refresh_token,scopes,connected_at) VALUES($1,$2,$3,$4,$5)', [owner.result.user.id, 'gmail', 'SECRET-GOOGLE-REFRESH-TOKEN', 'gmail.readonly', new Date().toISOString()]);
   await db.query('INSERT INTO google_connections(user_id,kind,refresh_token,scopes,connected_at) VALUES($1,$2,$3,$4,$5)', [other.result.user.id, 'gmail', 'OTHER-SECRET', 'gmail.readonly', new Date().toISOString()]);
   const now = new Date().toISOString();
@@ -62,7 +82,13 @@ test('data export is owner-scoped, includes account records and excludes integra
   assert.equal(JSON.stringify(body).includes(other.result.user.id), false);
   assert.equal(JSON.stringify(body).includes(otherTrip.result.record.id), false);
   assert.equal(JSON.stringify(body).includes('Do not export'), false);
-  assert.deepEqual(body.friendResponses, []);
+  assert.equal(body.friendResponses.length, 1);
+  assert.equal(body.friendResponses[0].tripId, trip.result.record.id);
+  assert.equal(body.friendResponses[0].friend.name, 'Asha');
+  assert.equal(body.friendResponses[0].friend.canMakeDates, 'yes');
+  assert.equal(body.friendResponses[0].responses[0].note, 'I can join for lunch.');
+  assert.equal(JSON.stringify(body).includes('Private friend'), false);
+  assert.equal(JSON.stringify(body).includes('Do not export their note.'), false);
   assert.equal((await request('/api/account/export', 'GET', undefined, { cookie: other.cookie })).result.trips[0].id, otherTrip.result.record.id);
   assert.equal((await request('/api/account/export')).status, 401);
   assert.equal((await request('/api/account/export', 'GET', undefined, { cookie: owner.cookie })).status, 200);
@@ -80,7 +106,11 @@ test('deletion request has a 30-day due date, is owner-private, and staff comple
   const ai = await request('/api/ai-conversations/events', 'POST', { ownerId: owner.result.user.id, conversationId: 'delete_thread', eventId: 'delete_event', role: 'user', content: 'remove this chat' }, { cookie: owner.cookie });
   assert.equal(ai.status, 200);
   const shared = await request('/api/trips/' + trip.result.record.id + '/share', 'POST', {}, { cookie: owner.cookie });
+  const otherShared = await request('/api/trips/' + otherTrip.result.record.id + '/share', 'POST', {}, { cookie: other.cookie });
   const shareToken = new URL(shared.result.share.url, 'http://localhost').searchParams.get('share');
+  await ensureFriendResponseTables(db);
+  await addFriendResponse(db, owner.result.user.id, trip.result.record.id, '30000000-0000-4000-8000-000000000001', 'Delete Friend', 'Delete this response.');
+  await addFriendResponse(db, other.result.user.id, otherTrip.result.record.id, '40000000-0000-4000-8000-000000000001', 'Keep Friend', 'Keep this response.');
   await db.query('INSERT INTO google_connections(user_id,kind,refresh_token,scopes,connected_at) VALUES($1,$2,$3,$4,$5)', [owner.result.user.id, 'gmail', 'DELETE-ME-TOKEN', 'gmail.readonly', new Date().toISOString()]);
   await db.query('INSERT INTO google_connections(user_id,kind,refresh_token,scopes,connected_at) VALUES($1,$2,$3,$4,$5)', [other.result.user.id, 'gmail', 'KEEP-TOKEN', 'gmail.readonly', new Date().toISOString()]);
   const now = new Date().toISOString();
@@ -106,7 +136,10 @@ test('deletion request has a 30-day due date, is owner-private, and staff comple
   assert.equal((await request('/api/imports', 'GET', undefined, { cookie: owner.cookie })).status, 401);
   assert.equal(await db.one('SELECT id FROM users WHERE id=$1', [owner.result.user.id]), undefined);
   assert.equal(await db.one('SELECT token_hash FROM shares WHERE user_id=$1', [owner.result.user.id]), undefined);
-  assert.equal((await db.one('SELECT COUNT(*) AS count FROM trip_share_events')).count, 0);
+  assert.equal((await db.one(`SELECT COUNT(*) AS count FROM trip_share_events e WHERE e.token_hash NOT IN (SELECT token_hash FROM shares)`)).count, 0);
+  assert.equal((await db.one(`SELECT COUNT(*) AS count FROM trip_share_events e JOIN shares s ON s.token_hash=e.token_hash WHERE s.user_id=$1`, [other.result.user.id])).count, 1);
+  assert.equal((await db.one(`SELECT COUNT(*) AS count FROM trip_share_responses r JOIN trip_share_participants p ON p.token_hash=r.token_hash AND p.participant_id=r.participant_id WHERE p.name='Delete Friend'`)).count, 0);
+  assert.equal((await db.one(`SELECT COUNT(*) AS count FROM trip_share_responses r JOIN trip_share_participants p ON p.token_hash=r.token_hash AND p.participant_id=r.participant_id WHERE p.name='Keep Friend'`)).count, 1);
   assert.equal(await db.one('SELECT refresh_token FROM google_connections WHERE user_id=$1', [owner.result.user.id]), undefined);
   assert.equal(await db.one('SELECT id FROM callback_requests WHERE owner_id=$1', [owner.result.user.id]), undefined);
   assert.equal(await db.one('SELECT event_key FROM ai_conversation_events WHERE owner_id=$1', [owner.result.user.id]), undefined);

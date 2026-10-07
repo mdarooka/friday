@@ -120,11 +120,34 @@ export const anonymizeDataRequest = async (db,id,completedAt) => changes(await d
 export const listAllOwnerRecords = (db, ownerId) => db.all('SELECT id,kind,data,version,updated FROM records WHERE user_id=$1 ORDER BY kind,updated DESC',[ownerId]);
 export const listOwnerShares = (db, ownerId) => db.all('SELECT trip_id,expires,created FROM shares WHERE user_id=$1 ORDER BY created DESC',[ownerId]);
 export const listOwnerShareActivity = (db, ownerId) => db.all('SELECT s.trip_id,e.event_type,e.created FROM shares s JOIN trip_share_events e ON e.token_hash=s.token_hash WHERE s.user_id=$1 ORDER BY e.created DESC',[ownerId]);
+export const listOwnerFriendResponses = async (db, ownerId) => {
+  const tables = await db.one("SELECT to_regclass('trip_share_participants') AS participants, to_regclass('trip_share_responses') AS responses");
+  if (!tables?.participants || !tables?.responses) return [];
+  const rows = await db.all(`SELECT s.trip_id,s.created AS share_created,p.participant_id,p.name,p.can_make_dates,
+      r.day_index,r.stop_index,r.reaction,r.note,r.updated
+    FROM shares s JOIN trip_share_participants p ON p.token_hash=s.token_hash
+    LEFT JOIN trip_share_responses r ON r.token_hash=p.token_hash AND r.participant_id=p.participant_id
+    WHERE s.user_id=$1 ORDER BY s.trip_id,s.created,p.participant_id,r.day_index,r.stop_index`,[ownerId]);
+  const groups = new Map();
+  for (const row of rows) {
+    const key = [row.trip_id,row.share_created,row.participant_id].join('\\0');
+    let friend = groups.get(key);
+    if (!friend) {
+      friend = {tripId:row.trip_id,shareCreatedAt:row.share_created,friend:{name:row.name,canMakeDates:row.can_make_dates},responses:[]};
+      groups.set(key,friend);
+    }
+    if (row.day_index !== null) friend.responses.push({dayIndex:Number(row.day_index),stopIndex:Number(row.stop_index),reaction:row.reaction,note:row.note,updated:row.updated});
+  }
+  return [...groups.values()];
+};
 export const listOwnerEnquiries = (db, email) => db.all("SELECT id,kind,data,created FROM enquiries WHERE lower(data::jsonb->>'email')=lower($1) ORDER BY created DESC",[email]);
 export const listOwnerItineraries = (db, ownerId) => db.all('SELECT id,created,request,provider,plan,fallback_reason FROM itineraries WHERE user_id=$1 ORDER BY created DESC',[ownerId]);
 export const listOwnerJobs = (db, ownerId) => db.all('SELECT id,trip_id,status,stage,result,created FROM jobs WHERE user_id=$1 ORDER BY created DESC',[ownerId]);
 export const getHexclaveUserId = (db, ownerId) => db.one('SELECT hexclave_user_id FROM hexclave_identities WHERE user_id=$1',[ownerId]);
 export const deleteFridayAccountData = async (db, ownerId, email) => db.transaction(async tx => {
+  const friendTables = await tx.one("SELECT to_regclass('trip_share_participants') AS participants, to_regclass('trip_share_responses') AS responses");
+  if (friendTables?.responses) await tx.query('DELETE FROM trip_share_responses WHERE token_hash IN (SELECT token_hash FROM shares WHERE user_id=$1)',[ownerId]);
+  if (friendTables?.participants) await tx.query('DELETE FROM trip_share_participants WHERE token_hash IN (SELECT token_hash FROM shares WHERE user_id=$1)',[ownerId]);
   await tx.query('DELETE FROM trip_share_events WHERE token_hash IN (SELECT token_hash FROM shares WHERE user_id=$1)',[ownerId]);
   await tx.query('DELETE FROM shares WHERE user_id=$1',[ownerId]);
   await tx.query('DELETE FROM friday_quotes WHERE owner_id=$1',[ownerId]);
