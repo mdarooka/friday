@@ -255,6 +255,25 @@
   /* ---------------------------------------------------------- the form */
 
   function initForm() {
+    const villaParams = new URLSearchParams(location.search);
+    const villaId = villaParams.get('villa') || '';
+    const villaContext = villaId && /^[A-Za-z0-9_-]{1,180}$/.test(villaId) ? {
+      id: villaId, name: villaParams.get('villa_name') || '', city: villaParams.get('city') || '', guests: villaParams.get('guests') || ''
+    } : null;
+    if (villaContext) {
+      $$('[data-callback-form], [data-commission]').forEach(form => {
+        const hidden = document.createElement('input'); hidden.type = 'hidden'; hidden.name = 'villaId'; hidden.value = villaContext.id; form.appendChild(hidden);
+      });
+      const commission = $('[data-commission]');
+      if (commission) {
+        const summary = document.createElement('p'); summary.className = 'card__d'; summary.textContent = 'Villa: ' + villaContext.name + (villaContext.city ? ' · ' + villaContext.city : '') + (villaContext.guests ? ' · Sleeps up to ' + villaContext.guests + ' guests' : '');
+        commission.insertBefore(summary, commission.firstChild);
+        const shape = $('[name="shape"]', commission);
+        if (shape) shape.value = summary.textContent;
+        const villaStay = Array.from(commission.querySelectorAll('[name="composition"]')).find(input => input.value === 'Villa stay');
+        if (villaStay) villaStay.checked = true;
+      }
+    }
     async function submit(form,endpoint) {
       const entries=new FormData(form),data=Object.fromEntries(entries);
       if(entries.has('composition'))data.composition=entries.getAll('composition');
@@ -270,7 +289,7 @@
       const button=form.querySelector('[type=submit]'),status=form.querySelector('[data-callback-status]');button.disabled=true;
       if(status)status.textContent='Sending your request…';
       try{
-        const entries=new FormData(form),data={name:entries.get('name'),phone:entries.get('phone'),bestTime:entries.get('bestTime'),entryPoint:form.dataset.entryPoint||'contact'};
+        const entries=new FormData(form),data={name:entries.get('name'),phone:entries.get('phone'),bestTime:entries.get('bestTime'),entryPoint:form.dataset.entryPoint||'contact',...(villaContext?{villaId:villaContext.id}:{})};
         const response=await fetch('/api/callbacks',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
         const result=await response.json();if(!response.ok)throw new Error(result.error||'Your request could not be saved. Please try again.');
         if(window.FridayCallbackAnalytics)window.FridayCallbackAnalytics.track('contact',result.id);

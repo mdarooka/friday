@@ -7,10 +7,13 @@
     if (!['planner', 'contact'].includes(entryPoint)) return Promise.resolve();
     var id = typeof requestId === 'string' && requestId.length <= 160 ? requestId : A.uuid();
     var touch = A.firstTouch();
-    return A.track('callback_requested', {
+    var data = {
       request_id: id, path: entryPoint === 'planner' ? 'planner' : 'enquiry', entry_point: entryPoint,
       source: touch.source || 'direct', medium: touch.medium || null, campaign: touch.campaign || null, referrer: touch.referrer || null,
-    }, id);
+    };
+    var villa = new URLSearchParams(location.search || '').get('villa');
+    if (villa && /^[A-Za-z0-9_-]{1,180}$/.test(villa)) { data.from = 'villa'; data.villa = villa; }
+    return A.track('callback_requested', data, id);
   }
 
   window.FridayCallbackAnalytics = { track: track };

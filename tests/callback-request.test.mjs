@@ -63,7 +63,7 @@ test('callback analytics sends one privacy-safe event with source attribution', 
   }
   const window = { FakeHexclaveClientApp: FakeClientApp, addEventListener() {} };
   const context = {
-    window, location: { search: '?utm_source=instagram&utm_medium=social&utm_campaign=october_launch' },
+    window, location: { search: '?utm_source=instagram&utm_medium=social&utm_campaign=october_launch&villa=villa-123' },
     document: { referrer: 'https://www.instagram.com/reel/private-path?token=secret' },
     URL, URLSearchParams, Symbol, Math, Date, crypto: { randomUUID: () => 'event-uuid' },
     localStorage: { getItem: key => values.has(key) ? values.get(key) : null, setItem: (key, value) => values.set(key, value) },
@@ -71,13 +71,13 @@ test('callback analytics sends one privacy-safe event with source attribution', 
   };
   const script = source.replace("import('https://esm.sh/@hexclave/js@1.0.125')", 'Promise.resolve({ HexclaveClientApp: window.FakeHexclaveClientApp })');
   vm.runInNewContext(script, context);
-  await window.FridayCallbackAnalytics.track('planner', 'request-uuid');
-  await window.FridayCallbackAnalytics.track('planner', 'request-uuid');
+  await window.FridayCallbackAnalytics.track('contact', 'request-uuid');
+  await window.FridayCallbackAnalytics.track('contact', 'request-uuid');
   assert.equal(batches.length, 1);
   const event = batches[0].events[0];
   assert.equal(event.event_type, 'callback_requested');
   assert.deepEqual(JSON.parse(JSON.stringify(event.data)), {
-    request_id: 'request-uuid', path: 'planner', entry_point: 'planner', source: 'instagram', medium: 'social', campaign: 'october_launch', referrer: 'www.instagram.com',
+    request_id: 'request-uuid', path: 'enquiry', entry_point: 'contact', source: 'instagram', medium: 'social', campaign: 'october_launch', referrer: 'www.instagram.com', from: 'villa', villa: 'villa-123',
   });
   const serialized = JSON.stringify(event);
   assert.equal(serialized.includes('Traveler'), false);

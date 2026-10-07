@@ -7,8 +7,10 @@
   function track(path, requestId) {
     if (paths.indexOf(path) === -1) path = 'enquiry';
     var id = typeof requestId === 'string' && requestId.length <= 160 ? requestId : A.uuid();
-    var touch = A.firstTouch();
-    return A.track('quote_requested', { request_id: id, path: path, source: touch.source, medium: touch.medium, campaign: touch.campaign, referrer: touch.referrer }, id);
+    var touch = A.firstTouch(), data = { request_id: id, path: path, source: touch.source, medium: touch.medium, campaign: touch.campaign, referrer: touch.referrer };
+    var villa = new URLSearchParams(location.search || '').get('villa');
+    if (path === 'villa' && villa && /^[A-Za-z0-9_-]{1,180}$/.test(villa)) { data.from = 'villa'; data.villa = villa; }
+    return A.track('quote_requested', data, id);
   }
   function pathForEnquiry(form) {
     var requested = new URLSearchParams(location.search || '').get('quote_path');

@@ -62,6 +62,15 @@ test('first touch keeps sanitized campaign fields and sends one non-PII quote_re
   assert.equal(fixture.users, 1);
 });
 
+test('villa quote events carry only the villa source and identifier', async () => {
+  const fixture = setup({ search: '?quote_path=villa&villa=villa-123&utm_source=instagram&email=traveler%40example.com' });
+  await fixture.analytics.track('villa', 'enquiry-123');
+  const event = fixture.batches[0].events[0];
+  assert.equal(event.data.from, 'villa');
+  assert.equal(event.data.villa, 'villa-123');
+  assert.equal(JSON.stringify(event).includes('traveler@example.com'), false);
+});
+
 test('first touch saved by the earlier quote-only script is kept, and invalid path tags fall back to enquiry', async () => {
   const fixture = setup({ existing: { 'friday.quote-attribution.v1': JSON.stringify({ source: 'instagram', medium: 'social', campaign: 'first', referrer: 'instagram.com' }) } });
   assert.equal(fixture.analytics.firstTouch().campaign, 'first');
