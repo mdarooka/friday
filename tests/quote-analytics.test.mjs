@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const source = await readFile(new URL('../assets/js/quote-analytics.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../assets/js/friday-analytics.js', import.meta.url), 'utf8')) + '\n' + (await readFile(new URL('../assets/js/quote-analytics.js', import.meta.url), 'utf8'));
 
 function setup({ search = '?utm_source=instagram&utm_medium=social&utm_campaign=october_launch&email=traveler%40example.com', referrer = 'https://www.instagram.com/reel/secret?token=private', existing = {} } = {}) {
   const values = new Map(Object.entries(existing));
@@ -42,8 +42,8 @@ function setup({ search = '?utm_source=instagram&utm_medium=social&utm_campaign=
 
 test('first touch keeps sanitized campaign fields and sends one non-PII quote_requested event', async () => {
   const fixture = setup();
-  assert.deepEqual(JSON.parse(fixture.values.get('friday.quote-attribution.v1')), {
-    source: 'instagram', medium: 'social', campaign: 'october_launch', referrer: 'www.instagram.com',
+  assert.deepEqual(JSON.parse(fixture.values.get('friday.attribution.v1')), {
+    source: 'instagram', medium: 'social', campaign: 'october_launch', referrer: 'www.instagram.com', landing_path: '/contact.html',
   });
   await fixture.analytics.track('planner', 'handoff-123');
   await fixture.analytics.track('planner', 'handoff-123');
@@ -62,7 +62,7 @@ test('first touch keeps sanitized campaign fields and sends one non-PII quote_re
   assert.equal(fixture.users, 1);
 });
 
-test('first touch is not replaced on later pages and invalid path tags fall back to enquiry', async () => {
+test('first touch saved by the earlier quote-only script is kept, and invalid path tags fall back to enquiry', async () => {
   const fixture = setup({ existing: { 'friday.quote-attribution.v1': JSON.stringify({ source: 'instagram', medium: 'social', campaign: 'first', referrer: 'instagram.com' }) } });
   assert.equal(fixture.analytics.firstTouch().campaign, 'first');
   await fixture.analytics.track('unknown', 'enquiry-1');

@@ -50,6 +50,7 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
 <link rel="stylesheet" href="assets/css/trip-workspace.css">
 <link rel="stylesheet" href="assets/css/trip-map.css">
 <link rel="stylesheet" href="assets/css/trip-chat.css">
+<script src="assets/js/friday-analytics.js" defer></script>
 <script src="assets/js/quote-analytics.js" defer></script>
 <script src="assets/js/guide-analytics.js" defer></script>
 <script src="assets/js/trip-data.js" defer></script>

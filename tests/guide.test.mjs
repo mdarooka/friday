@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { sitemapXml, robotsTxt } = require('../build/site-metadata.js');
-const source = await readFile(new URL('../assets/js/guide-analytics.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../assets/js/friday-analytics.js', import.meta.url), 'utf8')) + '\n' + (await readFile(new URL('../assets/js/guide-analytics.js', import.meta.url), 'utf8'));
 const guide = await readFile(new URL('../kerala-guide.html', import.meta.url), 'utf8');
 
 function setup() {

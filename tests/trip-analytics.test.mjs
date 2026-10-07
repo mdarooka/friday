@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const source = await readFile(new URL('../assets/js/trip-analytics.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../assets/js/friday-analytics.js', import.meta.url), 'utf8')) + '\n' + (await readFile(new URL('../assets/js/trip-analytics.js', import.meta.url), 'utf8'));
 
 function setup() {
   const batches = [];

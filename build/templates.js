@@ -210,6 +210,7 @@ ${Header(active)}
 ${body}
 </main>
 ${Footer()}
+<script src="assets/js/friday-analytics.js"></script>
 <script src="assets/js/quote-analytics.js"></script>
 <script src="assets/js/friday.js"></script>
 ${extraScripts.map((src) => `<script src="${esc(src)}"></script>`).join('\n')}

@@ -52,7 +52,7 @@ test('callback route rate-limits repeat submissions', async t => {
 });
 
 test('callback analytics sends one privacy-safe event with source attribution', async () => {
-  const source = await readFile(new URL('../assets/js/callback-analytics.js', import.meta.url), 'utf8');
+  const source = (await readFile(new URL('../assets/js/friday-analytics.js', import.meta.url), 'utf8')) + '\n' + (await readFile(new URL('../assets/js/callback-analytics.js', import.meta.url), 'utf8'));
   const values = new Map();
   const batches = [];
   class FakeClientApp {

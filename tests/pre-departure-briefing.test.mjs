@@ -64,7 +64,7 @@ test('staff can send an eligible trip briefing through the existing email servic
 });
 
 test('briefing event sender covers sent and opened events with trip and departure timing properties', async () => {
-  const source = await readFile(new URL('../assets/js/briefing-analytics.js', import.meta.url), 'utf8');
+  const source = (await readFile(new URL('../assets/js/friday-analytics.js', import.meta.url), 'utf8')) + '\n' + (await readFile(new URL('../assets/js/briefing-analytics.js', import.meta.url), 'utf8'));
   const admin = await readFile(new URL('../assets/js/admin.js', import.meta.url), 'utf8');
   const planner = await readFile(new URL('../assets/js/trip-app.js', import.meta.url), 'utf8');
   const adminPage = await readFile(new URL('../admin.html', import.meta.url), 'utf8');

@@ -695,7 +695,7 @@
         threads: [{ id: uid('th'), title: d && d.threadTitle ? d.threadTitle : 'New conversation', createdAt: now, messages: [] }],
       });
       store.update((s) => { s.trips.unshift(t); s.currentTripId = t.id; });
-      if (FT.guideAnalytics && typeof FT.guideAnalytics.tripStarted === 'function') FT.guideAnalytics.tripStarted(t);
+      if (window.FridayGuideAnalytics && typeof window.FridayGuideAnalytics.tripStarted === 'function') window.FridayGuideAnalytics.tripStarted(t);
       return t;
     },
     open(id) { router.go('#/trip/' + id); },
