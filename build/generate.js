@@ -1031,6 +1031,20 @@ ${PageHero({
   <div class="wrap">
     <div class="grid">
       <div class="c-7 c-md-12">
+        <section class="callback-card" aria-labelledby="callback-title" style="border:1px solid var(--rule);padding:clamp(1.25rem,3vw,2rem);margin-bottom:2rem">
+          <p class="eyebrow">A quicker start</p>
+          <h2 class="h3" id="callback-title" style="margin-top:.6rem">Prefer a call?</h2>
+          <p class="card__d" style="margin:.5rem 0 1rem">Leave your number and a good time. Friday’s team will call to talk through your trip.</p>
+          <form class="form callback-form" data-callback-form data-entry-point="contact" novalidate>
+            <div class="grid" style="gap:1rem var(--gap)">
+              <div class="c-6 c-sm-12 field"><label class="field__label" for="callback-name">Your name</label><input class="field__input" id="callback-name" name="name" type="text" maxlength="100" required autocomplete="name"></div>
+              <div class="c-6 c-sm-12 field"><label class="field__label" for="callback-phone">Indian mobile number</label><input class="field__input" id="callback-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="10 digits or +91" maxlength="18" pattern="(?:\\+?91[\\s-]?)?[6-9][0-9\\s-]{8,12}" required></div>
+            </div>
+            <div class="field"><label class="field__label" for="callback-time">Best time to call</label><select class="field__select" id="callback-time" name="bestTime" required><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></div>
+            <button class="btn btn--solid" type="submit">Call me back <span class="arrow">&rarr;</span></button>
+            <p class="card__d" data-callback-status role="status" aria-live="polite"></p>
+          </form>
+        </section>
         <form class="form" data-commission novalidate>
           <div class="grid" style="gap:2.1rem var(--gap)">
             <div class="c-6 c-sm-12 field">
@@ -1114,7 +1128,7 @@ ${PageHero({
 </section>
 
 `;
-page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true });
+page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true, extraScripts: ['assets/js/callback-analytics.js'] });
 
 /* ======================================================= 12. Privacy and terms */
 

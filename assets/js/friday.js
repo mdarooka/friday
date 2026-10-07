@@ -265,6 +265,20 @@
     function errorNote(form,message) {
       let note=form.querySelector('[data-form-error]');if(!note){note=document.createElement('p');note.dataset.formError='';note.setAttribute('role','alert');form.appendChild(note);}note.textContent=message;
     }
+    $$('[data-callback-form]').forEach(form=>form.addEventListener('submit',async e=>{
+      e.preventDefault();if(!form.reportValidity())return;
+      const button=form.querySelector('[type=submit]'),status=form.querySelector('[data-callback-status]');button.disabled=true;
+      if(status)status.textContent='Sending your request…';
+      try{
+        const entries=new FormData(form),data={name:entries.get('name'),phone:entries.get('phone'),bestTime:entries.get('bestTime'),entryPoint:form.dataset.entryPoint||'contact'};
+        const response=await fetch('/api/callbacks',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+        const result=await response.json();if(!response.ok)throw new Error(result.error||'Your request could not be saved. Please try again.');
+        if(window.FridayCallbackAnalytics)window.FridayCallbackAnalytics.track('contact',result.id);
+        form.reset();form.querySelector('[name="bestTime"]').value='morning';
+        if(status)status.textContent=result.delivery?.notification==='provider_accepted'?'Thanks. Friday’s team has your number and will call at that time.':result.delivery?.notification==='delivery_unknown'?'Your request is saved. Friday could not confirm the team notification.':'Your request is saved. The team will call at that time.';
+      }catch(err){if(status)status.textContent=err.message||'Your request could not be saved. Please try again.';}
+      finally{button.disabled=false;}
+    }));
     const form=$('[data-commission]'),sent=$('[data-commission-sent]');
     if(form)form.addEventListener('submit',async e=>{
       e.preventDefault();if(!form.reportValidity())return;

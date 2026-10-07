@@ -33,6 +33,7 @@ const str = (v,name,max=1000,required=false) => {
   return name === 'password' ? v : v.trim();
 };
 const email = v => { const e = str(v,'email',254,true).toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) fail(422,'Please enter a valid email.'); return e; };
+const indianPhone = value => { const digits = typeof value === 'string' ? value.replace(/[\s()-]/g, '') : ''; const match = /^(?:\+?91)?([6-9]\d{9})$/.exec(digits); if (!match) fail(422,'Enter a valid 10-digit Indian mobile number, with or without +91.'); return '+91' + match[1]; };
 const kinds = new Set(['trips','places','lists','bookings','memories','alerts','imports']);
 const supportedAirports = new Set(metros.flatMap(metro=>metro.airports));
 const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(+new Date(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0,10) === value;
@@ -604,7 +605,9 @@ export function createApp(options = {}) {
         return send(200,{messages:store.listEmailOutboxMetadata(db,url.searchParams.get('limit')).map(row=>({id:row.id,kind:row.kind,status:row.status,attemptedAt:row.attempted_at,created:row.created,updated:row.updated}))});
       }
       if(p==='/api/admin/quotes'){
-        allow('GET');if(!user)fail(401,'Please sign in.');return send(200,{quotes:friday.adminList(user,effectiveQuoteAdmins)});
+        allow('GET');if(!user)fail(401,'Please sign in.');const quotes=friday.adminList(user,effectiveQuoteAdmins);
+        const callbacks=store.listCallbackRequests(db).map(row=>({id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,status:row.status,createdAt:row.created}));
+        return send(200,{quotes:[...callbacks,...quotes]});
       }
       const quotePreview=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/preview$/i);
       if(quotePreview){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{preview:friday.previewQuote(user,effectiveQuoteAdmins,quotePreview[1],body)});}
@@ -706,6 +709,23 @@ export function createApp(options = {}) {
         if(!user)fail(401,'Please sign in.');
         const result=await google({path:p,method,body,user,url});
         if(result){if(result.redirect){res.writeHead(result.status,{Location:result.redirect,'Cache-Control':'no-store'});res.end();return;}return send(result.status,result.data);}
+      }
+      if (p==='/api/callbacks' && method==='POST') {
+        rate('form:'+ip,5);
+        if(Buffer.byteLength(JSON.stringify(body))>20000) fail(413,'Your request is too long.');
+        const name=str(body.name,'name',100,true),phone=indianPhone(body.phone);
+        const bestTime=str(body.bestTime,'best time',20,true);
+        if(!['morning','afternoon','evening'].includes(bestTime)) fail(422,'Choose a time of day for the call.');
+        const entryPoint=str(body.entryPoint,'entry point',20,true);
+        if(!['planner','contact'].includes(entryPoint)) fail(422,'This callback request could not be placed.');
+        const tripId=body.tripId==null||body.tripId===''?null:str(body.tripId,'trip link',160);
+        if(tripId&&!/^[A-Za-z0-9_-]+$/.test(tripId)) fail(422,'This trip link is not valid.');
+        const id=randomUUID(),created=new Date().toISOString();
+        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {})};
+        store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,status:'new',created});
+        const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
+        const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
+        return send(201,{id,saved:true,delivery:{notification:notification?.status||'blocked'}});
       }
       if (['/api/commissions','/api/subscriptions'].includes(p) && method==='POST') {
         rate('form:'+ip,5); email(body.email);

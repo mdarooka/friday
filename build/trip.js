@@ -66,6 +66,7 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
 <script src="assets/js/trip-chat.js" defer></script>
 <script src="assets/js/trip-workspace.js" defer></script>
 <script src="assets/js/trip-villa.js" defer></script>
+<script src="assets/js/callback-analytics.js" defer></script>
 </head>
 <body class="fx">
 <header class="fx-start-header" data-start-header>
