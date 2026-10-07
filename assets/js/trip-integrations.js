@@ -68,6 +68,7 @@
     var body = doc.createElement('div');
     body.innerHTML = '<p class="fx-hint">Leave your number and a good time. Friday’s team will call to talk through your trip.' + (opts.topic ? ' We’ll mention: ' + esc(opts.topic) + '.' : '') + '</p><form data-callback-request-form><label class="fx-field fx-label">Your name<input class="fx-input" name="name" type="text" maxlength="100" autocomplete="name" required></label><label class="fx-field fx-label">Indian mobile number<input class="fx-input" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="18" placeholder="10 digits or +91" pattern="(?:\\+?91[\\s-]?)?[6-9][0-9\\s-]{8,12}" required></label><label class="fx-field fx-label">Best time to call<select class="fx-input" name="bestTime"><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></label><p class="fx-error" role="alert" hidden></p><p class="fx-hint" data-callback-status role="status" aria-live="polite"></p></form>';
     var form = body.querySelector('[data-callback-request-form]');
+    form.querySelector('[name="phone"]').pattern = '[\\s\\(\\)\\-]*(?:\\+[\\s\\(\\)\\-]*9[\\s\\(\\)\\-]*1|9[\\s\\(\\)\\-]*1)?[\\s\\(\\)\\-]*[6-9](?:[\\s\\(\\)\\-]*[0-9]){9}[\\s\\(\\)\\-]*';
     FT.ui.modal({ title: 'Call me back', body: body, actions: [
       { label: 'Cancel' },
       { label: 'Request a call', primary: true, onClick: async function (close, button) {

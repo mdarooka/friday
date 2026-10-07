@@ -106,7 +106,7 @@
           <form class="form callback-form" data-callback-form data-entry-point="contact" novalidate>
             <div class="grid" style="gap:1rem var(--gap)">
               <div class="c-6 c-sm-12 field"><label class="field__label" for="callback-name">Your name</label><input class="field__input" id="callback-name" name="name" type="text" maxlength="100" required autocomplete="name"></div>
-              <div class="c-6 c-sm-12 field"><label class="field__label" for="callback-phone">Indian mobile number</label><input class="field__input" id="callback-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="10 digits or +91" maxlength="18" pattern="(?:\+?91[\s-]?)?[6-9][0-9\s-]{8,12}" required></div>
+              <div class="c-6 c-sm-12 field"><label class="field__label" for="callback-phone">Indian mobile number</label><input class="field__input" id="callback-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="10 digits or +91" maxlength="18" pattern="[\s\(\)\-]*(?:\+[\s\(\)\-]*9[\s\(\)\-]*1|9[\s\(\)\-]*1)?[\s\(\)\-]*[6-9](?:[\s\(\)\-]*[0-9]){9}[\s\(\)\-]*" required></div>
             </div>
             <div class="field"><label class="field__label" for="callback-time">Best time to call</label><select class="field__select" id="callback-time" name="bestTime" required><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></div>
             <button class="btn btn--solid" type="submit">Call me back <span class="arrow">&rarr;</span></button>
@@ -166,7 +166,7 @@
 
           <div>
             <button class="btn btn--solid" type="submit">Send your enquiry <span class="arrow">&rarr;</span></button>
-            <p style="margin-top:1.2rem;font-size:.8125rem;color:var(--fg-mute);max-width:34em">Your enquiry will be sent to Friday. A travel designer replies within 30 hours of an enquiry. You can also email <a class="link" href="mailto:manavdarooka1@gmail.com">manavdarooka1@gmail.com</a>.</p>
+            <p style="margin-top:1.2rem;font-size:.8125rem;color:var(--fg-mute);max-width:34em">Your enquiry will be sent to Friday. You can also email <a class="link" href="mailto:manavdarooka1@gmail.com">manavdarooka1@gmail.com</a>.</p>
           </div>
         </form>
 
