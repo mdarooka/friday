@@ -84,7 +84,7 @@ export function createApp(options = {}) {
   const root = options.root || defaultRoot;
   const env = options.env || process.env;
   const production = env.NODE_ENV === 'production';
-  const configuredOrigin = options.origin || env.APP_ORIGIN;
+  const configuredOrigin = options.origin || env.APP_ORIGIN || (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined));
   if (production && !configuredOrigin) throw new Error('APP_ORIGIN must be set to the exact public origin (for example https://friday.example) when NODE_ENV=production.');
   const origin = configuredOrigin || 'http://localhost:4871';
   const secure = new URL(origin).protocol === 'https:';
@@ -817,7 +817,9 @@ export function createApp(options = {}) {
   return server;
 }
 if (process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  const server=createApp({log:m=>console.error('[friday] '+m)});const port=Number(process.env.PORT||4871);
-  server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Friday http://localhost:${port}`));
+  const defaultHost = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
+  const defaultPort = process.env.NODE_ENV === 'production' ? 3000 : 4871;
+  const server=createApp({log:m=>console.error('[friday] '+m)});const port=Number(process.env.PORT||defaultPort);
+  server.listen(port,process.env.HOST||defaultHost,()=>console.log(`Friday http://${process.env.HOST||defaultHost}:${port}`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>process.exit(0)));
 }

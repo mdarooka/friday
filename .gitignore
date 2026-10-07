@@ -8,3 +8,5 @@ node_modules/
 .mcp.json
 
 .data/
+.vercel
+.env*
