@@ -1497,7 +1497,7 @@
       const returning = state.trips.length > 0;
       const trip = FT.trips.create();
       store.update((s) => { const created = s.trips.find((item) => item.id === trip.id); if (created) created.rememberedPreferences = applied; });
-      if (FT.tripAnalytics && typeof FT.tripAnalytics.trackCreated === 'function') FT.tripAnalytics.trackCreated({ returning: returning, memory_shown: !!memoryShown, memory_applied_count: applied.length });
+      if (FT.backend && FT.backend.user && FT.tripAnalytics && typeof FT.tripAnalytics.trackCreated === 'function') FT.tripAnalytics.trackCreated({ returning: returning, memory_shown: !!memoryShown, memory_applied_count: applied.length });
       router.go('#/trip/' + trip.id);
       if (FT.chat && typeof FT.chat.send === 'function') {
         try { FT.chat.send(payload); } catch (err) { console.error(err); toast('The assistant hit a snag.'); }
