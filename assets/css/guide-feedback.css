@@ -1,0 +1,10 @@
+/* "Was this useful?" prompt on public guides. Uses the site's tokens only. */
+.guide-feedback__q { margin: .4rem 0 1.2rem; }
+.guide-feedback__row { display: flex; gap: .75rem; flex-wrap: wrap; }
+.guide-feedback__btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.guide-feedback__note { margin-top: 1.4rem; max-width: 34rem; display: grid; gap: .6rem; justify-items: start; }
+.guide-feedback__note label { font-size: .95rem; }
+.guide-feedback__note label span { opacity: .65; }
+.guide-feedback__note textarea { width: 100%; font: inherit; color: inherit; background: transparent; border: 1px solid currentColor; padding: .7rem .8rem; border-radius: 0; resize: vertical; }
+.guide-feedback__status { margin-top: 1rem; min-height: 1.4em; opacity: .75; }
+.guide-feedback [hidden] { display: none; }

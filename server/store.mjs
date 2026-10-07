@@ -18,6 +18,9 @@ export function openStore(file, { tripsInVault = false } = {}) {
     CREATE INDEX IF NOT EXISTS shares_trip_owner ON shares(user_id,trip_id);
     CREATE TABLE IF NOT EXISTS trip_share_events(id TEXT PRIMARY KEY,token_hash TEXT NOT NULL,event_type TEXT NOT NULL CHECK(event_type IN ('trip_share_link_created','trip_share_whatsapp_clicked','trip_share_link_opened','trip_share_preview_bot')),created TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS trip_share_events_type_created ON trip_share_events(event_type,created);
+    CREATE TABLE IF NOT EXISTS trip_feedback(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,trip_id TEXT NOT NULL,stop_key TEXT NOT NULL,viewer_hash TEXT NOT NULL,viewer_name TEXT NOT NULL DEFAULT '',kind TEXT NOT NULL CHECK(kind IN ('reaction','comment')),value TEXT NOT NULL,created TEXT NOT NULL,hidden INTEGER NOT NULL DEFAULT 0);
+    CREATE INDEX IF NOT EXISTS trip_feedback_trip ON trip_feedback(owner_id,trip_id,created);
+    CREATE UNIQUE INDEX IF NOT EXISTS trip_feedback_one_reaction ON trip_feedback(owner_id,trip_id,stop_key,viewer_hash) WHERE kind='reaction';
     CREATE TABLE IF NOT EXISTS enquiries(id TEXT PRIMARY KEY,kind TEXT NOT NULL,data TEXT NOT NULL,created TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS email_outbox(id TEXT PRIMARY KEY,dedupe_key TEXT NOT NULL UNIQUE,kind TEXT NOT NULL,recipient TEXT NOT NULL,subject TEXT NOT NULL,content TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN ('queued','sending','provider_accepted','delivery_unknown','blocked')),attempted_at TEXT,created TEXT NOT NULL,updated TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS email_outbox_status ON email_outbox(status,created);
@@ -44,6 +47,7 @@ export function openStore(file, { tripsInVault = false } = {}) {
       INSERT INTO shares_nofk SELECT token_hash,user_id,trip_id,expires,created FROM shares; DROP TABLE shares; ALTER TABLE shares_nofk RENAME TO shares;
       CREATE INDEX IF NOT EXISTS shares_trip_owner ON shares(user_id,trip_id); COMMIT;`);
   }
+  if (!db.prepare('PRAGMA table_info(callback_requests)').all().some(c => c.name === 'topic')) db.exec('ALTER TABLE callback_requests ADD COLUMN topic TEXT');   // optional booking question ("Ask designer about this")
   return db;
 }
 
@@ -98,8 +102,9 @@ export const insertFridayHandoff = (db,row) => db.prepare('INSERT INTO friday_ha
 export function createFridayHandoffWithQuote(db,handoff,quote){db.exec('BEGIN IMMEDIATE');try{insertFridayHandoff(db,handoff);insertFridayQuote(db,quote);db.exec('COMMIT');return true;}catch(e){db.exec('ROLLBACK');throw e;}}
 export const listFridayHandoffs = (db,owner) => db.prepare('SELECT id,draft_id,version,snapshot,status,created FROM friday_handoffs WHERE owner_id=? ORDER BY created DESC').all(owner);
 export const listFridayQuotes = db => db.prepare('SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created FROM friday_quotes ORDER BY created').all();
-export const createCallbackRequest = (db, row) => db.prepare('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created) VALUES(?,?,?,?,?,?,?,?)').run(row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created);
-export const listCallbackRequests = db => db.prepare('SELECT id,name,phone,best_time,entry_point,trip_id,status,created FROM callback_requests ORDER BY created DESC').all();
+export const createCallbackRequest = (db, row) => db.prepare('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created,topic) VALUES(?,?,?,?,?,?,?,?,?)').run(row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created,row.topic||null);
+export const setCallbackStatus = (db, id, status) => db.prepare('UPDATE callback_requests SET status=? WHERE id=?').run(status, id).changes;
+export const listCallbackRequests = db => db.prepare('SELECT id,name,phone,best_time,entry_point,trip_id,status,created,topic FROM callback_requests ORDER BY created DESC').all();
 export const getFridayQuote = (db,id) => db.prepare('SELECT * FROM friday_quotes WHERE id=?').get(id);
 export const insertFridayQuote = (db,row) => db.prepare('INSERT INTO friday_quotes(id,handoff_id,owner_id,customer_email,snapshot,status,created) VALUES(?,?,?,?,?,?,?)').run(row.id,row.handoffId,row.ownerId,row.customerEmail,row.snapshot,row.status,row.created);
 export const claimFridayQuote = (db,id,quote,attempted) => db.prepare("UPDATE friday_quotes SET status='sending',quote=?,attempted_at=? WHERE id=? AND status='pending'").run(quote,attempted,id).changes;
@@ -209,3 +214,23 @@ export const createGoogleOAuthState = (db, { stateHash, userId, kind, verifier, 
 export const deleteGoogleOAuthState = (db, stateHash) => db.prepare('DELETE FROM google_oauth_states WHERE state_hash=?').run(stateHash);
 export const deleteExpiredGoogleOAuthStates = (db, now) => db.prepare('DELETE FROM google_oauth_states WHERE expires<?').run(now);
 export const deleteGoogleOAuthStatesFor = (db, userId, kind) => db.prepare('DELETE FROM google_oauth_states WHERE user_id=? AND kind=?').run(userId, kind);
+
+/* Automatic T-7 briefings: run log only. No recipient addresses or email bodies are stored here. */
+export function ensureBriefingTables(db) {
+  db.exec(`CREATE TABLE IF NOT EXISTS briefing_runs(run_date TEXT NOT NULL,mode TEXT NOT NULL,requested_mode TEXT NOT NULL,started TEXT NOT NULL,finished TEXT,note TEXT NOT NULL DEFAULT '',selected INTEGER NOT NULL DEFAULT 0,would_send INTEGER NOT NULL DEFAULT 0,sent INTEGER NOT NULL DEFAULT 0,skipped INTEGER NOT NULL DEFAULT 0,failed INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(run_date,mode));
+    CREATE TABLE IF NOT EXISTS briefing_run_items(id INTEGER PRIMARY KEY AUTOINCREMENT,run_date TEXT NOT NULL,mode TEXT NOT NULL,trip_id TEXT NOT NULL,user_id TEXT NOT NULL,departure_date TEXT NOT NULL,days_before INTEGER NOT NULL,outcome TEXT NOT NULL CHECK(outcome IN ('would_send','sent','skipped_already_sent','skipped_no_email','failed')),created TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS briefing_run_items_run ON briefing_run_items(run_date,mode);`);
+}
+export function startBriefingRun(db, { runDate, mode, requestedMode, started, note = '', replace = false }) {
+  if (replace) {
+    db.prepare("DELETE FROM briefing_run_items WHERE run_date=? AND mode='dry-run'").run(runDate);
+    db.prepare("DELETE FROM briefing_runs WHERE run_date=? AND mode='dry-run'").run(runDate);
+  }
+  return db.prepare('INSERT OR IGNORE INTO briefing_runs(run_date,mode,requested_mode,started,note) VALUES(?,?,?,?,?)').run(runDate, mode, requestedMode, started, note).changes === 1;
+}
+export const insertBriefingRunItem = (db, r) => db.prepare('INSERT INTO briefing_run_items(run_date,mode,trip_id,user_id,departure_date,days_before,outcome,created) VALUES(?,?,?,?,?,?,?,?)').run(r.runDate, r.mode, r.tripId, r.userId, r.departureDate, r.daysBefore, r.outcome, r.created);
+export const finishBriefingRun = (db, { runDate, mode, finished, counts }) => db.prepare('UPDATE briefing_runs SET finished=?,selected=?,would_send=?,sent=?,skipped=?,failed=? WHERE run_date=? AND mode=?').run(finished, counts.selected, counts.would_send, counts.sent, counts.skipped_already_sent + counts.skipped_no_email, counts.failed, runDate, mode);
+export const countCompletedBriefingDryRunDays = db => db.prepare("SELECT COUNT(DISTINCT run_date) AS n FROM briefing_runs WHERE mode='dry-run' AND finished IS NOT NULL").get().n;
+export const listBriefingRuns = (db, limit = 14) => db.prepare('SELECT * FROM briefing_runs ORDER BY run_date DESC,started DESC LIMIT ?').all(Math.min(Math.max(Number(limit) || 14, 1), 60));
+export const listBriefingRunItems = (db, limit = 100) => db.prepare('SELECT * FROM briefing_run_items ORDER BY id DESC LIMIT ?').all(Math.min(Math.max(Number(limit) || 100, 1), 300));
+export const hasAcceptedAdminBriefing = (db, tripId) => !!db.prepare("SELECT 1 FROM email_outbox WHERE kind='pre_departure_briefing' AND status='provider_accepted' AND dedupe_key LIKE ? ESCAPE '\\' LIMIT 1").get(`briefing:${String(tripId).replace(/[\\%_]/g, '\\$&')}:%`);

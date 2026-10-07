@@ -116,6 +116,8 @@
     dom.aiLoadMoreBtn = $('[data-ai-load-more]', dom.page);
     dom.briefings = $('[data-admin-briefings]', dom.page);
     dom.briefingSetup = $('[data-briefing-setup]', dom.page);
+    dom.autoBriefings = $('[data-admin-auto-briefings]', dom.page);
+    dom.autoBriefingSetup = $('[data-auto-briefing-setup]', dom.page);
 
     /* Comms */
     dom.enquiriesTable = $('[data-admin-enquiries-table]', dom.page);
@@ -147,6 +149,11 @@
 
   /* ---------------- Tabs ---------------- */
 
+  function initialTab() {
+    var key = (location.hash || '').replace(/^#/, '').toLowerCase();
+    return dom.tabs.some(function (t) { return t.dataset.tab === key; }) ? key : 'villas';
+  }
+
   function switchTab(tabKey) {
     state.activeTab = tabKey;
     dom.tabs.forEach(function (t) {
@@ -176,7 +183,20 @@
       dom.briefingSetup.textContent = state.emailConfigured ? '' : 'Email delivery is not configured. Sending is disabled.';
       state.briefings = res.briefings || [];
       renderBriefings(state.briefings);
-    }).catch(function (err) { dom.briefings.innerHTML = empty('Could not load trip briefings: ' + err.message); });
+    }).catch(function (err) { dom.briefings.innerHTML = empty('Could not load trip briefings: ' + err.message); }).then(loadAutoBriefings);
+  }
+
+  function loadAutoBriefings() {
+    if (!dom.autoBriefings) return;
+    dom.autoBriefings.innerHTML = empty('Loading automatic briefings…');
+    return FridayAdmin.request('/api/admin/briefings/runs').then(function (res) {
+      dom.autoBriefingSetup.textContent = 'Mode: ' + res.mode + ' · Dry-run days: ' + res.dryRunDays + '/' + res.requiredDryRunDays;
+      var items = res.items || [];
+      if (!items.length) { dom.autoBriefings.innerHTML = empty('No automatic briefing runs yet. Runs happen daily at 09:00 IST.'); return; }
+      dom.autoBriefings.innerHTML = '<table class="admin-table"><thead><tr><th>Run</th><th>Trip</th><th>Departure</th><th>Outcome</th></tr></thead><tbody>' + items.map(function (row) {
+        return '<tr><td>' + esc(row.runDate) + ' · ' + esc(row.mode) + '</td><td><strong>' + esc(row.title) + '</strong></td><td>' + esc(row.departureDate) + ' · ' + esc(row.daysBeforeDeparture) + ' days</td><td>' + esc(String(row.outcome).replace(/_/g, ' ')) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    }).catch(function (err) { dom.autoBriefings.innerHTML = empty('Could not load automatic briefings: ' + err.message); });
   }
 
   function renderBriefings(rows) {
@@ -392,16 +412,24 @@
       var qInfo = q.quote;
       var amountDisplay = isCallback ? 'Callback request' : (qInfo ? esc(qInfo.currency) + ' ' + Number(qInfo.amount).toFixed(2) : 'Unquoted');
 
-      return '<div class="admin-quote-card' + (isSel ? ' is-selected' : '') + '" data-open-quote="' + esc(q.id) + '">' +
+      return '<div class="admin-quote-card' + (isSel ? ' is-selected' : '') + (isCallback && q.status === 'done' ? ' is-done' : '') + '" data-open-quote="' + esc(q.id) + '">' +
         '<div class="admin-quote-card__head">' +
         '<span class="admin-quote-card__client">' + esc(isCallback ? q.name : (q.customerEmail || 'Guest')) + '</span>' +
-        (isCallback ? '<span class="admin-badge">Callback</span>' : badge(q.status)) +
+        (isCallback ? '<span class="admin-badge">Callback' + (q.status === 'done' ? ' · done' : '') + '</span>' : badge(q.status)) +
         '</div>' +
         '<h4 class="admin-quote-card__dest">' + esc(dest) + '</h4>' +
-        '<div class="admin-quote-card__meta">' + (isCallback ? dates + ' · ' + esc(q.entryPoint || '') : dates + ' · ' + esc(snap.travelers || 1) + ' travellers') + '</div>' +
+        '<div class="admin-quote-card__meta">' + (isCallback ? dates + ' · ' + esc(q.entryPoint || '') + (q.checklist ? ' · checklist ' + esc(q.checklist.done + '/' + q.checklist.total) : '') : dates + ' · ' + esc(snap.travelers || 1) + ' travellers') + '</div>' +
         '<div class="admin-quote-card__amount">' + amountDisplay + '</div>' +
         '</div>';
     }).join('');
+  }
+
+  function checklistHtml(c) {
+    if (!c) return '';
+    var labels = {}; (c.items || []).forEach(function (i) { labels[i.id] = i.label; });
+    var answers = c.answers || {};
+    var ids = Object.keys(answers);
+    return '<p><strong>Pre-quote checklist:</strong> ' + esc(c.done + '/' + c.total) + ' complete</p>' + (ids.length ? '<ul>' + ids.map(function (id) { return '<li>' + esc(labels[id] || id) + ': ' + esc(answers[id].text || 'ticked, no detail') + '</li>'; }).join('') + '</ul>' : '');
   }
 
   function openQuoteDrawer(id) {
@@ -417,7 +445,7 @@
     if (q.kind === 'callback') {
       dom.quoteTitle.textContent = 'Callback request';
       var tripLink = q.tripId ? '<p><strong>Trip:</strong> <a href="trip.html#/trip/' + encodeURIComponent(q.tripId) + '" target="_blank" rel="noopener noreferrer">Open planner trip</a></p>' : '';
-      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>';
+      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + (q.topic ? '<p><strong>About:</strong> ' + esc(q.topic) + '</p>' : '') + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>' + checklistHtml(q.checklist) + '<p><button type="button" class="villa-text-button" data-callback-status="' + esc(q.id) + '" data-next-status="' + (q.status === 'done' ? 'open' : 'done') + '">' + (q.status === 'done' ? 'Reopen' : 'Mark done') + '</button></p>';
       dom.quoteNote.textContent = 'Call this traveler at their preferred time. This is a callback request, not a quote to send.';
       renderQuotes(state.quotes);
       return;
@@ -433,7 +461,8 @@
       '<p><strong>Travelers:</strong> ' + esc(snap.travelers || '—') + '</p>' +
       '<p><strong>Budget:</strong> ' + esc(snap.flexibleBudget ? 'Flexible' : (snap.budget || '—')) + '</p>' +
       (itemsList ? '<p><strong>Selected listings:</strong> ' + esc(itemsList) + '</p>' : '') +
-      (snap.instructions ? '<p><strong>Client notes:</strong> <em>' + esc(snap.instructions) + '</em></p>' : '');
+      (snap.instructions ? '<p><strong>Client notes:</strong> <em>' + esc(snap.instructions) + '</em></p>' : '') +
+      bookingVerifyHtml(snap.selectedBookings);
 
     dom.quoteSummaryInfo.innerHTML = summaryHtml;
 
@@ -454,6 +483,36 @@
     }
 
     renderQuotes(state.quotes);
+  }
+
+  /* Booking confidence: quote admins can mark a booking the traveller attached to this request as verified. */
+  function bookingVerifyHtml(bookings) {
+    var list = (bookings || []).filter(function (b) { return b && b.id; });
+    if (!list.length) return '';
+    return '<div data-booking-verify><p><strong>Attached bookings:</strong></p>' + list.map(function (b) {
+      return '<p data-booking-row="' + esc(b.id) + '">' + esc(b.title || 'Booking') + ' <button type="button" class="villa-text-button" data-verify-booking="' + esc(b.id) + '" data-verified="true">Mark verified</button> <button type="button" class="villa-text-button" data-verify-booking="' + esc(b.id) + '" data-verified="false">Clear</button> <span class="villa-form-note" data-booking-state role="status"></span></p>';
+    }).join('') + '</div>';
+  }
+  function setCallbackStatus(btn) {
+    var id = btn.dataset.callbackStatus, next = btn.dataset.nextStatus;
+    btn.disabled = true; dom.quoteNote.textContent = 'Saving…';
+    FridayAdmin.request('/api/admin/callbacks/' + encodeURIComponent(id) + '/status', 'POST', { status: next })
+      .then(function (res) {
+        var q = state.quotes.find(function (item) { return item.id === id; });
+        if (q) q.status = res.callback.status;
+        openQuoteDrawer(id);
+        dom.quoteNote.textContent = next === 'done' ? 'Marked done.' : 'Reopened.';
+      })
+      .catch(function (err) { dom.quoteNote.textContent = err.message || 'Could not update this callback.'; btn.disabled = false; });
+  }
+  function verifyBooking(btn) {
+    var row = btn.closest('[data-booking-row]'), note = row && row.querySelector('[data-booking-state]');
+    var verified = btn.dataset.verified === 'true';
+    btn.disabled = true; if (note) note.textContent = 'Saving…';
+    FridayAdmin.request('/api/admin/bookings/' + encodeURIComponent(btn.dataset.verifyBooking) + '/verify', 'POST', { verified: verified })
+      .then(function (res) { if (note) note.textContent = res.booking && res.booking.verification ? 'Verified by you' : 'Verification cleared'; })
+      .catch(function (err) { if (note) note.textContent = err.message || 'Could not update this booking.'; })
+      .then(function () { btn.disabled = false; });
   }
 
   function previewQuote() {
@@ -812,6 +871,10 @@
       }
 
       /* Quote actions */
+      var cbBtn = e.target.closest('[data-callback-status]');
+      if (cbBtn) { setCallbackStatus(cbBtn); return; }
+      var verifyBtn = e.target.closest('[data-verify-booking]');
+      if (verifyBtn) { verifyBooking(verifyBtn); return; }
       var openQuote = e.target.closest('[data-open-quote]');
       var closeQuoteDrawer = e.target.closest('[data-close-quote-drawer]');
 
@@ -907,13 +970,13 @@
       return FridayAdmin.getStatus().then(function (statusRes) {
         state.setup = statusRes.setup || {};
         showWorkspace(state.user);
-        switchTab('villas');
+        switchTab(initialTab());
       }).catch(function (err) {
         if (err.status === 403) {
           showLogin(err.message || 'This account does not have Friday admin access.');
         } else {
           showWorkspace(state.user);
-          switchTab('villas');
+          switchTab(initialTab());
         }
       });
     }).catch(function (err) {

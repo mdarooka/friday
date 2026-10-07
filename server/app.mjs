@@ -1,4 +1,7 @@
 import { createReelChat } from './reel-chat.mjs';
+import * as feedback from './feedback.mjs';
+import * as guideFeedback from './guide-feedback.mjs';
+import * as socialMeta from './social-meta.mjs';
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID, createHash, createHmac, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -25,6 +28,10 @@ import { createHexclaveAuth } from './hexclave/auth.mjs';
 import { createHexclaveEmailService } from './hexclave/email.mjs';
 import { runBackupLoop } from './tools/backup-loop.mjs';
 import { briefingEmail, prepareBriefing } from './briefing.mjs';
+import { carryVerification, verifyBooking } from './booking-confidence.mjs';
+import { quoteDigestMode, digestRecipient, runQuoteDigest, startQuoteDigestLoop } from './quote-digest.mjs';
+import { PREQUOTE_ITEMS, issueChecklist, saveChecklist, getChecklist } from './prequote-checklist.mjs';
+import { briefingAutosendMode, runBriefingSweep, startBriefingLoop, REQUIRED_DRY_RUN_DAYS } from './briefing-scheduler.mjs';
 const scrypt = promisify(scryptCallback);
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = x => createHash('sha256').update(x).digest('hex');
@@ -133,6 +140,10 @@ export function createApp(options = {}) {
     }
   }
   const trips = createTripStore({ db, config: tripConfig, fetch: options.vaultFetch, vault: options.vault });
+  guideFeedback.ensureGuideFeedbackTables(db);
+  const guideDigestSweep = (opts = {}) => guideFeedback.runGuideDigest({ db, emailService, inbox: env.FRIDAY_ENQUIRY_EMAIL || '', origin, now: opts.now || new Date(), mode: opts.mode ?? guideFeedback.guideDigestMode(env), manual: !!opts.manual, log: m => console.error('[friday] ' + m) });
+  const briefingSweep = (opts = {}) => runBriefingSweep({ db, store, trips, emailService, origin, now: opts.now || new Date(), mode: opts.mode ?? briefingAutosendMode(env), manual: !!opts.manual, log: m => console.error('[friday] ' + m) });
+  const quoteDigestSweep = (opts = {}) => runQuoteDigest({ db, store, emailService, origin, recipient: digestRecipient(env), now: opts.now || new Date(), mode: opts.mode ?? quoteDigestMode(env), manual: !!opts.manual, log: m => console.error('[friday] ' + m) });
   log(`trip storage: ${trips.mode}`);
   const config = options.ai || {provider:'openai',apiKey:env.OPENAI_API_KEY,model:env.OPENAI_RESEARCH_MODEL||env.OPENAI_MODEL||'gpt-5-mini',deepModel:env.OPENAI_DEEP_MODEL,fetch:options.fetch};
   store.failInterruptedJobs(db);
@@ -244,36 +255,30 @@ export function createApp(options = {}) {
         if (!full.startsWith(realRoot+path.sep) || !(await stat(full)).isFile()) fail(404,'Not found.');
         const types={'.html':'text/html','.txt':'text/plain','.xml':'application/xml','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2'};
         let content=await readFile(full);
-        if (relative==='app.html') {
+        if (relative==='app.html' || relative==='trip.html') {
           const sharedToken=url.searchParams.get('share')||'';
+          const shareFallback=origin.replace(/\/+$/,'')+'/assets/images/friday-coastal-banner.jpg';
+          let shared=null;
           if (/^[a-f0-9]{64}$/.test(sharedToken)) {
             const tokenHash=hash(sharedToken),share=await trips.findShare(tokenHash);
             if(share&&share.expires>Date.now()) {
-              const data=JSON.parse(share.data),title=typeof data.title==='string'?data.title.slice(0,200):'A journey';
-              const days=Array.isArray(data.days)?data.days:[],stops=days.reduce((n,day)=>n+(Array.isArray(day.items)?day.items.length:0),0);
-              const destination=typeof data.destination==='string'?data.destination.slice(0,120):'';
-              const start=typeof data.startDate==='string'?data.startDate:'';const end=typeof data.endDate==='string'?data.endDate:'';
-              const dateText=start?(end&&end!==start?`${start}–${end}`:start):'';
-              const parts=[destination,dateText,stops?`${stops} ${stops===1?'stop':'stops'}`:''].filter(Boolean);
-              const description=(parts.length?parts.join(' · ')+'. ':'')+'Shared with you on Friday.';
-              const firstPhoto=days.flatMap(day=>(Array.isArray(day.items)?day.items:[])).flatMap(item=>Array.isArray(item.photos)?item.photos:[]).find(photo=>{
-                if(!photo||typeof photo.url!=='string')return false;const match=photoMatch(photo.url);if(match)return true;try{return ['http:','https:'].includes(new URL(photo.url).protocol);}catch{return false;}
-              });
-              const photoRoute=firstPhoto&&photoMatch(firstPhoto.url);
-              const imageUrl=firstPhoto?(photoRoute?new URL(`/api/shared/${sharedToken}/photo/${photoRoute[1]}/${photoRoute[2]}`,origin).href:new URL(firstPhoto.url).href):new URL('/assets/images/friday-coastal-banner.jpg',origin).href;
-              const pageUrl=new URL(`/app.html?share=${sharedToken}`,origin).href;
-              const attr=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-              const meta=`<meta property="og:title" content="${attr(title)}"><meta property="og:description" content="${attr(description)}"><meta property="og:type" content="website"><meta property="og:url" content="${attr(pageUrl)}"><meta property="og:image" content="${attr(imageUrl)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${attr(title)}"><meta name="twitter:description" content="${attr(description)}"><meta name="twitter:image" content="${attr(imageUrl)}">`;
-              if(method==='GET'&&!req.headers['user-agent']?.match(/WhatsApp|facebookexternalhit|Facebot|Twitterbot|Slackbot|Discordbot|TelegramBot|LinkedInBot|Googlebot/i)) store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_link_opened',created:new Date().toISOString()});
-              else if(method==='GET') store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_preview_bot',created:new Date().toISOString()});
-              content=Buffer.from(content.toString('utf8').replace('</head>',`${meta}</head>`));
+              let data=null;try{data=JSON.parse(share.data);}catch{}
+              if(data&&typeof data==='object') {
+                shared=socialMeta.shareMeta(data,{origin,token:sharedToken,pagePath:'/'+relative});
+                // Opens are counted once, on the legacy app.html entry that share links point at (it forwards to trip.html).
+                if(relative==='app.html'&&method==='GET'&&!req.headers['user-agent']?.match(/WhatsApp|facebookexternalhit|Facebot|Twitterbot|Slackbot|Discordbot|TelegramBot|LinkedInBot|Googlebot/i)) store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_link_opened',created:new Date().toISOString()});
+                else if(relative==='app.html'&&method==='GET') store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_preview_bot',created:new Date().toISOString()});
+              }
             }
           }
+          // Expired or invalid share tokens fall through to the page's defaults; ?destination= gets that destination's card.
+          const meta=shared||(relative==='trip.html'?socialMeta.destinationMeta(url.searchParams.get('destination'),origin):null);
+          if(meta) content=Buffer.from(socialMeta.injectSocialMeta(content.toString('utf8'),meta,shareFallback));
         }
         res.writeHead(200,{'Content-Type':types[path.extname(full)]+'; charset=utf-8'}); res.end(method==='HEAD'?undefined:content);return;
       }
       rate('api:'+ip,240);
-      if (!['GET','HEAD'].includes(method)) {
+      if (!['GET','HEAD'].includes(method) && url.pathname!=='/api/cron/briefings' && url.pathname!=='/api/cron/quote-digest' && url.pathname!=='/api/cron/guide-feedback-digest') {
         // Production accepts only explicitly configured origins. Elsewhere (127.0.0.1, a LAN address, a dev proxy) an Origin that matches the
         // Host the browser used is also fine.
         const from=req.headers.origin;
@@ -336,8 +341,8 @@ export function createApp(options = {}) {
         if(!subscriber||subscriber.consent_at!==consentAt||subscriber.status!=='subscribed')invalid();
         if(method==='GET'||method==='HEAD'){
           const escapedToken=token.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-          const page=`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribe from Friday</title><body><main><h1>Unsubscribe from Friday emails?</h1><p>Confirm below to stop newsletter emails for ${address.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}.</p><button id="confirm" type="button">Unsubscribe</button><p id="status" role="status"></p></main><script>document.querySelector('#confirm').addEventListener('click',async()=>{const b=document.querySelector('#confirm'),s=document.querySelector('#status');b.disabled=true;try{const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${escapedToken}'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Please try again.');s.textContent='You are unsubscribed.';b.hidden=true;}catch(e){s.textContent=e.message;b.disabled=false;}})</script></body></html>`;
-          res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(method==='HEAD'?undefined:page);return;
+          const page=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Unsubscribe · Friday</title><link rel="stylesheet" href="/assets/css/friday.css"><style>body{min-height:100vh;background:var(--paper);color:var(--ink)}.unsubscribe{width:min(100% - 3rem,680px);margin:0 auto;padding:clamp(3rem,9vh,7rem) 0}.unsubscribe .wordmark{display:inline-block;margin-bottom:clamp(3rem,9vh,6rem)}.unsubscribe h1{font-family:var(--serif);font-size:clamp(2.8rem,7vw,5rem);font-weight:400;line-height:1}.unsubscribe p{max-width:36rem;line-height:1.65}.unsubscribe__actions{display:flex;align-items:center;flex-wrap:wrap;gap:1.5rem;margin-top:2rem}.unsubscribe #status{min-height:1.5em}</style></head><body><main class="unsubscribe"><a class="wordmark" href="/index.html" aria-label="Friday — home"><span class="wordmark__name">Friday</span></a><p class="eyebrow">Newsletter preferences</p><h1>Unsubscribe from Friday emails?</h1><p>Confirm below to stop newsletter emails for ${address.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}.</p><div class="unsubscribe__actions"><button class="btn btn--solid" id="confirm" type="button">Unsubscribe <span class="arrow" aria-hidden="true">&rarr;</span></button><a class="link" href="/index.html">Return to Friday</a></div><p id="status" role="status" aria-live="polite"></p></main><script>document.querySelector('#confirm').addEventListener('click',async()=>{const b=document.querySelector('#confirm'),s=document.querySelector('#status');b.disabled=true;try{const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${escapedToken}'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Please try again.');s.textContent='You are unsubscribed.';b.hidden=true;}catch(e){s.textContent=e.message;b.disabled=false;}})</script></body></html>`;
+          res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow, noarchive'});res.end(method==='HEAD'?undefined:page);return;
         }
         store.unsubscribeNewsletterSubscriber(db,address,new Date().toISOString());
         return send(200,{ok:true});
@@ -470,6 +475,45 @@ export function createApp(options = {}) {
         store.recordTripShareEvent(db,{id:randomUUID(),tokenHash:hash(whatsappClick[1]),eventType:'trip_share_whatsapp_clicked',created:new Date().toISOString()});
         return send(200,{ok:true});
       }
+      // Friends' reactions and comments on a shared plan. Owner and trip come from the share row, never from the client; feedback is
+      // keyed to (owner, trip) so it survives link rotation, but only a currently valid, unexpired link may read or write it.
+      const feedbackRoute=p.match(/^\/api\/shared\/([a-f0-9]{64})\/feedback(?:\/([a-f0-9-]{36}))?$/);
+      if(feedbackRoute) {
+        const [,feedbackToken,feedbackId]=feedbackRoute;
+        if(feedbackId?method!=='DELETE':!['GET','POST'].includes(method))fail(405,'Method not allowed.');
+        if(method==='GET')rate('feedback-read:'+ip,feedback.FEEDBACK_READS_PER_IP_PER_MIN);
+        else{const tokenKey=hash(feedbackToken);rate('feedback-write:ip:'+ip,feedback.FEEDBACK_WRITES_PER_IP_PER_MIN);rate('feedback-write:token:'+tokenKey,feedback.FEEDBACK_WRITES_PER_TOKEN_PER_MIN);}
+        const link=store.findShareLink(db,hash(feedbackToken));
+        if(!link||link.expires<=Date.now())fail(404,'This shared journey is unavailable.');
+        const live=await trips.findShare(hash(feedbackToken));
+        if(!live)fail(404,'This shared journey is unavailable.');
+        const stops=feedback.stopList(JSON.parse(live.data));
+        const viewerId=req.headers['x-friday-viewer'];
+        if(method==='GET'&&!viewerId)return send(200,feedback.summarize(feedback.feedbackRows(db,link.user_id,link.trip_id),stops,{}));
+        if(!feedback.validViewerId(viewerId))fail(400,'A viewer id is required.');
+        const vHash=feedback.viewerHash(link.user_id,link.trip_id,viewerId);
+        if(method==='GET')return send(200,feedback.summarize(feedback.feedbackRows(db,link.user_id,link.trip_id),stops,{vHash}));
+        if(method==='DELETE'){
+          if(!feedback.deleteViewerComment(db,{id:feedbackId,ownerId:link.user_id,tripId:link.trip_id,vHash}))fail(404,'That comment is no longer available.');
+          return send(200,{ok:true});
+        }
+        const stopKey=typeof body.stopKey==='string'?body.stopKey:'';
+        if(!stops.some(stop=>stop.key===stopKey))fail(422,'That stop is not part of this shared plan.');
+        const name=feedback.cleanText(body.name,feedback.MAX_NAME_CHARS),created=new Date().toISOString();
+        if(body.kind==='reaction'){
+          if(!feedback.REACTIONS.includes(body.value))fail(422,'Choose one of the available reactions.');
+          const mine=feedback.setReaction(db,{id:randomUUID(),ownerId:link.user_id,tripId:link.trip_id,stopKey,vHash,name,value:body.value,created});
+          return send(200,{ok:true,mine});
+        }
+        if(body.kind==='comment'){
+          const text=feedback.cleanText(body.value,feedback.MAX_COMMENT_CHARS+1,{multiline:true});
+          if(!text||typeof body.value!=='string'||text.length>feedback.MAX_COMMENT_CHARS)fail(422,`Comments can be up to ${feedback.MAX_COMMENT_CHARS} characters.`);
+          const id=randomUUID();
+          feedback.addComment(db,{id,ownerId:link.user_id,tripId:link.trip_id,stopKey,vHash,name,value:text,created});
+          return send(201,{ok:true,comment:{id,stopKey,name,text,created,mine:true}});
+        }
+        fail(422,'Send a reaction or a comment.');
+      }
       if(sharedPhoto&&method==='GET') {
         // Anonymous viewers load a shared trip's photos through the share token, and only photos that trip references.
         rate('sharedphoto:'+ip,120);
@@ -486,7 +530,9 @@ export function createApp(options = {}) {
         // Photos saved from Google Places are same-origin relative links; give viewers the share-scoped route instead.
         const photoLink=value=>{const m=photoMatch(value);return m?`/api/shared/${sharedMatch[1]}/photo/${m[1]}/${m[2]}`:safeUrl(value);};
         const safeText=(value,max=2000)=>typeof value==='string'?value.slice(0,max):'';
-        const days=Array.isArray(data.days)?data.days.map(day=>({title:safeText(day.title,200),date:safeText(day.date,10),notes:safeText(day.notes),items:Array.isArray(day.items)?day.items.map(item=>({title:safeText(item.title,200),time:safeText(item.time,80),notes:safeText(item.notes),address:safeText(item.address,500),url:safeUrl(item.url||''),openingHours:safeText(item.openingHours,1000),rating:safeText(item.rating,80),reviews:safeText(item.reviews),photos:Array.isArray(item.photos)?item.photos.map(photo=>({url:photoLink(photo.url),attribution:safeText(photo.attribution,300),sourceUrl:safeUrl(photo.sourceUrl)})).filter(photo=>photo.url):[]})):[]})):[];
+        // Map pins: only finite, in-range lat/lng, rounded to ~11 m. Nothing else from a stop's location leaves the server.
+        const pinOf=item=>{const lat=Number(item.lat),lng=Number(item.lng);return item.lat==null||item.lng==null||!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180?{}:{lat:Math.round(lat*1e4)/1e4,lng:Math.round(lng*1e4)/1e4};};
+        const days=Array.isArray(data.days)?data.days.map(day=>({title:safeText(day.title,200),date:safeText(day.date,10),notes:safeText(day.notes),items:Array.isArray(day.items)?day.items.map(item=>({...pinOf(item),title:safeText(item.title,200),time:safeText(item.time,80),notes:safeText(item.notes),address:safeText(item.address,500),url:safeUrl(item.url||''),openingHours:safeText(item.openingHours,1000),rating:safeText(item.rating,80),reviews:safeText(item.reviews),photos:Array.isArray(item.photos)?item.photos.map(photo=>({url:photoLink(photo.url),attribution:safeText(photo.attribution,300),sourceUrl:safeUrl(photo.sourceUrl)})).filter(photo=>photo.url):[]})):[]})):[];
         return send(200,{trip:{title:safeText(data.title,200),destination:safeText(data.destination,200),startDate:safeText(data.startDate,10),endDate:safeText(data.endDate,10),days},expires:new Date(share.expires).toISOString()});
       }
       if (['/api/auth/signup','/api/auth/login'].includes(p) && method==='POST') {
@@ -648,6 +694,56 @@ export function createApp(options = {}) {
         results.sort((a,b)=>a.departureDate.localeCompare(b.departureDate)||a.title.localeCompare(b.title));
         return send(200,{briefings:results,emailConfigured:emailService.configured});
       }
+      if(p==='/api/admin/briefings/runs'){
+        allow('GET','HEAD');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
+        store.ensureBriefingTables(db);
+        const runs=store.listBriefingRuns(db,14),titles=new Map(),items=[];
+        for(const item of store.listBriefingRunItems(db,60)){
+          if(!titles.has(item.trip_id)){let title='';try{title=JSON.parse((await trips.find(item.trip_id,item.user_id))?.data||'{}').title||'';}catch{}titles.set(item.trip_id,title);}
+          items.push({runDate:item.run_date,mode:item.mode,tripId:item.trip_id,title:titles.get(item.trip_id)||'Trip',departureDate:item.departure_date,daysBeforeDeparture:item.days_before,outcome:item.outcome});
+        }
+        return send(200,{mode:briefingAutosendMode(env),dryRunDays:store.countCompletedBriefingDryRunDays(db),requiredDryRunDays:REQUIRED_DRY_RUN_DAYS,runs:runs.map(r=>({runDate:r.run_date,mode:r.mode,requestedMode:r.requested_mode,started:r.started,finished:r.finished,note:r.note,selected:r.selected,wouldSend:r.would_send,sent:r.sent,skipped:r.skipped,failed:r.failed})),items});
+      }
+      if(p==='/api/guide-feedback'){
+        // Anonymous "Was this useful?" vote on a public guide. One vote per viewer per guide; re-voting updates it.
+        allow('POST');rate('guide-feedback:'+ip,guideFeedback.GUIDE_VOTES_PER_IP_PER_MIN);
+        const viewerId=String(req.headers['x-friday-viewer']||'');
+        return send(200,guideFeedback.recordVote(db,{slug:body.slug,viewerId,vote:body.vote,note:body.note}));
+      }
+      if(p==='/api/cron/guide-feedback-digest'){
+        // External trigger, same bearer secret as /api/cron/briefings. Idempotent per week.
+        const cronSecret=String(env.FRIDAY_CRON_SECRET||'');
+        if(cronSecret.length<32)fail(404,'Not found.');
+        allow('POST');rate('cron-guide-digest:'+ip,10);
+        const given=/^Bearer (.+)$/.exec(req.headers.authorization||'')?.[1]||'';
+        const digest=x=>createHash('sha256').update(x).digest();
+        if(!timingSafeEqual(digest(given),digest(cronSecret)))fail(401,'Unauthorized.');
+        return send(200,await guideDigestSweep({now:new Date()}));
+      }
+      if(p==='/api/cron/briefings'){
+        // External trigger for hosts that scale to zero. Bearer secret only; no session or Origin; uses the configured mode so the once-per-day guard applies.
+        const cronSecret=String(env.FRIDAY_CRON_SECRET||'');
+        if(cronSecret.length<32)fail(404,'Not found.');
+        allow('POST');rate('cron-briefings:'+ip,10);
+        const given=/^Bearer (.+)$/.exec(req.headers.authorization||'')?.[1]||'';
+        const digest=x=>createHash('sha256').update(x).digest();
+        if(!timingSafeEqual(digest(given),digest(cronSecret)))fail(401,'Unauthorized.');
+        return send(200,await briefingSweep({now:new Date()}));
+      }
+      if(p==='/api/cron/quote-digest'){
+        const cronSecret=String(env.FRIDAY_CRON_SECRET||'');
+        if(cronSecret.length<32)fail(404,'Not found.');
+        allow('POST');rate('cron-quote-digest:'+ip,10);
+        const given=/^Bearer (.+)$/.exec(req.headers.authorization||'')?.[1]||'';
+        const digest=x=>createHash('sha256').update(x).digest();
+        if(!timingSafeEqual(digest(given),digest(cronSecret)))fail(401,'Unauthorized.');
+        return send(200,await quoteDigestSweep({now:new Date()}));
+      }
+      if(p==='/api/admin/briefings/run-now'){
+        allow('POST');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
+        if(url.searchParams.get('dry')!=='1')fail(422,'Only dry runs can be started here. Add dry=1.');
+        return send(200,await briefingSweep({mode:'dry-run',manual:true}));
+      }
       const briefingSend=p.match(/^\/api\/admin\/briefings\/([0-9a-f-]{36})\/send$/i);
       if(briefingSend){
         allow('POST');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
@@ -656,7 +752,7 @@ export function createApp(options = {}) {
         if(!found)fail(404,'This trip was not found.');
         const requestId=typeof body.requestId==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(body.requestId)?body.requestId:'';
         if(!requestId)fail(422,'A send request id is required.');
-        const briefing=prepareBriefing({tripId,tripData:JSON.parse(found.row.data),bookingRows:found.bookingRows,recipient:found.owner.email,origin});
+        const briefing=prepareBriefing({tripId,tripData:JSON.parse(found.row.data),bookingRows:found.bookingRows,recipient:found.owner.email,origin,source:'admin'});
         if(!briefing.eligible)fail(409,'Only trips with a linked confirmed booking departing within 7 days can receive a briefing.');
         if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(briefing.recipient))fail(409,'This traveller account has no deliverable email address.');
         const row=await briefingEmail({dedupeKey:`briefing:${tripId}:${requestId}`,briefing,emailService});
@@ -678,8 +774,20 @@ export function createApp(options = {}) {
       }
       if(p==='/api/admin/quotes'){
         allow('GET');if(!user)fail(401,'Please sign in.');const quotes=friday.adminList(user,effectiveQuoteAdmins);
-        const callbacks=store.listCallbackRequests(db).map(row=>({id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,status:row.status,createdAt:row.created}));
+        const callbacks=store.listCallbackRequests(db).map(row=>({checklist:{items:PREQUOTE_ITEMS.map(i=>({id:i.id,label:i.label})),...getChecklist(db,row.id)},id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,topic:row.topic||null,status:row.status,createdAt:row.created}));
         return send(200,{quotes:[...callbacks,...quotes]});
+      }
+      const bookingVerify=p.match(/^\/api\/admin\/bookings\/([0-9a-f-]{36})\/verify$/i);
+      if(bookingVerify){allow('POST');if(!user)fail(401,'Please sign in.');const explicitQuoteAdmins=quoteAdminEmails.length>0||generalAdminEmails.length>0;return send(200,{booking:verifyBooking({db,store,admin:user,allowed:explicitQuoteAdmins?effectiveQuoteAdmins:new Set(),bookingId:bookingVerify[1],verified:body.verified})});}
+      const callbackStatus=p.match(/^\/api\/admin\/callbacks\/([0-9a-f-]{36})\/status$/i);
+      if(callbackStatus){
+        allow('POST');if(!user)fail(401,'Please sign in.');
+        const explicitQuoteAdmins=quoteAdminEmails.length>0||generalAdminEmails.length>0;
+        if(!explicitQuoteAdmins||!effectiveQuoteAdmins.has(String(user.email||'').toLowerCase()))fail(403,'Your account is not on the quote administration allowlist.');
+        const wanted=body.status==='open'?'new':body.status;
+        if(!['new','done'].includes(wanted))fail(422,'Status must be open or done.');
+        if(!store.setCallbackStatus(db,callbackStatus[1],wanted))fail(404,'This callback request was not found.');
+        return send(200,{callback:{id:callbackStatus[1],status:wanted}});
       }
       const quotePreview=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/preview$/i);
       if(quotePreview){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{preview:friday.previewQuote(user,effectiveQuoteAdmins,quotePreview[1],body)});}
@@ -782,6 +890,15 @@ export function createApp(options = {}) {
         const result=await google({path:p,method,body,user,url});
         if(result){if(result.redirect){res.writeHead(result.status,{Location:result.redirect,'Cache-Control':'no-store'});res.end();return;}return send(result.status,result.data);}
       }
+      if (p==='/api/callbacks/checklist-items' && method==='GET') return send(200,{items:PREQUOTE_ITEMS});
+      const checklistRoute=p.match(/^\/api\/callbacks\/([0-9a-f-]{36})\/checklist$/i);
+      if (checklistRoute) {
+        allow('PUT');rate('form:'+ip,30);
+        if(Buffer.byteLength(JSON.stringify(body))>8000) fail(413,'Your answers are too long.');
+        const saved=saveChecklist(db,{callbackId:checklistRoute[1],editToken:body.checklistToken,userId:user?.id||null,answers:body.answers});
+        if(!saved) fail(403,'These answers could not be saved to that request.');
+        return send(200,saved);
+      }
       if (p==='/api/callbacks' && method==='POST') {
         rate('form:'+ip,5);
         if(Buffer.byteLength(JSON.stringify(body))>20000) fail(413,'Your request is too long.');
@@ -792,12 +909,14 @@ export function createApp(options = {}) {
         if(!['planner','contact'].includes(entryPoint)) fail(422,'This callback request could not be placed.');
         const tripId=body.tripId==null||body.tripId===''?null:str(body.tripId,'trip link',160);
         if(tripId&&!/^[A-Za-z0-9_-]+$/.test(tripId)) fail(422,'This trip link is not valid.');
+        const topic=body.topic==null||body.topic===''?null:str(body.topic,'topic',200);
         const id=randomUUID(),created=new Date().toISOString();
-        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {})};
-        store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,status:'new',created});
+        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {}),...(topic?{topic}:{})};
+        store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,status:'new',created,topic});
+        const checklistToken=issueChecklist(db,{callbackId:id,ownerId:user?.id||null,now:created});
         const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
         const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
-        return send(201,{id,saved:true,delivery:{notification:notification?.status||'blocked'}});
+        return send(201,{id,saved:true,checklistToken,delivery:{notification:notification?.status||'blocked'}});
       }
       if (['/api/commissions','/api/subscriptions'].includes(p) && method==='POST') {
         rate('form:'+ip,5); email(body.email);
@@ -816,8 +935,10 @@ export function createApp(options = {}) {
           return send(201,{id,saved:true,delivery:{receipt:receipt?.status||'blocked',notification:notification?.status||'blocked'}});
         }
         const address=email(body.email);
-        store.upsertNewsletterSubscriber(db,{email:address,consentAt:created,source:'website',created});
-        const confirmation=await emailService.subscriptionConfirmation({id,email:address,consentAt:created});
+        const previous=store.getNewsletterSubscriber(db,address);
+        const consentAt=previous&&Date.parse(previous.consent_at)>=Date.parse(created)?new Date(Date.parse(previous.consent_at)+1).toISOString():created;
+        store.upsertNewsletterSubscriber(db,{email:address,consentAt,source:'website',created});
+        const confirmation=await emailService.subscriptionConfirmation({id,email:address,consentAt});
         return send(201,{id,saved:true,delivery:confirmation?.status||'blocked'});
       }
       if(!user) fail(401,'Please sign in.');
@@ -854,6 +975,17 @@ export function createApp(options = {}) {
       if(shareMatch&&method==='DELETE') {
         await getRecord(shareMatch[1],user.id,'trips');
         store.deleteShares(db,shareMatch[1],user.id);
+        return send(200,{ok:true});
+      }
+      const ownerFeedback=p.match(/^\/api\/trips\/([a-f0-9-]+)\/feedback(?:\/([a-f0-9-]{36}))?$/);
+      if(ownerFeedback) {
+        const [,feedbackTripId,commentId]=ownerFeedback;
+        if(commentId?!['POST','DELETE'].includes(method):method!=='GET')fail(405,'Method not allowed.');
+        const record=await getRecord(feedbackTripId,user.id,'trips');   // 404 unless the trip is this user's
+        if(method==='GET')return send(200,feedback.summarize(feedback.feedbackRows(db,user.id,feedbackTripId),feedback.stopList(JSON.parse(record.data)),{owner:true}));
+        rate('feedback-owner:'+user.id,feedback.FEEDBACK_OWNER_WRITES_PER_MIN);
+        const changed=method==='DELETE'?feedback.deleteComment(db,{id:commentId,ownerId:user.id,tripId:feedbackTripId}):feedback.setCommentHidden(db,{id:commentId,ownerId:user.id,tripId:feedbackTripId,hidden:body.hidden!==false});
+        if(!changed)fail(404,'That comment is no longer available.');
         return send(200,{ok:true});
       }
       if (p==='/api/profile' && method==='PATCH') {
@@ -923,9 +1055,9 @@ export function createApp(options = {}) {
       if(match) {
         const [,kind,id]=match;
         if(method==='GET')return send(200,id?{record:parseRecord(await getRecord(id,user.id,kind))}:{records:(kind==='trips'?await trips.list(user.id):store.listRecords(db,user.id,kind)).map(parseRecord)});
-        if(method==='POST'&&!id)return send(201,{record:await newRecord(user.id,kind,body.data)});
+        if(method==='POST'&&!id){if(kind==='bookings'&&body.data&&typeof body.data==='object')carryVerification(body.data,null);return send(201,{record:await newRecord(user.id,kind,body.data)});}
         if(method==='PUT'&&id) {
-          validate(kind,body.data);await getRecord(id,user.id,kind);
+          validate(kind,body.data);const existingRow=await getRecord(id,user.id,kind);if(kind==='bookings')carryVerification(body.data,JSON.parse(existingRow.data));
           if(!Number.isInteger(body.version))fail(422,'A record version is required.');
           const update={id,userId:user.id,data:JSON.stringify(body.data),updated:new Date().toISOString(),version:body.version};
           const changed=kind==='trips'?await trips.updateIfVersion(update):store.updateRecordIfVersion(db,{...update,kind});
@@ -934,7 +1066,7 @@ export function createApp(options = {}) {
         }
         if(method==='DELETE'&&id){
           await getRecord(id,user.id,kind);
-          if(kind==='trips'){await trips.delete(id,user.id);store.deleteShares(db,id,user.id);}   // shares have no foreign key to a vault trip, so remove them here
+          if(kind==='trips'){await trips.delete(id,user.id);store.deleteShares(db,id,user.id);feedback.deleteTripFeedback(db,id,user.id);}   // shares have no foreign key to a vault trip, so remove them here
           else store.deleteRecord(db,id,user.id,kind);
           return send(200,{ok:true});
         }
@@ -942,6 +1074,9 @@ export function createApp(options = {}) {
       fail(404,'Not found.');
     }catch(e){if(e instanceof VaultError){console.error(`[friday] ${req.method} ${String(req.url).split('?')[0]} trip storage failed: ${e.code}: ${e.message}`);if(!res.headersSent)return send(503,{error:'Trip storage is temporarily unavailable. Please try again.'});return res.end();}if(!e.status||e.status>=500)console.error(`[friday] ${req.method} ${String(req.url).split('?')[0]} failed: ${String(e?.stack||e).slice(0,2000)}`);if(!res.headersSent)send(e.status||500,{error:e.status?e.message:'Something went wrong. Please try again.'});else res.end();}
   });
+  server.briefing={sweep:briefingSweep,mode:()=>briefingAutosendMode(env)};
+  server.guideDigest={sweep:guideDigestSweep,mode:()=>guideFeedback.guideDigestMode(env)};
+  server.quoteDigest={sweep:quoteDigestSweep,mode:()=>quoteDigestMode(env)};
   server.on('close',()=>{ Promise.allSettled([...backgroundTasks]).then(()=>store.closeStore(db)); });
   return server;
 }
@@ -950,6 +1085,9 @@ if (process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta
   const defaultPort = process.env.NODE_ENV === 'production' ? 3000 : 4871;
   const server=createApp({log:m=>console.error('[friday] '+m)});const port=Number(process.env.PORT||defaultPort);
   if (process.env.DATABASE_BACKUP_DIR) runBackupLoop().catch(error => console.error(`[friday] SQLite backup scheduler failed: ${error.message}`));
+  if (server.guideDigest.mode() !== 'off') guideFeedback.startGuideDigestLoop({ sweep: now => server.guideDigest.sweep({ now }), log: m => console.error('[friday] ' + m) });
+  if (server.briefing.mode() !== 'off') startBriefingLoop({ sweep: now => server.briefing.sweep({ now }), log: m => console.error('[friday] ' + m) });
+  if (server.quoteDigest.mode() !== 'off') startQuoteDigestLoop({ sweep: now => server.quoteDigest.sweep({ now }), log: m => console.error('[friday] ' + m) });
   server.listen(port,process.env.HOST||defaultHost,()=>console.log(`Friday http://${process.env.HOST||defaultHost}:${port}`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>process.exit(0)));
 }

@@ -8,8 +8,12 @@ const { Plate, SecHead, eyebrow, facts, practice, places, quote, glyph, layout, 
 const { partnerBody } = require('./partner');
 const Villas = require('./villas');
 const Admin = require('./admin');
+const { guideFeedback } = require('./guide-feedback');
 const { siteOrigin, sitemapXml, robotsTxt } = require('./site-metadata');
 const PUBLIC_ORIGIN = siteOrigin();
+const { cardUrl } = require('./social-cards');
+/* Per-guide share card ({ image, alt }) for layout()'s `social` option: assets/images/og/<id>-guide.jpg, absolute and version-stamped. */
+const guideSocial = (id, alt) => ({ image: cardUrl(`${id}-guide`, PUBLIC_ORIGIN), alt });
 
 const OUT = path.join(__dirname, '..');
 const write = (file, html) => {
@@ -137,19 +141,7 @@ const home = `
   </div>
 </section>
 
-<section class="section inverse">
-  <div class="wrap grid" style="align-items:center">
-    <div class="c-5 c-md-12"><p class="closer__mark" data-reveal>Friday</p></div>
-    <div class="c-6 s-7 c-md-12">
-      ${eyebrow('Start planning')}
-      <h2 class="h2" style="margin-top:1rem" data-reveal>Tell us what<br>you&rsquo;re imagining.</h2>
-      <p class="lede" style="margin-top:1.3rem" data-reveal>Start with Friday&rsquo;s AI planner or send a note about the trip you have in mind.</p>
-      <p style="margin-top:2rem" data-reveal><a class="btn" href="trip.html">Plan a trip <span class="arrow">&rarr;</span></a> <a class="link" style="margin-left:1rem" href="contact.html">Contact Friday <span class="arrow">&rarr;</span></a></p>
-    </div>
-  </div>
-</section>
-
-<section class="section section--tight">
+<section class="section section--tight home-newsletter">
   <div class="wrap grid" style="align-items:center">
     <div class="c-5 c-md-12">
       ${eyebrow('Field notes by email')}
@@ -215,6 +207,53 @@ ${PageHero({
 </div></section>
 <section class="section"><div class="wrap grid" style="align-items:start">
   <article class="c-6 c-md-12 prose" data-reveal>
+    <p class="eyebrow">Getting there and around</p>
+    <h2 class="h2">Which airport should you fly into?</h2>
+    <p>Kerala Tourism lists Kochi, Thiruvananthapuram and Calicut as the state’s major international airports. For the areas in this guide, Kochi is the natural arrival point for Fort Kochi, Munnar, Alleppey and Kumarakom, and Thiruvananthapuram is the closer one for Kovalam; Friday’s catalogue also notes Shanghumugham Beach as a city beach near the airport there.</p>
+    <p>Kerala Tourism describes buses and taxis as the usual ways to travel within the state, and warns that self-driving can be challenging. Friday’s researched notes say roads are slower than distances suggest, and put Kochi to Munnar at roughly 3.5–4.5 hours, Alleppey and Kumarakom at roughly 1.5–2.5 hours, and Varkala at roughly 4–4.5 hours. Treat these as planning guides, not guaranteed journey times, and check with your driver or operator for your dates.</p>
+    <p><a class="link" href="https://www.keralatourism.org/faq/20-things-to-know-before-you-visit-kerala" target="_blank" rel="noopener noreferrer">Kerala Tourism’s travel basics <span class="arrow">&rarr;</span></a></p>
+  </article>
+  <article class="c-6 c-md-12 prose" data-reveal style="--i:1">
+    <p class="eyebrow">What each area is for</p>
+    <h2 class="h2">Pick areas by the kind of day you want.</h2>
+    <ul>
+      <li><strong>Hills:</strong> Munnar, for tea estates, viewpoints and Eravikulam National Park, where the catalogue says to book the entry slot ahead.</li>
+      <li><strong>Spice and wildlife:</strong> Thekkady, for the Periyar Lake boat ride and Kumily’s spice market.</li>
+      <li><strong>Backwaters:</strong> Alleppey and Kumarakom, for houseboat and lake cruises, birdlife and Ayurveda.</li>
+      <li><strong>Heritage and food:</strong> Fort Kochi, for a walkable colonial quarter, galleries and cafés.</li>
+      <li><strong>Beaches:</strong> Varkala’s cliff and Kovalam’s crescent beach, for the end of a trip.</li>
+    </ul>
+  </article>
+</div></section>
+<section class="section"><div class="wrap grid" style="align-items:start">
+  <article class="c-6 c-md-12 prose" data-reveal>
+    <p class="eyebrow">Sample route shapes</p>
+    <h2 class="h2">How could 4–5 days, a week or two weeks fit together?</h2>
+    <p>These are shapes to start a conversation, not itineraries or bookings. Each uses only areas from the catalogue above, with one base per stretch so you spend less time in transit.</p>
+    <ul>
+      <li><strong>4–5 days:</strong> Fort Kochi, then either the backwaters (Alleppey or Kumarakom) or Munnar. Skip the other rather than squeezing both in.</li>
+      <li><strong>About a week:</strong> Fort Kochi, Munnar, then Thekkady or the backwaters, depending on whether you want wildlife or water.</li>
+      <li><strong>About two weeks:</strong> Fort Kochi, Munnar, Thekkady, the backwaters, then Varkala or Kovalam to finish on the coast, with rest days between the longer drives.</li>
+    </ul>
+    <p>Friday’s planner builds each day around one area and keeps drives to a sensible number; share your dates and it can adjust.</p>
+  </article>
+  <article class="c-6 c-md-12 prose" data-reveal style="--i:1">
+    <p class="eyebrow">Before you go</p>
+    <h2 class="h2">What should you pack and respect?</h2>
+    <p>Kerala Tourism advises dressing modestly at religious sites and asking permission before photographing people there. Friday’s catalogue adds that Padmanabhaswamy Temple in Thiruvananthapuram can be viewed from outside only by non-Hindus; confirm current entry and dress rules before you visit.</p>
+    <p>Kerala Tourism puts the monsoon at June to August and says to be prepared for heavy rain, while also noting occasional rain in other months. Pack a light rain layer, and keep boat days flexible. Friday’s catalogue also suggests early starts for Periyar, Kumarakom birdlife and Kolukkumalai sunrise, and cooler layers for the hills.</p>
+    <p><a class="link" href="https://www.keralatourism.org/faq/20-things-to-know-before-you-visit-kerala" target="_blank" rel="noopener noreferrer">Kerala Tourism’s etiquette and seasons <span class="arrow">&rarr;</span></a></p>
+  </article>
+</div></section>
+<section class="section"><div class="wrap grid" style="align-items:start">
+  <article class="c-6 c-md-12 prose" data-reveal>
+    <p class="eyebrow">Stays</p>
+    <h2 class="h2">Where could you stay?</h2>
+    <p>Friday’s catalogue includes stays to consider, with no live rates or availability: Brunton Boatyard and Old Harbour Hotel in Fort Kochi, Windermere Estate in Munnar, Spice Village in Thekkady, Kumarakom Lake Resort on Vembanad Lake, Marari Beach Resort near Alleppey, Villa Jacaranda in Varkala and The Leela Kovalam. Confirm prices and dates with each property.</p>
+  </article>
+</div></section>
+<section class="section"><div class="wrap grid" style="align-items:start">
+  <article class="c-6 c-md-12 prose" data-reveal>
     <p class="eyebrow">Backwaters</p>
     <h2 class="h2">Is Alleppey or Kumarakom better for a houseboat?</h2>
     <p>There is no single best choice for every route. Friday’s catalogue lists a houseboat cruise in Alleppey (Alappuzha) and a sunset cruise on Vembanad Lake in Kumarakom; it does not say one is better. If an overnight stay matters, confirm availability, route, operator rules and current prices directly—these sample listings are not live booking details.</p>
@@ -227,6 +266,7 @@ ${PageHero({
     <p><a class="link" href="https://www.keralatourism.org/faq/20-things-to-know-before-you-visit-kerala" target="_blank" rel="noopener noreferrer">Kerala Tourism’s travel basics <span class="arrow">&rarr;</span></a></p>
   </article>
 </div></section>
+${guideFeedback('kerala')}
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">Make Kerala<br>your own route.</h2><p class="lede" style="margin-top:1rem">Start with the places that interest you, then shape the pace and dates with Friday.</p></div>
   <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" href="trip.html?destination=kerala&amp;from_guide=kerala#/new">Plan your Kerala trip <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" href="contact.html?quote_path=guide&amp;destination=kerala">Ask Friday about a quote <span class="arrow">&rarr;</span></a></div>
@@ -235,6 +275,16 @@ page('kerala-guide.html', {
   title: 'Kerala Travel Guide: Itineraries, Munnar & Backwaters',
   description: 'Plan a Kerala trip around the time you have, from Kochi and Munnar to Alleppey backwaters and the coast. Browse Friday’s curated places.',
   body: keralaGuide, canonical: 'kerala-guide.html',
+  social: guideSocial('kerala', 'Friday’s Kerala guide: a slower way through Kerala, beside a layered green landscape'),
+});
+
+/* ======================================================== Kyoto guide */
+const { kyotoGuide } = require('./guides/kyoto');
+page('kyoto-guide.html', {
+  title: 'Kyoto Travel Guide: Itineraries, Stays & Bombay Notes',
+  description: 'Plan a Kyoto trip from Bombay: three itinerary arcs, a stay shortlist by neighbourhood, and practical notes on flights, visas and seasons.',
+  body: kyotoGuide({ PageHero, T, KYOTO: require('./trip-data/kyoto') }), canonical: 'kyoto-guide.html',
+  social: guideSocial('kyoto', 'Friday’s Kyoto guide: Kyoto, one slow day at a time, beside a layered autumn landscape'),
 });
 
 page('partner.html', { title: 'List your villa', description: 'Introduce your villa to Friday for consideration in its collection of considered places to stay.', body: partnerBody(), active: 'partner.html', lightHead: true, extraStyles: ['assets/css/partner.css'], extraScripts: ['assets/js/partner.js'] });
@@ -975,6 +1025,15 @@ ${PageHero({
         <p class="lede" style="margin-top:1.1rem" data-reveal>Explore a few ways to shape the days, places and pace of a Kerala trip, with practical answers to common planning questions.</p>
         <p style="margin-top:1.6rem" data-reveal><a class="link" href="kerala-guide.html">Read the Kerala guide <span class="arrow">&rarr;</span></a></p>
       </div>
+    </article>
+    <article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
+      <div class="c-5 c-md-12" data-reveal="mask"><a href="kyoto-guide.html">${Plate('field-notes-kyoto', { ratio: 'l', scene: 'forest', tone: 'ember', svgRatio: 'landscape' })}</a></div>
+      <div class="c-6 s-7 c-md-12">
+        <p class="eyebrow eyebrow--accent">A Friday guide</p>
+        <h2 class="h2" style="margin-top:.9rem" data-reveal><a href="kyoto-guide.html" style="text-decoration:none">A slower first plan for Kyoto.</a></h2>
+        <p class="lede" style="margin-top:1.1rem" data-reveal>Three ways to shape a Kyoto trip, a stay shortlist by neighbourhood, and practical notes for flying from Bombay.</p>
+        <p style="margin-top:1.6rem" data-reveal><a class="link" href="kyoto-guide.html">Read the Kyoto guide <span class="arrow">&rarr;</span></a></p>
+      </div>
     </article>`}
   </div>
 </section>
@@ -1164,7 +1223,7 @@ ${PageHero({
 </section>
 
 `;
-page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true, extraScripts: ['assets/js/callback-analytics.js'] });
+page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true, extraScripts: ['assets/js/callback-analytics.js', 'assets/js/trip-prequote.js'] });
 
 /* ======================================================= 12. Privacy and terms */
 
@@ -1280,7 +1339,7 @@ D.compositions.forEach((item) => redirectPage(`composition-${item.slug}.html`, '
 D.departures.forEach((item) => redirectPage(`departure-${item.slug}.html`, 'departures.html', 'Packages'));
 
 /* Friday's public Vercel domain is the canonical fallback; deployments can override it. */
-const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'kerala-guide.html', 'field-notes.html', 'privacy.html', 'terms.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
+const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'kerala-guide.html', 'kyoto-guide.html', 'field-notes.html', 'privacy.html', 'terms.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
 write('sitemap.xml', sitemapXml(sitemapPages, PUBLIC_ORIGIN));
 write('robots.txt', robotsTxt(PUBLIC_ORIGIN));
 

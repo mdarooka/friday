@@ -118,7 +118,34 @@ const places = {
   'nakamura-tokichi': place('Nakamura Tokichi Honten', 'food', 'Tea House', 4.4, 6340, null, 'uji', [135.808, 34.889],
     'A matcha specialist since 1854, with soba, parfaits and sweets. Expect a queue at midday.', 'city', 'moss'),
   'kawai-kanjiro-house': place('Kawai Kanjiro\'s House', 'museum', 'Museum', 4.4, 1820, null, 'higashiyama', [135.775, 34.99],
-    'The home and workshop of the potter Kanjiro Kawai. A quiet stop for people who like craft.', 'city', 'sand')
+    'The home and workshop of the potter Kanjiro Kawai. A quiet stop for people who like craft.', 'city', 'sand'),
+  /* Added for Guide v1: gardens, craft and day-trip stops. Ratings and review counts are left empty rather than estimated. */
+  'shisendo': place('Shisen-do', 'sight', 'Historic Garden', null, null, null, 'n-higashiyama', [135.798, 35.046],
+    'A small hillside retreat built by a poet-scholar, with a raked-sand garden and the sound of a bamboo water-clapper. Quiet, and worth the detour north of Ginkaku-ji.', 'forest', 'moss'),
+  'murin-an': place('Murin-an', 'sight', 'Historic Garden', null, null, null, 'n-higashiyama', [135.789, 35.011],
+    'A Meiji-era garden beside Nanzen-ji, with a stream, lawns and the Higashiyama hills borrowed as a backdrop. A calm stop with a tea room.', 'forest', 'jade'),
+  'shimogamo-shrine': place('Shimogamo Shrine', 'sight', 'Historical Landmark', null, null, null, 'central', [135.773, 35.039],
+    'A World Heritage shrine reached through the Tadasu no Mori, an old woodland where the Kamo and Takano rivers meet. A gentle morning walk.', 'forest', 'moss'),
+  'kamigamo-shrine': place('Kamigamo Shrine', 'sight', 'Historical Landmark', null, null, null, 'northwest', [135.753, 35.061],
+    'One of Kyoto\'s oldest Shinto shrines, with wide lawns and a stream. Far fewer visitors than the big temples.', 'forest', 'sand'),
+  'daitokuji': place('Daitoku-ji', 'sight', 'Historical Landmark', null, null, null, 'northwest', [135.745, 35.044],
+    'A Zen temple complex of walled sub-temples and rock gardens. Open sub-temples change, so check which ones are admitting visitors on your dates.', 'forest', 'slate'),
+  'ninnaji': place('Ninna-ji', 'sight', 'Historical Landmark', null, null, null, 'northwest', [135.713, 35.031],
+    'A former imperial temple at the foot of the north-western hills, known for its late-blooming cherry trees in spring. Pair it with Ryoan-ji.', 'forest', 'rose'),
+  'toji': place('To-ji', 'sight', 'Historical Landmark', null, null, null, 'central', [135.747, 34.981],
+    'A temple with Japan\'s tallest wooden pagoda, close to Kyoto Station. It holds a monthly market on the 21st; confirm dates before you go.', 'city', 'ember'),
+  'nishijin-textile-center': place('Nishijin Textile Center', 'museum', 'Craft Centre', null, null, null, 'central', [135.749, 35.031],
+    'An introduction to Nishijin weaving, the silk-brocade craft of this district. Good for the crafts-minded and dry on a wet day.', 'city', 'plum'),
+  'kyoto-railway-museum': place('Kyoto Railway Museum', 'museum', 'Museum', null, null, null, 'central', [135.744, 34.987],
+    'A large museum of Japan\'s trains, a short walk from Kyoto Station. A good rainy-day option with children.', 'city', 'slate'),
+  'gioji': place('Gio-ji', 'sight', 'Historical Landmark', null, null, null, 'arashiyama', [135.668, 35.029],
+    'A small moss garden around a thatched hermitage, in the quieter Sagano hills behind the bamboo grove.', 'forest', 'moss'),
+  'sagano-scenic-railway': place('Sagano Scenic Railway', 'sight', 'Scenic Railway', null, null, null, 'arashiyama', [135.675, 35.018],
+    'A short open-sided train along the Hozu gorge. It runs seasonally and sells out in foliage season, so check the operating days.', 'forest', 'ember'),
+  'iwatayama-monkey-park': place('Iwatayama Monkey Park', 'nature', 'Nature Park', null, null, null, 'arashiyama', [135.677, 35.009],
+    'A short climb above the Katsura river to a viewpoint shared with free-roaming macaques. Keep your distance and follow the posted rules.', 'forest', 'jade'),
+  'fushimi-sake-district': place('Fushimi Sake District', 'neighborhood', 'Neighborhood', null, null, null, 'fushimi', [135.762, 34.93],
+    'Canals, willow-lined lanes and old sake breweries south of the city. A relaxed half-day after Fushimi Inari.', 'city', 'sand'),
 };
 
 const T_TEMP = 'Zen temples, rock gardens & quiet paths';
@@ -291,6 +318,7 @@ module.exports = {
         { h: 'When to go', body: 'Foliage usually reaches its best in the last two weeks of November, a little earlier in the northern hills and later in the city centre [4][9]. Temperatures are pleasant by day and cool by evening. Weekends are very crowded, so weekdays and early mornings are much better [4][12].' },
         { h: 'Choosing a base', body: 'Gion and Higashiyama are the most walkable for temples and evening lanes [3][6]. Central Kyoto is best for markets, restaurants and the river, with easy trains and buses [7][10]. Arashiyama is quiet after the day-trippers leave, though it is a little far from the rest [3][6].' },
         { h: 'Pacing the days', body: 'Keep each day to one area and start early: Tofuku-ji, Kiyomizu-dera and Arashiyama are busiest by mid-morning [4][12]. Evening illuminations at Eikan-do and Kodai-ji often need advance booking [1][4]. Buses are slow when it is busy, so trains and walking are usually faster [10].' },
+        { h: 'Day trips and getting in', body: 'Uji (tea and the Phoenix Hall) and Fushimi are short train rides from the centre; Nara is a separate day trip that sits outside this planner\'s map [2][7]. Most visitors from India connect through a hub on the way to Kansai International (KIX) or Itami (ITM), then take the Haruka limited express to Kyoto Station, which is generally quoted at about 75 minutes [2][10]. Check schedules and fares with the airline and rail operator for your dates.' },
         { h: 'Food and reservations', body: 'The best kaiseki and ryokan dinners book out weeks ahead in November [1][5]. Markets and casual soba or udon shops are easier, but expect queues at lunchtime [5][8]. Ask your hotel to reserve the important meals, and keep one flexible evening [6].' }
       ],
       table: {

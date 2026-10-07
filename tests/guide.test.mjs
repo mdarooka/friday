@@ -46,9 +46,20 @@ test('Kerala guide answers the researched questions and has canonical/social met
   assert.match(guide, /Is Alleppey or Kumarakom better for a houseboat\?/);
   assert.match(guide, /What does a Kerala trip cost\?/);
   assert.match(guide, /<link rel="canonical" href="https:\/\/fridaytravel\.vercel\.app\/kerala-guide\.html">/);
-  assert.match(guide, /<meta property="og:image" content="https:\/\/fridaytravel\.vercel\.app\/assets\/images\/friday-social\.jpg">/);
+  assert.match(guide, /<meta property="og:image" content="https:\/\/fridaytravel\.vercel\.app\/assets\/images\/og\/kerala-guide\.jpg\?v=\d+">/);
   assert.match(guide, /data-guide-cta="planner"/);
   assert.match(guide, /data-guide-cta="quote"/);
+});
+
+test('Kyoto guide has three arcs, stays, Bombay notes, CTAs and feedback', async () => {
+  const kyoto = await readFile(new URL('../kyoto-guide.html', import.meta.url), 'utf8');
+  assert.match(kyoto, /Kyoto Travel Guide/);
+  for (const q of ['A classic first visit', 'Slower: crafts, gardens and temples', 'Seasonal and day trips', 'A shortlist by neighbourhood', 'Do Indian passport holders need a visa\\?', 'How do you get from KIX or Itami\\?']) assert.match(kyoto, new RegExp(q));
+  assert.match(kyoto, /<link rel="canonical" href="https:\/\/fridaytravel\.vercel\.app\/kyoto-guide\.html">/);
+  assert.match(kyoto, /href="trip\.html\?destination=kyoto&amp;from_guide=kyoto#\/new"/);
+  assert.match(kyoto, /contact\.html\?quote_path=guide&amp;destination=kyoto/);
+  assert.match(kyoto, /data-guide-feedback="kyoto"/);
+  assert.match(await readFile(new URL('../sitemap.xml', import.meta.url), 'utf8'), /kyoto-guide\.html/);
 });
 
 test('sitemap generation emits an absolute guide URL when an origin is configured; robots leaves guides crawlable', () => {
