@@ -141,6 +141,7 @@ function Footer() {
       <p class="foot__h">${h}</p>
       <ul class="foot__list">${items.map((i) => `<li><a href="${i.href}">${i.label}</a></li>`).join('')}</ul>
     </div>`;
+  const { guideFooterLinks } = require('./destination-guides');
 
   return `
 <footer class="foot inverse">
@@ -149,7 +150,7 @@ function Footer() {
       ${col('Explore', [
         { label: 'Villas', href: 'villas.html' },
         { label: 'Packages', href: 'departures.html' },
-        { label: 'Kerala guide', href: 'kerala-guide.html' },
+        ...guideFooterLinks(),
         { label: 'Plan a trip', href: 'trip.html' },
       ])}
       ${col('Your trip', [

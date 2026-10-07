@@ -1,4 +1,4 @@
-/* Public page, Kerala guide, and guide-to-planner events. Sent through FridayAnalytics (friday-analytics.js). */
+/* Public page, destination guide, and guide-to-planner events. Sent through FridayAnalytics (friday-analytics.js). */
 (function () {
   'use strict';
   var A = window.FridayAnalytics;
@@ -14,6 +14,10 @@
     var id = A.uuid();
     return A.track(name, Object.assign({ event_id: id }, data), id);
   }
+  function guideDestinationFromPath(pathname) {
+    var match = String(pathname || '').match(/^\/([a-z0-9-]+)-guide(?:\.html)?$/);
+    return match ? match[1] : null;
+  }
   function trackPublicPageView() {
     var path = A.pathname();
     if (/^\/(?:admin(?:-villas)?(?:\.html)?|chatgpt-callback\.html|app(?:\.html)?)$/.test(path)) return Promise.resolve();
@@ -24,10 +28,10 @@
       first_touch_landing_path: A.firstTouch().landing_path,
     });
   }
-  function trackGuideView() {
+  function trackGuideView(destination) {
     var tags = A.currentTags();
     return track('guide_viewed', {
-      destination: 'kerala', path: A.pathname(),
+      destination: destination, path: A.pathname(),
       referrer_host: A.referrerHost(), utm_source: tags.utm_source,
       utm_medium: tags.utm_medium, utm_campaign: tags.utm_campaign,
       first_touch_landing_path: A.firstTouch().landing_path,
@@ -41,11 +45,13 @@
   function tripStarted(trip) {
     var params = new URLSearchParams(location.search || '');
     var marker = read(plannerKey, null);
-    var markerIsFresh = marker && marker.destination === 'kerala' && Number.isFinite(marker.at) && Date.now() - marker.at <= 30 * 24 * 60 * 60 * 1000;
+    var fromParam = params.get('from_guide');
+    var markerIsFresh = marker && marker.destination && Number.isFinite(marker.at) && Date.now() - marker.at <= 30 * 24 * 60 * 60 * 1000;
+    var destination = fromParam || (markerIsFresh ? marker.destination : null);
+    var fromGuide = !!destination;
     var touch = A.firstTouch();
-    var fromGuide = params.get('from_guide') === 'kerala' || !!markerIsFresh;
     var promise = track('trip_started', {
-      destination: fromGuide ? 'kerala' : null, from_guide: fromGuide,
+      destination: fromGuide ? destination : null, from_guide: fromGuide,
       first_touch_landing_path: touch.landing_path,
       first_touch_source: touch.source, first_touch_medium: touch.medium,
       first_touch_campaign: touch.campaign, first_touch_referrer_host: touch.referrer,
@@ -53,7 +59,7 @@
     if (fromGuide) {
       try { localStorage.removeItem(plannerKey); } catch (_) {}
       try {
-        if (typeof history !== 'undefined' && history.replaceState && params.get('from_guide') === 'kerala') {
+        if (typeof history !== 'undefined' && history.replaceState && fromParam) {
           params.delete('from_guide');
           history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : '') + (location.hash || ''));
         }
@@ -62,13 +68,17 @@
     return promise;
   }
 
-  window.FridayGuideAnalytics = { trackPublicPageView: trackPublicPageView, trackGuideView: trackGuideView, trackCta: trackCta, tripStarted: tripStarted, flush: A.flush };
+  window.FridayGuideAnalytics = { trackPublicPageView: trackPublicPageView, trackGuideView: trackGuideView, trackCta: trackCta, tripStarted: tripStarted, flush: A.flush, guideDestinationFromPath: guideDestinationFromPath };
   trackPublicPageView();
-  if (location.pathname === '/kerala-guide.html' || location.pathname === '/kerala-guide') trackGuideView();
+  var pageDestination = guideDestinationFromPath(location.pathname);
+  if (pageDestination) trackGuideView(pageDestination);
   if (document.addEventListener) document.addEventListener('click', function (event) {
     var link = event.target && event.target.closest ? event.target.closest('[data-guide-cta]') : null;
     if (!link) return;
     var target = link.getAttribute('data-guide-cta');
-    if (target === 'planner' || target === 'quote') trackCta(target, 'kerala');
+    if (target !== 'planner' && target !== 'quote') return;
+    var destination = link.getAttribute('data-guide-destination') || pageDestination || guideDestinationFromPath(location.pathname);
+    if (!destination) return;
+    trackCta(target, destination);
   });
 })();

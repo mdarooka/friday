@@ -6,10 +6,13 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { sitemapXml, robotsTxt } = require('../build/site-metadata.js');
+const { GUIDES, guideFiles } = require('../build/destination-guides.js');
 const source = (await readFile(new URL('../assets/js/friday-analytics.js', import.meta.url), 'utf8')) + '\n' + (await readFile(new URL('../assets/js/guide-analytics.js', import.meta.url), 'utf8'));
-const guide = await readFile(new URL('../kerala-guide.html', import.meta.url), 'utf8');
+const guidesHtml = Object.fromEntries(await Promise.all(
+  GUIDES.map(async (guide) => [guide.id, await readFile(new URL(`../${guide.file}`, import.meta.url), 'utf8')])
+));
 
-function setup() {
+function setup(pathname = '/kerala-guide.html', search = '?utm_source=reddit&utm_medium=community&utm_campaign=kerala_guide') {
   const values = new Map();
   const batches = [];
   class FakeHexclaveClientApp {
@@ -28,7 +31,7 @@ function setup() {
   const window = { FakeHexclaveClientApp, addEventListener() {} };
   const context = {
     window,
-    location: { pathname: '/kerala-guide.html', search: '?utm_source=reddit&utm_medium=community&utm_campaign=kerala_guide' },
+    location: { pathname, search },
     document: { referrer: 'https://www.reddit.com/r/IndiaTravel/thread?token=private', addEventListener() {} },
     URL, URLSearchParams, Symbol, Math, Date, crypto: { randomUUID: (() => { let i = 0; return () => `guide-event-${++i}`; })() },
     localStorage: { getItem: key => values.has(key) ? values.get(key) : null, setItem: (key, value) => values.set(key, value) },
@@ -39,28 +42,49 @@ function setup() {
   return { analytics: window.FridayGuideAnalytics, batches, values };
 }
 
-test('Kerala guide answers the researched questions and has canonical/social metadata', () => {
+for (const guide of GUIDES) {
+  test(`${guide.id} guide answers the researched questions and has canonical/social metadata`, () => {
+    const html = guidesHtml[guide.id];
+    assert.match(html, new RegExp(guide.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').slice(0, 24)));
+    assert.match(html, new RegExp(guide.days.eyebrow.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(html, new RegExp(guide.season.eyebrow.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(html, new RegExp(guide.compare.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(html, new RegExp(guide.budget.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(html, new RegExp(`<link rel="canonical" href="${guide.file}">`));
+    assert.match(html, /<meta property="og:image" content="assets\/images\/friday-social\.jpg">/);
+    assert.match(html, /data-guide-cta="planner"/);
+    assert.match(html, /data-guide-cta="quote"/);
+    assert.match(html, new RegExp(`data-guide-destination="${guide.id}"`));
+    assert.match(html, new RegExp(`from_guide=${guide.id}`));
+    assert.match(html, /Where to go/);
+    assert.match(html, /Ask Friday about a quote/);
+  });
+}
+
+test('Kerala guide keeps the original FAQ wording', () => {
+  const guide = guidesHtml.kerala;
   assert.match(guide, /Kerala Travel Guide/);
   assert.match(guide, /How many days do you need in Kerala\?/);
   assert.match(guide, /When is the best time to visit Kerala\?/);
   assert.match(guide, /Is Alleppey or Kumarakom better for a houseboat\?/);
   assert.match(guide, /What does a Kerala trip cost\?/);
-  assert.match(guide, /<link rel="canonical" href="kerala-guide\.html">/);
-  assert.match(guide, /<meta property="og:image" content="assets\/images\/friday-social\.jpg">/);
-  assert.match(guide, /data-guide-cta="planner"/);
-  assert.match(guide, /data-guide-cta="quote"/);
 });
 
-test('sitemap generation emits an absolute guide URL when an origin is configured; robots leaves guides crawlable', () => {
-  const map = sitemapXml(['index.html', 'kerala-guide.html'], 'https://friday.example');
-  assert.match(map, /<loc>https:\/\/friday\.example\/kerala-guide\.html<\/loc>/);
+test('sitemap generation emits absolute guide URLs when an origin is configured; robots leaves guides crawlable', () => {
+  const files = ['index.html', ...guideFiles()];
+  const map = sitemapXml(files, 'https://friday.example');
+  for (const file of guideFiles()) {
+    assert.match(map, new RegExp(`<loc>https://friday\\.example/${file.replace('.', '\\.')}</loc>`));
+  }
   const robots = robotsTxt('https://friday.example');
   assert.match(robots, /Sitemap: https:\/\/friday\.example\/sitemap\.xml/);
   assert.match(robots, /Disallow: \/trip\.html/);
   assert.match(robots, /Disallow: \/admin\.html/);
   assert.match(robots, /Disallow: \/admin-villas\n/);
   assert.match(robots, /Disallow: \/api\//);
-  assert.doesNotMatch(robots, /Disallow: \/kerala-guide/);
+  for (const guide of GUIDES) {
+    assert.doesNotMatch(robots, new RegExp(`Disallow: /${guide.id}-guide`));
+  }
 });
 
 test('guide view, CTA, and trip start events carry only safe attribution and guide status', async () => {
@@ -83,4 +107,19 @@ test('guide view, CTA, and trip start events carry only safe attribution and gui
   assert.equal(events[3].data.from_guide, true);
   assert.equal(events[3].data.destination, 'kerala');
   assert.equal(events[3].data.first_touch_landing_path, '/kerala-guide.html');
+});
+
+test('Goa and Rajasthan guide paths attribute analytics to the matching destination', async () => {
+  for (const id of ['goa', 'rajasthan']) {
+    const fixture = setup(`/${id}-guide.html`, `?utm_source=reddit&utm_medium=community&utm_campaign=${id}_guide`);
+    await fixture.analytics.flush();
+    await fixture.analytics.trackCta('planner', id);
+    await fixture.analytics.tripStarted({ destId: id });
+    const events = fixture.batches.flatMap(batch => batch.events);
+    assert.equal(events[1].event_type, 'guide_viewed');
+    assert.equal(events[1].data.destination, id);
+    assert.equal(events[2].data.destination, id);
+    assert.equal(events[3].data.from_guide, true);
+    assert.equal(events[3].data.destination, id);
+  }
 });
