@@ -2122,6 +2122,10 @@
     const main = $('[data-main]');
     if (!app || !main) return;
 
+    const params = new URLSearchParams(location.search);
+    if (params.get('ref') === 'briefing' && params.get('trip')) {
+      try { sessionStorage.setItem('friday.briefing-return.v1', params.get('trip')); } catch (e) {}
+    }
     const shareToken=new URLSearchParams(location.search).get('share');
     if(shareToken&&FT.backend&&typeof FT.backend.shared==='function'){
       try{const shared=await FT.backend.shared(shareToken);if(shared&&shared.trip){sharedTripView(main,shared.trip);return;}}
@@ -2145,6 +2149,21 @@
           });
         }
         return;
+      }
+    }
+    if (FT.backend && FT.backend.user) {
+      var briefingTripId = null;
+      try { briefingTripId = sessionStorage.getItem('friday.briefing-return.v1'); } catch (e) {}
+      var briefingTrip = briefingTripId && FT.store && FT.store.get ? (FT.store.get().trips || []).find(function (trip) { return trip.serverId === briefingTripId || trip.id === briefingTripId; }) : null;
+      if (briefingTrip) {
+        try { sessionStorage.removeItem('friday.briefing-return.v1'); } catch (e) {}
+        if (window.FridayBriefingAnalytics) {
+          var openedKey = 'friday.briefing-opened.v1:' + briefingTripId;
+          var opened = false;
+          try { opened = localStorage.getItem(openedKey) === '1'; if (!opened) localStorage.setItem(openedKey, '1'); } catch (e) {}
+          if (!opened) window.FridayBriefingAnalytics.track('briefing_opened', { trip_id: briefingTripId });
+        }
+        if (FT.trips && FT.trips.open) FT.trips.open(briefingTrip.id);
       }
     }
     const googleReturn = new URLSearchParams(location.search).get('google');

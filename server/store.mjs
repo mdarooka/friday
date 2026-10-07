@@ -150,6 +150,7 @@ export const findRecord = (db, id, userId, kind) => db.prepare('SELECT * FROM re
 export const insertRecord = (db, { id, userId, kind, data, updated }) => db.prepare('INSERT INTO records(id,user_id,kind,data,updated) VALUES(?,?,?,?,?)').run(id, userId, kind, data, updated);
 export const listRecords = (db, userId, kind) => db.prepare('SELECT * FROM records WHERE user_id=? AND kind=? ORDER BY updated DESC').all(userId, kind);
 export const listRecordData = (db, userId, kind) => db.prepare('SELECT data FROM records WHERE user_id=? AND kind=?').all(userId, kind);   // raw JSON strings, owner's only
+export const listTripOwners = db => db.prepare(`SELECT users.id,COALESCE(hexclave_identities.email,users.email) AS email,COALESCE(hexclave_identities.name,users.name) AS name FROM users LEFT JOIN hexclave_identities ON hexclave_identities.user_id=users.id ORDER BY users.id`).all();
 export const listAllTrips = db => db.prepare("SELECT * FROM records WHERE kind='trips' ORDER BY user_id,updated").all();   // every owner's trips: for the one-time copy to Hexclave only
 export const findTripId = (db, id, userId) => db.prepare("SELECT id FROM records WHERE id=? AND user_id=? AND kind='trips'").get(id, userId);
 /* Optimistic update: returns the number of rows changed (0 when the version moved on). */

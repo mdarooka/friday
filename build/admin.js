@@ -37,6 +37,7 @@ function adminBody() {
       <nav class="admin-tabs" role="tablist" aria-label="Admin console navigation">
         <button type="button" class="admin-tab is-active" role="tab" aria-selected="true" data-tab="villas">Villas &amp; Submissions</button>
         <button type="button" class="admin-tab" role="tab" aria-selected="false" data-tab="quotes">Quote Delivery</button>
+        <button type="button" class="admin-tab" role="tab" aria-selected="false" data-tab="briefings">Trip Briefings</button>
         <button type="button" class="admin-tab" role="tab" aria-selected="false" data-tab="ai">AI Conversation Review</button>
         <button type="button" class="admin-tab" role="tab" aria-selected="false" data-tab="comms">Enquiries &amp; Outbox</button>
       </nav>
@@ -144,6 +145,18 @@ function adminBody() {
               </div>
             </div>
           </div>
+        </section>
+      </div>
+
+      <!-- Trip Briefings -->
+      <div class="admin-panel" data-panel="briefings" role="tabpanel" hidden>
+        <section class="villa-admin__section">
+          <div class="villa-section-head">
+            <div><p class="eyebrow">Before departure</p><h2 class="h3">Trip briefings</h2></div>
+            <p class="admin-setup-note" data-briefing-setup></p>
+          </div>
+          <p class="card__d">Send a one-time email to a traveller with a confirmed booking departing within seven days.</p>
+          <div class="admin-table-container" data-admin-briefings></div>
         </section>
       </div>
 
