@@ -150,6 +150,7 @@ function Footer() {
       ${col('Explore', [
         { label: 'Villas', href: 'villas.html' },
         { label: 'Packages', href: 'departures.html' },
+        { label: 'Travel guides', href: 'guides.html' },
         { label: 'Kerala guide', href: 'kerala-guide.html' },
         { label: 'Kyoto guide', href: 'kyoto-guide.html' },
         { label: 'Goa guide', href: 'goa-guide.html' },

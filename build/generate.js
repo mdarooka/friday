@@ -1161,120 +1161,83 @@ ${Closer({
 `;
 page('salon.html', { title: 'The Salon', description: 'Small gatherings the studio convenes — a subject, a specialist, a table of fourteen — plus private forums for families, foundations and firms.', body: salon, active: 'salon.html', lightHead: true });
 
-/* =================================================== 10. Field Notes */
+/* =================================================== Public inspiration */
+
+const publicGuidePages = () => written
+  .filter((file) => /^[a-z0-9-]+-guide\.html$/.test(file) || file === 'mumbai-quiet-weekend.html')
+  .map((file) => {
+    const slug = file.replace(/\.html$/, '').replace(/-guide$/, '');
+    let catalog = null;
+    try { catalog = require(`./trip-data/${slug}`); } catch (_) {}
+    const title = catalog?.name || (slug === 'mumbai-quiet-weekend' ? 'Quiet weekend from Mumbai' : slug.replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()));
+    return { file, title, scene: catalog?.scene || 'forest', tone: catalog?.tone || 'moss' };
+  });
+
+const guidesHub = `
+${PageHero({
+  eyebrow: 'Explore Friday',
+  title: 'A place to<br>begin.',
+  lede: 'Published destination guides and practical starting points for shaping a trip with Friday.',
+  meta: [{ k: 'Browse', v: 'Destination guides' }, { k: 'Next step', v: 'Plan your trip' }],
+})}
+<section class="section section--flush-top"><div class="wrap">
+  <div class="grid" style="align-items:start">
+    ${publicGuidePages().map((guide, index) => `<article class="c-6 c-md-12" data-reveal style="--i:${index % 2}">
+      <a class="card" href="${guide.file}"><div class="card__plate">${Plate(`guide-hub-${guide.file}`, { ratio: 'l', scene: guide.scene, tone: guide.tone, svgRatio: 'landscape' })}</div>
+        <p class="eyebrow eyebrow--accent">Friday guide</p><h2 class="card__t">${T.esc(guide.title)}</h2>
+        <p class="card__d">Read the ${T.esc(guide.title)} guide and choose a starting point for your trip.</p>
+        <span class="link">Read the guide <span class="arrow">&rarr;</span></span>
+      </a>
+    </article>`).join('')}
+  </div>
+  <p class="lede" style="margin-top:2rem">Guides are starting points, not live availability or booking details. Check current conditions and confirm arrangements before you travel.</p>
+</div></section>
+<section class="section inverse"><div class="wrap grid" style="align-items:center">
+  <div class="c-7 c-md-12"><p class="eyebrow">Keep going</p><h2 class="h2">A note, then<br>a plan of your own.</h2><p class="lede" style="margin-top:1rem">Browse Field Notes for short ideas grounded in Friday’s guides and destination catalogue.</p></div>
+  <div class="c-5 c-md-12"><a class="btn" href="field-notes.html">Read Field Notes <span class="arrow">&rarr;</span></a> <a class="link" style="margin-left:1rem" href="trip.html">Plan a trip <span class="arrow">&rarr;</span></a></div>
+</div></section>`;
+page('guides.html', { title: 'Travel Guides', description: 'Browse Friday’s public destination guides and find a starting point for planning your trip.', body: guidesHub, canonical: 'guides.html' });
 
 const notesIndex = `
 ${PageHero({
   eyebrow: 'Field Notes',
-  title: 'Ideas for<br>the journey ahead.',
-  lede: 'Travel guides and considered starting points for planning with Friday.',
-  meta: [{ k: 'Explore', v: 'Travel guides' }, { k: 'From', v: 'Friday' }],
+  title: 'Small ideas<br>for the way ahead.',
+  lede: 'Short planning notes drawn from Friday’s destination guides and catalogue, with sources to follow and no claims of live availability.',
+  meta: [{ k: 'Explore', v: `${D.fieldNotes.length} notes` }, { k: 'Then', v: 'Plan with Friday' }],
 })}
-
-<section class="section section--flush-top">
-  <div class="wrap">
-    ${D.fieldNotes.length ? D.fieldNotes.map((n, i) => `
-    <article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
-      <div class="${i % 2 ? 'c-5 s-8' : 'c-5'} c-md-12" data-reveal="mask" style="order:${i % 2 ? 2 : 1}">
-        <a href="note-${n.slug}.html" data-cursor="Read">${Plate(`ni-${n.slug}`, { ratio: 'l', scene: n.scene, tone: n.tone, svgRatio: 'landscape' })}</a>
-      </div>
-      <div class="${i % 2 ? 'c-6' : 'c-6 s-7'} c-md-12" style="order:${i % 2 ? 1 : 2}">
-        <p class="eyebrow eyebrow--accent">${n.place} &middot; ${n.date}</p>
-        <h2 class="h2" style="margin-top:.9rem" data-reveal><a href="note-${n.slug}.html" style="text-decoration:none">${n.title}</a></h2>
-        <p class="lede" style="margin-top:1.1rem" data-reveal>${n.dek}</p>
-        <p style="margin-top:1.6rem" data-reveal><a class="link" href="note-${n.slug}.html">Read the note <span class="arrow">&rarr;</span></a> &nbsp;&nbsp;<span class="eyebrow" style="display:inline">${n.author}</span></p>
-      </div>
-    </article>`).join('') : `
-    <article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
-      <div class="c-5 c-md-12" data-reveal="mask"><a href="kerala-guide.html">${Plate('field-notes-kerala', { ratio: 'l', scene: 'forest', tone: 'moss', svgRatio: 'landscape' })}</a></div>
-      <div class="c-6 s-7 c-md-12">
-        <p class="eyebrow eyebrow--accent">A Friday guide</p>
-        <h2 class="h2" style="margin-top:.9rem" data-reveal><a href="kerala-guide.html" style="text-decoration:none">A thoughtful first plan for Kerala.</a></h2>
-        <p class="lede" style="margin-top:1.1rem" data-reveal>Explore a few ways to shape the days, places and pace of a Kerala trip, with practical answers to common planning questions.</p>
-        <p style="margin-top:1.6rem" data-reveal><a class="link" href="kerala-guide.html">Read the Kerala guide <span class="arrow">&rarr;</span></a></p>
-      </div>
-    </article>
-    <article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
-      <div class="c-5 c-md-12" data-reveal="mask"><a href="kyoto-guide.html">${Plate('field-notes-kyoto', { ratio: 'l', scene: 'forest', tone: 'ember', svgRatio: 'landscape' })}</a></div>
-      <div class="c-6 s-7 c-md-12">
-        <p class="eyebrow eyebrow--accent">A Friday guide</p>
-        <h2 class="h2" style="margin-top:.9rem" data-reveal><a href="kyoto-guide.html" style="text-decoration:none">A slower first plan for Kyoto.</a></h2>
-        <p class="lede" style="margin-top:1.1rem" data-reveal>Three ways to shape a Kyoto trip, a stay shortlist by neighbourhood, and practical notes for flying from Bombay.</p>
-        <p style="margin-top:1.6rem" data-reveal><a class="link" href="kyoto-guide.html">Read the Kyoto guide <span class="arrow">&rarr;</span></a></p>
-      </div>
-    </article>`}
-  </div>
-</section>
-
-${Closer({
-  title: 'Twice a year,<br>no more than that.',
-  text: 'The studio letter goes out in spring and late autumn. It contains what we have learnt, what has changed on the ground, and occasionally a departure before it is published here.',
-  cta: 'Write to the studio', seed: 'closer-notes', scene: 'arctic', tone: 'ice',
-})}
-`;
-page('field-notes.html', { title: 'Field Notes', description: 'Working notes from the studio — out-of-hours permits, four years for a single afternoon, and the correct side of the train.', body: notesIndex, active: 'field-notes.html', lightHead: true });
-
-/* --------------------------------------------------- note detail ×3 */
+<section class="section section--flush-top"><div class="wrap">
+  ${D.fieldNotes.map((n, i) => `<article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
+    <div class="${i % 2 ? 'c-5 s-8' : 'c-5'} c-md-12" data-reveal="mask" style="order:${i % 2 ? 2 : 1}"><a href="note-${n.slug}.html" data-cursor="Read">${Plate(`ni-${n.slug}`, { ratio: 'l', scene: n.scene, tone: n.tone, svgRatio: 'landscape' })}</a></div>
+    <div class="${i % 2 ? 'c-6' : 'c-6 s-7'} c-md-12" style="order:${i % 2 ? 1 : 2}">
+      <p class="eyebrow eyebrow--accent">${T.esc(n.place)} &middot; Planning note</p>
+      <h2 class="h2" style="margin-top:.9rem" data-reveal><a href="note-${n.slug}.html" style="text-decoration:none">${T.esc(n.title)}</a></h2>
+      <p class="lede" style="margin-top:1.1rem" data-reveal>${T.esc(n.dek)}</p>
+      <p style="margin-top:1.6rem" data-reveal><a class="link" href="note-${n.slug}.html">Read the note <span class="arrow">&rarr;</span></a></p>
+    </div>
+  </article>`).join('')}
+</div></section>
+<section class="section inverse"><div class="wrap"><p class="eyebrow">Continue planning</p><h2 class="h2">From an idea<br>to your route.</h2><p class="lede" style="margin-top:1rem">Choose a destination guide or start a plan in Friday.</p><p style="margin-top:2rem"><a class="btn" href="guides.html">Browse destination guides <span class="arrow">&rarr;</span></a> <a class="link" style="margin-left:1rem" href="trip.html">Plan a trip <span class="arrow">&rarr;</span></a></p></div></section>`;
+page('field-notes.html', { title: 'Field Notes', description: 'Short planning notes based on Friday’s destination guides and catalogue, with sources and links to plan a trip.', body: notesIndex, active: 'field-notes.html', lightHead: true, canonical: 'field-notes.html' });
 
 D.fieldNotes.forEach((n, idx) => {
-  const next = D.fieldNotes[(idx + 1) % D.fieldNotes.length];
   const body = `
 <article>
 ${PageHero({
-  eyebrow: `${n.place} &middot; ${n.date}`,
-  title: n.title,
-  lede: n.dek,
-  meta: [{ k: 'Written by', v: n.author }, { k: 'Filed under', v: 'Field note' }],
+  eyebrow: `${T.esc(n.place)} &middot; Field Note`,
+  title: T.esc(n.title),
+  lede: T.esc(n.dek),
+  meta: [{ k: 'Based on', v: 'Friday’s destination guide' }, { k: 'Filed under', v: 'Planning note' }],
   seed: `nd-hero-${n.slug}`, scene: n.scene, tone: n.tone,
 })}
-
-<section class="section">
-  <div class="wrap">
-    <div class="grid">
-      <div class="c-3 c-md-12">
-        ${eyebrow('The note')}
-        <p class="card__d" style="margin-top:1rem">${n.author}<br>${n.place}<br>${n.date}</p>
-      </div>
-      <div class="c-6 c-md-12 prose prose--drop" data-reveal style="font-size:1.075rem;line-height:1.7">
-        ${n.body.map((p) => `<p>${p}</p>`).join('')}
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="section section--tight">
-  <div class="wrap wrap--narrow">
-    <figure class="figure" data-reveal="mask">
-      ${Plate(`nd-fig-${n.slug}`, { ratio: 'w', scene: n.scene, tone: n.tone, svgRatio: 'panorama' })}
-      <figcaption>${n.place}. Plates on this site are drawn in the studio rather than photographed — a habit from the founder’s first profession, and a small argument against the stock image.</figcaption>
-    </figure>
-  </div>
-</section>
+<section class="section"><div class="wrap grid">
+  <div class="c-3 c-md-12">${eyebrow('The note')}<p class="card__d" style="margin-top:1rem">${T.esc(n.place)}<br>Planning note</p></div>
+  <div class="c-6 c-md-12 prose prose--drop" data-reveal style="font-size:1.075rem;line-height:1.7">${n.body.map((paragraph) => `<p>${T.esc(paragraph)}</p>`).join('')}</div>
+</div></section>
+<section class="section section--tight"><div class="wrap wrap--narrow"><div class="rule"><p class="eyebrow">Sources</p><ul>${n.sources.map((source) => `<li><a class="link" href="${T.esc(source.href)}"${source.href.startsWith('http') ? ' target="_blank" rel="noopener noreferrer"' : ''}>${T.esc(source.label)} <span class="arrow">&rarr;</span></a></li>`).join('')}</ul></div></div></section>
 </article>
-
-<section class="section inverse section--tight">
-  <div class="wrap">
-    ${SecHead({ eyebrow: 'Next note', title: next.title, link: 'field-notes.html', cta: 'All notes' })}
-    <div class="grid" style="margin-top:clamp(2rem,4vw,3rem);align-items:center">
-      <div class="c-6 c-md-12" data-reveal="mask">
-        <a href="note-${next.slug}.html" data-cursor="Read">${Plate(`nd-next-${n.slug}`, { ratio: 'l', scene: next.scene, tone: next.tone, svgRatio: 'landscape' })}</a>
-      </div>
-      <div class="c-5 s-8 c-md-12">
-        <p class="eyebrow eyebrow--accent">${next.place} &middot; ${next.date}</p>
-        <p class="lede" style="margin-top:1rem" data-reveal>${next.dek}</p>
-        <p style="margin-top:1.6rem" data-reveal><a class="link" href="note-${next.slug}.html">Read it <span class="arrow">&rarr;</span></a></p>
-      </div>
-    </div>
-  </div>
-</section>
-
-${Closer({
-  title: 'Commission the<br>version of this<br>that is yours.',
-  text: 'Every note here started as a decision made for one client. Tell us the month and we will start making them for you.',
-  seed: `closer-note-${n.slug}`, scene: n.scene, tone: n.tone,
-})}
-`;
-  page(`note-${n.slug}.html`, { title: n.title, description: n.dek, body, active: 'field-notes.html', lightHead: true });
+<section class="section inverse section--tight"><div class="wrap grid" style="align-items:center"><div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">Make the idea<br>your own.</h2><p class="lede" style="margin-top:1rem">Use this note as a starting point, then shape the details around your dates and pace.</p></div><div class="c-5 c-md-12"><a class="btn" href="trip.html?destination=${encodeURIComponent(n.destination)}&amp;from_note=${encodeURIComponent(n.slug)}#/new">Plan this with Friday <span class="arrow">&rarr;</span></a></div></div></section>
+<section class="section section--tight"><div class="wrap"><p class="eyebrow">Next note</p><a class="link" href="note-${D.fieldNotes[(idx + 1) % D.fieldNotes.length].slug}.html">${T.esc(D.fieldNotes[(idx + 1) % D.fieldNotes.length].title)} <span class="arrow">&rarr;</span></a></div></section>`;
+  page(`note-${n.slug}.html`, { title: n.title, description: n.dek, body, active: 'field-notes.html', lightHead: true, canonical: `note-${n.slug}.html` });
 });
 const liveNotePages = new Set(D.fieldNotes.map((n) => `note-${n.slug}.html`));
 fs.readdirSync(OUT).filter((file) => /^note-.+\.html$/.test(file) && !liveNotePages.has(file)).forEach((file) => fs.unlinkSync(path.join(OUT, file)));
@@ -1529,7 +1492,7 @@ D.compositions.forEach((item) => redirectPage(`composition-${item.slug}.html`, '
 D.departures.forEach((item) => redirectPage(`departure-${item.slug}.html`, 'departures.html', 'Packages'));
 
 /* Friday's public Vercel domain is the canonical fallback; deployments can override it. */
-const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', ...guideFiles(), 'kyoto-guide.html', 'mumbai-quiet-weekend.html', 'field-notes.html', 'privacy.html', 'terms.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
+const sitemapPages = [...new Set(['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'guides.html', 'field-notes.html', 'privacy.html', 'terms.html', ...guideFiles(), 'kyoto-guide.html', 'mumbai-quiet-weekend.html', ...publicGuidePages().map((guide) => guide.file), ...D.fieldNotes.map((note) => `note-${note.slug}.html`)])].filter((file) => fs.existsSync(path.join(OUT, file)));
 write('sitemap.xml', sitemapXml(sitemapPages, PUBLIC_ORIGIN));
 write('robots.txt', robotsTxt(PUBLIC_ORIGIN));
 
