@@ -231,6 +231,7 @@
       '<span class="wsp-top__div" aria-hidden="true"></span>' +
       '<div class="wsp-title" data-ws="titlewrap"><button type="button" class="wsp-title__btn" data-ws="title" title="Rename trip"></button></div>' +
       '<div class="wsp-top__right">' +
+        '<a class="wsp-briefing" data-ws="briefing" href="trip-briefing.html">Trip briefing</a>' +
         '<button type="button" class="wsp-share" data-ws="share" aria-haspopup="true" aria-expanded="false">{{share}}<span>Share</span></button>' +
         '<button type="button" class="wsp-act" data-ws="activity" aria-label="Activity">{{users}}<span>Activity</span></button>' +
         '<button type="button" class="wsp-iconbtn" data-ws="dots" aria-label="More" aria-haspopup="true" aria-expanded="false">{{dots}}</button>' +
@@ -426,6 +427,11 @@
     E.side.addEventListener('click', toggleSide);
     E.title.addEventListener('click', startRename);
     E.share.addEventListener('click', function () { openShare(E.share); });
+    E.briefing.addEventListener('click', function (event) {
+      var trip = T();
+      if (!trip) { event.preventDefault(); return; }
+      E.briefing.href = 'trip-briefing.html?trip=' + encodeURIComponent(trip.serverId || trip.id);
+    });
     E.activity.addEventListener('click', function () { setActivity(!S.actOpen); });
     E.dots.addEventListener('click', function () { openDotsMenu(E.dots); });
     E.threadbtn.addEventListener('click', function () { openThreadMenu(E.threadbtn); });

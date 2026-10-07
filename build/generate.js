@@ -246,7 +246,7 @@ if (Villas.villasBody && Villas.villaBody && Villas.adminVillasBody) {
 }
 
 if (Admin && Admin.adminBody) {
-  page('admin.html', { title: 'Operations Console', description: 'Friday team operations console for villas, quotes, and AI review.', body: Admin.adminBody(), lightHead: true, extraStyles: ['assets/css/villas.css', 'assets/css/admin.css'], extraScripts: ['assets/js/admin-auth.js', 'assets/js/briefing-analytics.js', 'assets/js/admin.js'] });
+  page('admin.html', { title: 'Operations Console', description: 'Friday team operations console for villas, quotes, and AI review.', body: Admin.adminBody(), lightHead: true, extraStyles: ['assets/css/villas.css', 'assets/css/admin.css'], extraScripts: ['assets/js/admin-auth.js', 'assets/js/admin.js'] });
 }
 
 const about = `
@@ -1249,6 +1249,7 @@ page('terms.html', { title: 'Terms of use', description: 'Terms for using Friday
 
 const TRIP = require('./trip');
 written.push(write('trip.html', TRIP.tripPage()));
+written.push(write('trip-briefing.html', TRIP.tripBriefingPage()));
 written.push(write('chatgpt-callback.html', TRIP.chatgptCallbackPage()));
 // app.html stays as a compatible entry point that forwards to the planner.
 written.push(write('app.html', TRIP.appAliasPage()));

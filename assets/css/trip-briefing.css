@@ -1,0 +1,52 @@
+.fx-briefing-page { height: auto; min-height: 100vh; overflow: auto; background: #F4F1EA; }
+.fx-briefing-page .fx-app, .fx-briefing-page .fx-main, .fx-briefing-page .fx-page--trip { display: block; width: 100%; height: auto; min-height: 0; overflow: visible; }
+.fx-briefing-page .fx-start-header { display: flex; }
+.friday-briefing { max-width: 880px; margin: 0 auto; padding: clamp(24px, 5vw, 64px) clamp(20px, 5vw, 72px) 64px; color: #15140F; font: 400 16px/1.55 Inter, Arial, sans-serif; }
+.friday-briefing__hero { padding: 0 0 38px; border-bottom: 1px solid #15140F29; }
+.friday-briefing__wordmark { display: inline-block; margin-bottom: 42px; color: #15140F; font: 500 30px/1 Cormorant Garamond, Georgia, serif; letter-spacing: -.03em; }
+.friday-briefing__eyebrow { margin: 0 0 10px; color: #B0552D; font: 500 11px/1.4 Inter, Arial, sans-serif; letter-spacing: .22em; text-transform: uppercase; }
+.friday-briefing h1, .friday-briefing h2, .friday-briefing h3, .friday-briefing__state h1 { margin: 0; color: #15140F; font-family: Cormorant Garamond, Georgia, serif; font-weight: 400; line-height: 1.05; }
+.friday-briefing h1, .friday-briefing__state h1 { font-size: clamp(2.8rem, 8vw, 5.4rem); letter-spacing: -.035em; }
+.friday-briefing h2 { margin-bottom: 18px; font-size: clamp(1.8rem, 5vw, 2.5rem); }
+.friday-briefing h3 { font-size: 1.5rem; }
+.friday-briefing__destination { margin-top: 8px; color: #4A473D; }
+.friday-briefing__dates { margin-top: 18px; font-size: 1rem; }
+.friday-briefing__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.friday-briefing__actions .fx-btn, .friday-briefing__state .fx-btn { min-height: 44px; }
+.friday-briefing__section { padding: 30px 0; border-bottom: 1px solid #15140F29; }
+.friday-briefing__day { padding: 18px 0; border-top: 1px solid #15140F20; }
+.friday-briefing__day h2 { margin: 0 0 8px; font-size: 1.8rem; }
+.friday-briefing__day ol { margin: 14px 0 0; padding-left: 22px; }
+.friday-briefing__day li { padding: 0 0 14px 3px; }
+.friday-briefing__detail, .friday-briefing__bookings li span { display: block; color: #7E7869; font-size: .88rem; }
+.friday-briefing__day li p, .friday-briefing__note { margin: 4px 0 0; color: #4A473D; }
+.friday-briefing__stay { padding: 18px; background: #EDE8DD; }
+.friday-briefing__stay p { margin: 6px 0 0; }
+.friday-briefing__muted, .friday-briefing__empty { color: #7E7869; }
+.friday-briefing__bookings, .friday-briefing__section ul { margin: 0; padding-left: 20px; }
+.friday-briefing__bookings li, .friday-briefing__section ul li { margin: 0 0 14px; }
+.friday-briefing__bookings li strong, .friday-briefing__bookings li span { display: block; }
+.friday-briefing__contact { padding-top: 32px; }
+.friday-briefing__contact h2 { margin-bottom: 8px; }
+.friday-briefing__contact p:not(.friday-briefing__eyebrow) { max-width: 660px; margin: 0 0 12px; color: #4A473D; }
+.friday-briefing__contact a { color: #9C4527; text-decoration: underline; text-underline-offset: 3px; }
+.friday-briefing__state { max-width: 620px; margin: 10vh auto; padding: 28px; }
+.friday-briefing__state > p:not(.friday-briefing__eyebrow) { margin: 16px 0 24px; color: #4A473D; }
+.friday-briefing__state .fx-btn { margin-right: 8px; }
+@media (max-width: 600px) {
+  .friday-briefing { padding: 22px 18px 40px; }
+  .friday-briefing__hero { padding-bottom: 26px; }
+  .friday-briefing__wordmark { margin-bottom: 32px; }
+  .friday-briefing__actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .friday-briefing__actions .fx-btn { width: 100%; white-space: normal; text-align: center; }
+  .friday-briefing__section { padding: 24px 0; }
+}
+@media print {
+  @page { size: A4; margin: 15mm; }
+  .fx-briefing-page { background: #fff !important; height: auto; overflow: visible; }
+  .fx-briefing-page .fx-start-header, .friday-briefing__actions { display: none !important; }
+  .friday-briefing { max-width: none; padding: 0; font-size: 10.5pt; }
+  .friday-briefing__wordmark { margin-bottom: 20px; }
+  .friday-briefing__section, .friday-briefing__day, .friday-briefing__stay, .friday-briefing__contact { break-inside: avoid; }
+  .friday-briefing__stay { border: 1px solid #ccc; background: #fff; }
+}

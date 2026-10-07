@@ -801,11 +801,9 @@
       if (sendBriefing && !sendBriefing.disabled) {
         sendBriefing.disabled = true;
         var tripId = sendBriefing.dataset.sendBriefing;
-        var daysBefore = Number(sendBriefing.dataset.daysBefore);
         var requestId = window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'briefing_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         FridayAdmin.request('/api/admin/briefings/' + encodeURIComponent(tripId) + '/send', 'POST', { requestId: requestId })
           .then(function (res) {
-            if (window.FridayBriefingAnalytics) window.FridayBriefingAnalytics.track('briefing_sent', { trip_id: res.tripId, days_before_departure: res.daysBeforeDeparture });
             return loadBriefingsTab().then(function () { dom.briefingSetup.textContent = 'Briefing accepted for delivery.'; });
           })
           .catch(function (err) { dom.briefingSetup.textContent = err.message || 'Friday could not confirm delivery.'; sendBriefing.disabled = false; });
