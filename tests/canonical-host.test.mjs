@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { ensureRobotsMeta, hostPolicy, isPrivateSurface, PRIVATE_API_PREFIXES, PRIVATE_PAGES, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, visitorHost } from '../server/canonical-host.mjs';
+import { ensureRobotsMeta, hostPolicy, isPrivateSurface, PRIVATE_API_PREFIXES, PRIVATE_PAGES, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, hiddenRobotsTxt, visitorHost } from '../server/canonical-host.mjs';
 import { startApp } from './helpers.mjs';
 
 const canonical = 'https://fridaytravel.vercel.app';
@@ -46,6 +46,7 @@ test('served metadata is rebased onto the configured origin and external images 
   assert.match(html, /name="twitter:image" content="https:\/\/fridaytravel\.vercel\.app\/assets\/images\/friday-social\.jpg"/);
   assert.match(rewriteSitemapOrigins('<loc>https://friday-travel-peach.vercel.app/about.html</loc>', canonical), /<loc>https:\/\/fridaytravel\.vercel\.app\/about\.html<\/loc>/);
   assert.match(rewriteRobotsSitemap('User-agent: *\nAllow: /\n', canonical), /Sitemap: https:\/\/fridaytravel\.vercel\.app\/sitemap\.xml/);
+  assert.equal(hiddenRobotsTxt(canonical), 'User-agent: *\nDisallow: /\nSitemap: https://fridaytravel.vercel.app/sitemap.xml\n');
 });
 
 function headerCovers(source, path) {
@@ -147,9 +148,15 @@ test('production redirects non-canonical hosts, noindexes only those responses, 
       APP_ORIGIN: canonical,
       APP_ORIGIN_ALIASES: deploy,
       TRUST_PROXY: '1',
+      SEARCH_INDEXING: 'on',
       AUTH_PROVIDER: 'local',
     },
   });
+  const robotsTxt = await raw(server, '/robots.txt', { host: 'fridaytravel.vercel.app' });
+  assert.equal(robotsTxt.status, 200);
+  assert.doesNotMatch(robotsTxt.body, /Disallow: \/\n/);
+  assert.match(robotsTxt.body, /Disallow: \/api\//);
+
   const page = await raw(server, '/kerala-guide.html', { host: 'fridaytravel.vercel.app' });
   assert.equal(page.status, 200);
   assert.equal(page.headers['x-robots-tag'], undefined);
@@ -237,4 +244,58 @@ test('production redirects non-canonical hosts, noindexes only those responses, 
   assert.match(sharedJson.body, /Kyoto/);
   assert.equal((await request('/api/auth/signup', 'POST', account('Deploy'), { headers: { Origin: deploy } })).status, 200);
   assert.equal((await request('/api/auth/signup', 'POST', account('Peach'), { headers: { Origin: 'https://friday-travel-peach.vercel.app' } })).status, 403);
+});
+
+
+test('search indexing is hidden by default while public previews work and private pages stay noindex', async (t) => {
+  const { server, request } = await startApp(t, {
+    origin: canonical,
+    env: {
+      NODE_ENV: 'production',
+      APP_ORIGIN: canonical,
+      APP_ORIGIN_ALIASES: deploy,
+      TRUST_PROXY: '1',
+      AUTH_PROVIDER: 'local',
+    },
+  });
+  const page = await raw(server, '/about.html', { host: 'fridaytravel.vercel.app' });
+  assert.equal(page.status, 200);
+  assert.equal(page.headers['x-robots-tag'], 'noindex, nofollow');
+  assert.match(page.body, /<meta name="robots" content="noindex, nofollow">/);
+  assert.match(page.body, /property="og:title"/);
+  assert.match(page.body, /property="og:image" content="https:\/\/fridaytravel\.vercel\.app\//);
+
+  const robots = await raw(server, '/robots.txt', { host: 'fridaytravel.vercel.app' });
+  assert.equal(robots.status, 200);
+  assert.equal(robots.headers['x-robots-tag'], 'noindex, nofollow');
+  assert.match(robots.body, /^User-agent: \*\nDisallow: \/\n/);
+
+  const privatePage = await raw(server, '/trip.html', { host: 'fridaytravel.vercel.app' });
+  assert.equal(privatePage.status, 200);
+  assert.equal(privatePage.headers['x-robots-tag'], 'noindex, nofollow');
+  assert.match(privatePage.body, /<meta name="robots" content="noindex, nofollow">/);
+
+  const otherHost = await raw(server, '/about.html?from=preview', { host: 'friday-travel-peach.vercel.app' });
+  assert.equal(otherHost.status, 308);
+  assert.equal(otherHost.headers.location, 'https://fridaytravel.vercel.app/about.html?from=preview');
+  assert.equal(otherHost.headers['x-robots-tag'], 'noindex, nofollow');
+
+  const health = await raw(server, '/api/health', { host: 'fridaytravel.vercel.app' });
+  assert.equal(health.status, 200);
+  assert.equal(health.headers['x-robots-tag'], 'noindex, nofollow');
+  assert.match(health.body, /"ok":true/);
+
+  const account = { name: 'Preview', email: 'preview@example.com', password: 'long test password 123' };
+  const signedUp = await request('/api/auth/signup', 'POST', account, { headers: { Origin: canonical } });
+  assert.equal(signedUp.status, 200);
+  const trip = await request('/api/trips', 'POST', { data: { title: 'Kyoto preview', destination: 'Japan', days: [] } }, { cookie: signedUp.cookie, headers: { Origin: canonical } });
+  assert.equal(trip.status, 201);
+  const created = await request(`/api/trips/${trip.result.record.id}/share`, 'POST', {}, { cookie: signedUp.cookie, headers: { Origin: canonical } });
+  assert.equal(created.status, 201);
+  const token = new URL(created.result.share.url, canonical).searchParams.get('share');
+  const socialPreview = await raw(server, `/app.html?share=${token}`, { host: 'fridaytravel.vercel.app', 'user-agent': 'facebookexternalhit/1.1' });
+  assert.equal(socialPreview.status, 200);
+  assert.equal(socialPreview.headers['x-robots-tag'], 'noindex, nofollow');
+  assert.match(socialPreview.body, /property="og:title" content="Kyoto preview"/);
+  assert.match(socialPreview.body, /property="og:image"/);
 });

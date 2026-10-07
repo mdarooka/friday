@@ -16,6 +16,8 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         HOST: "0.0.0.0",
         PORT: "3000",
         APP_ORIGIN: "https://fridaytravel.vercel.app",
+        // Keep Friday out of search by default; switch to "on" when public indexing is wanted.
+        SEARCH_INDEXING: "off",
         // Direct Deploy URL only. It is not a public site: pages on it redirect to APP_ORIGIN,
         // while /api stays reachable for health checks and the Vercel rewrite. Do not add
         // friday-travel-peach.vercel.app or other preview hosts here.

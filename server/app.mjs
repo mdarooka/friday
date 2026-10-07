@@ -24,7 +24,7 @@ import { createReelWorkflow } from './reel-workflow.mjs';
 import { createHexclaveAuth } from './hexclave/auth.mjs';
 import { createHexclaveEmailService } from './hexclave/email.mjs';
 import { briefingEmail, prepareBriefing } from './briefing.mjs';
-import { ensureRobotsMeta, hostPolicy, isPrivateSurface, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, ROBOTS_NOINDEX, visitorHost } from './canonical-host.mjs';
+import { ensureRobotsMeta, hostPolicy, isPrivateSurface, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, hiddenRobotsTxt, ROBOTS_NOINDEX, visitorHost } from './canonical-host.mjs';
 const scrypt = promisify(scryptCallback);
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = x => createHash('sha256').update(x).digest('hex');
@@ -88,6 +88,7 @@ export function createApp(options = {}) {
   const root = options.root || defaultRoot;
   const env = options.env || process.env;
   const production = env.NODE_ENV === 'production';
+  const searchIndexingEnabled = String(env.SEARCH_INDEXING || '').trim().toLowerCase() === 'on';
   const configuredOrigin = options.origin || env.APP_ORIGIN || (env.PUBLIC_SITE_ORIGIN ? String(env.PUBLIC_SITE_ORIGIN).replace(/\/$/, '') : undefined);
   if (production && !configuredOrigin) throw new Error('APP_ORIGIN must be set to the exact public origin (for example https://friday.example) when NODE_ENV=production.');
   const origin = configuredOrigin || 'http://localhost:4871';
@@ -236,6 +237,7 @@ export function createApp(options = {}) {
     res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
     res.setHeader('X-Frame-Options','DENY');
+    if (!searchIndexingEnabled) res.setHeader('X-Robots-Tag', ROBOTS_NOINDEX);
     const ip=clientIp(req);
     const send=(status,data,extra)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...extra});res.end(JSON.stringify(data));};
     try {
@@ -277,11 +279,11 @@ export function createApp(options = {}) {
         let content=await readFile(full);
         if (relative.endsWith('.html')) {
           let html = rewritePublicHtml(content.toString('utf8'), origin);
-          if (isPrivateSurface('/' + relative, url.search)) html = ensureRobotsMeta(html);
+          if (!searchIndexingEnabled || isPrivateSurface('/' + relative, url.search)) html = ensureRobotsMeta(html);
           content = Buffer.from(html);
         }
         else if (relative === 'sitemap.xml') content = Buffer.from(rewriteSitemapOrigins(content.toString('utf8'), origin));
-        else if (relative === 'robots.txt') content = Buffer.from(rewriteRobotsSitemap(content.toString('utf8'), origin));
+        else if (relative === 'robots.txt') content = Buffer.from(searchIndexingEnabled ? rewriteRobotsSitemap(content.toString('utf8'), origin) : hiddenRobotsTxt(origin));
         if (relative==='app.html') {
           const sharedToken=url.searchParams.get('share')||'';
           if (/^[a-f0-9]{64}$/.test(sharedToken)) {

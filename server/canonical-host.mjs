@@ -145,3 +145,8 @@ export function rewriteRobotsSitemap(text, officialOrigin) {
   if (/^Sitemap:\s+\S+/m.test(body)) return body.replace(/^Sitemap:\s+\S+/m, directive);
   return `${body.trimEnd()}\n${directive}\n`;
 }
+
+export function hiddenRobotsTxt(officialOrigin) {
+  const origin = new URL(officialOrigin).origin;
+  return `User-agent: *\nDisallow: /\nSitemap: ${origin}/sitemap.xml\n`;
+}
