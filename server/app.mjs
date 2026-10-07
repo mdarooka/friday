@@ -221,6 +221,11 @@ export function createApp(options = {}) {
     const send=(status,data,extra)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...extra});res.end(JSON.stringify(data));};
     try {
       const url = new URL(req.url,origin), method=req.method;
+      if (url.pathname === '/index.html' && ['GET','HEAD'].includes(method)) {
+        res.writeHead(308, { Location: `/${url.search}`, 'Cache-Control': 'public, max-age=86400' });
+        res.end();
+        return;
+      }
       if (!url.pathname.startsWith('/api/')) {
         if (!['GET','HEAD'].includes(method)) fail(405,'Method not allowed.');
         // Decode first, then refuse anything that could climb out of the root: dot segments (including ones hidden as %2e or
@@ -236,6 +241,20 @@ export function createApp(options = {}) {
         if (!full.startsWith(realRoot+path.sep) || !(await stat(full)).isFile()) fail(404,'Not found.');
         const types={'.html':'text/html','.txt':'text/plain','.xml':'application/xml','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2'};
         let content=await readFile(full);
+        if (relative.endsWith('.html')) {
+          const html = content.toString('utf8');
+          const publicOrigin = new URL(origin).origin;
+          const withOfficialOrigin = value => {
+            try { const target = new URL(value, publicOrigin); return `${publicOrigin}${target.pathname}${target.search}${target.hash}`; }
+            catch { return value; }
+          };
+          content = Buffer.from(html
+            .replace(/(<link\s+rel="canonical"\s+href=")([^"]+)(">)/i, (_match, before, value, after) => `${before}${withOfficialOrigin(value)}${after}`)
+            .replace(/(<meta\s+property="og:url"\s+content=")([^"]+)(">)/i, (_match, before, value, after) => `${before}${withOfficialOrigin(value)}${after}`));
+        } else if (relative === 'sitemap.xml') {
+          const publicOrigin = new URL(origin).origin;
+          content = Buffer.from(content.toString('utf8').replace(/(<loc>)https?:\/\/[^/]+(\/[^<]*)(<\/loc>)/g, `$1${publicOrigin}$2$3`));
+        }
         if (relative==='app.html') {
           const sharedToken=url.searchParams.get('share')||'';
           if (/^[a-f0-9]{64}$/.test(sharedToken)) {

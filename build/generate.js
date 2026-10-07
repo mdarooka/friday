@@ -17,12 +17,14 @@ const write = (file, html) => {
   return file;
 };
 const written = [];
+const publicPages = [];
 const legacyPage = /^(?:ethos|method|designers|alliances|compositions|wild|drive|salon|field-notes|commission)\.html$|^(?:composition-|departure-|note-).+\.html$/;
 const page = (file, opts) => {
   if (legacyPage.test(file)) return;
   const privatePage = file === 'admin.html' || file === 'admin-villas.html';
+  if (!privatePage) publicPages.push(file);
   const extraScripts = [...(privatePage ? [] : ['assets/js/guide-analytics.js']), ...(opts.extraScripts || [])];
-  written.push(write(file, layout({ ...opts, extraScripts })));
+  written.push(write(file, layout({ ...opts, canonical: privatePage ? null : file, extraScripts })));
 };
 
 /* ========================================================== 1. Home */
@@ -209,7 +211,7 @@ ${PageHero({
 page('kerala-guide.html', {
   title: 'Kerala Travel Guide: Itineraries, Munnar & Backwaters',
   description: 'Plan a Kerala trip around the time you have, from Kochi and Munnar to Alleppey backwaters and the coast. Browse Friday’s curated places.',
-  body: keralaGuide, canonical: 'kerala-guide.html',
+  body: keralaGuide,
 });
 
 page('partner.html', { title: 'List your villa', description: 'Introduce your villa to Friday for consideration in its collection of considered places to stay.', body: partnerBody(), active: 'partner.html', lightHead: true, extraStyles: ['assets/css/partner.css'], extraScripts: ['assets/js/partner.js'] });
@@ -1245,9 +1247,8 @@ D.compositions.forEach((item) => redirectPage(`composition-${item.slug}.html`, '
 D.departures.forEach((item) => redirectPage(`departure-${item.slug}.html`, 'departures.html', 'Packages'));
 fs.readdirSync(OUT).filter((file) => /^note-.+\.html$/.test(file)).forEach((file) => redirectPage(file, 'about.html', 'About Friday'));
 
-/* Search files only name public pages. Configure PUBLIC_SITE_ORIGIN for a stable production sitemap.
-   APP_ORIGIN and Vercel's production URL are supported as fallbacks; no domain is guessed at build time. */
-const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'kerala-guide.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
+/* Public pages are the sitemap source; the root page's canonical URL is /. APP_ORIGIN supplies the one official origin. */
+const sitemapPages = publicPages.filter((file) => fs.existsSync(path.join(OUT, file)));
 write('sitemap.xml', sitemapXml(sitemapPages, PUBLIC_ORIGIN));
 write('robots.txt', robotsTxt(PUBLIC_ORIGIN));
 

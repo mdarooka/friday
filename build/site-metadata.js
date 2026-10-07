@@ -1,9 +1,7 @@
 'use strict';
 
 function siteOrigin(env = process.env) {
-  const configured = env.PUBLIC_SITE_ORIGIN || env.APP_ORIGIN ||
-    (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` :
-      env.VERCEL_URL ? `https://${env.VERCEL_URL}` : '');
+  const configured = env.APP_ORIGIN || '';
   if (!configured) return null;
   try {
     const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(configured) ? configured : `https://${configured}`);
@@ -15,8 +13,11 @@ function siteOrigin(env = process.env) {
 }
 
 function publicUrl(path, origin = siteOrigin()) {
-  const cleanPath = String(path || '').replace(/^\/+/, '');
-  return origin ? `${origin}/${cleanPath}` : cleanPath;
+  const value = String(path || '').trim();
+  const pathname = !value || value === '/' || value.replace(/^\/+/, '') === 'index.html'
+    ? '/'
+    : `/${value.replace(/^\/+/, '')}`;
+  return origin ? `${origin}${pathname}` : pathname;
 }
 
 function sitemapXml(pages, origin = siteOrigin()) {

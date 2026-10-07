@@ -24,6 +24,19 @@ async function signup(request,name='A') {
   const res=await request('/api/auth/signup','POST',{name,email:`${name}@example.com`,password:'long test password 123'});
   assert.equal(res.status,200);assert.match(res.cookie,/^friday_session=/);return res;
 }
+
+test('index.html permanently redirects to the official homepage and public metadata follows APP_ORIGIN',async t=>{
+  const request=await fixture(t,{origin:'https://friday.example',env:{AUTH_REQUIRED:'false'}});
+  const redirect=await request('/index.html?source=legacy','GET',undefined,'',{},'manual');
+  assert.equal(redirect.status,308);
+  assert.equal(redirect.headers.get('location'),'/?source=legacy');
+  const about=await request('/about.html');
+  assert.equal(about.status,200);
+  assert.match(about.result,/<link rel="canonical" href="https:\/\/friday\.example\/about\.html">/);
+  const sitemap=await request('/sitemap.xml');
+  assert.equal(sitemap.status,200);
+  assert.match(sitemap.result,/<loc>https:\/\/friday\.example\/<\/loc>/);
+});
 test('signup, airport exclusions, persistent login and logout',async t=>{
   const request=await fixture(t),a=await signup(request);
   assert.equal(a.result.user.profile.onboarded,undefined);

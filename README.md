@@ -177,7 +177,7 @@ Edit `build/` sources and regenerate root HTML files with:
 npm run build
 ```
 
-`build/data.js` contains public copy and content, `build/templates.js` contains page structures, and `build/generate.js` writes generated HTML. Avoid editing root HTML pages directly. The sitemap and canonical/social URLs use `PUBLIC_SITE_ORIGIN` when set, then `APP_ORIGIN`, then Vercel's `VERCEL_PROJECT_PRODUCTION_URL` or `VERCEL_URL`; set `PUBLIC_SITE_ORIGIN` to Friday's stable public HTTPS origin for production builds. Without a configured origin, canonical and image references stay relative and the sitemap has no URL entries rather than inventing a domain.
+`build/data.js` contains public copy and content, `build/templates.js` contains page structures, and `build/generate.js` writes generated HTML. Avoid editing root HTML pages directly. Canonicals and the sitemap use `APP_ORIGIN` as Friday's one official origin; the server also applies the current `APP_ORIGIN` when serving them, so changing the public domain does not leave stale canonical URLs behind. Without a configured origin, the build does not invent a domain or add sitemap URL entries.
 
 ## Trip storage in Hexclave
 

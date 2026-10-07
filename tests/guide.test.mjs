@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { sitemapXml, robotsTxt } = require('../build/site-metadata.js');
+const { siteOrigin, publicUrl, sitemapXml, robotsTxt } = require('../build/site-metadata.js');
 const source = (await readFile(new URL('../assets/js/friday-analytics.js', import.meta.url), 'utf8')) + '\n' + (await readFile(new URL('../assets/js/guide-analytics.js', import.meta.url), 'utf8'));
 const guide = await readFile(new URL('../kerala-guide.html', import.meta.url), 'utf8');
 
@@ -45,8 +45,8 @@ test('Kerala guide answers the researched questions and has canonical/social met
   assert.match(guide, /When is the best time to visit Kerala\?/);
   assert.match(guide, /Is Alleppey or Kumarakom better for a houseboat\?/);
   assert.match(guide, /What does a Kerala trip cost\?/);
-  assert.match(guide, /<link rel="canonical" href="kerala-guide\.html">/);
-  assert.match(guide, /<meta property="og:image" content="assets\/images\/friday-social\.jpg">/);
+  assert.match(guide, /<link rel="canonical" href="https:\/\/fridaytravel\.vercel\.app\/kerala-guide\.html">/);
+  assert.match(guide, /<meta property="og:image" content="https:\/\/fridaytravel\.vercel\.app\/assets\/images\/friday-social\.jpg">/);
   assert.match(guide, /data-guide-cta="planner"/);
   assert.match(guide, /data-guide-cta="quote"/);
 });
@@ -54,6 +54,11 @@ test('Kerala guide answers the researched questions and has canonical/social met
 test('sitemap generation emits an absolute guide URL when an origin is configured; robots leaves guides crawlable', () => {
   const map = sitemapXml(['index.html', 'kerala-guide.html'], 'https://friday.example');
   assert.match(map, /<loc>https:\/\/friday\.example\/kerala-guide\.html<\/loc>/);
+  assert.match(map, /<loc>https:\/\/friday\.example\/<\/loc>/);
+  assert.equal(publicUrl('index.html', 'https://friday.example'), 'https://friday.example/');
+  assert.equal(publicUrl('about.html', 'https://friday.example'), 'https://friday.example/about.html');
+  assert.equal(siteOrigin({ APP_ORIGIN: 'https://new.example/some/path', VERCEL_URL: 'preview.example' }), 'https://new.example');
+  assert.equal(siteOrigin({ VERCEL_URL: 'preview.example' }), null);
   const robots = robotsTxt('https://friday.example');
   assert.match(robots, /Sitemap: https:\/\/friday\.example\/sitemap\.xml/);
   assert.match(robots, /Disallow: \/trip\.html/);
@@ -83,4 +88,25 @@ test('guide view, CTA, and trip start events carry only safe attribution and gui
   assert.equal(events[3].data.from_guide, true);
   assert.equal(events[3].data.destination, 'kerala');
   assert.equal(events[3].data.first_touch_landing_path, '/kerala-guide.html');
+});
+
+
+test('each public generated page has one canonical and the sitemap lists those same URLs', async () => {
+  const publicPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'villa.html', 'kerala-guide.html', 'privacy.html', 'terms.html'];
+  const canonicalUrls = [];
+  for (const file of publicPages) {
+    const html = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+    const links = [...html.matchAll(/<link rel="canonical" href="([^"]+)">/g)].map(match => match[1]);
+    assert.equal(links.length, 1, `${file} should have exactly one canonical`);
+    const expectedPath = file === 'index.html' ? '/' : `/${file}`;
+    assert.equal(links[0], `https://fridaytravel.vercel.app${expectedPath}`, file);
+    canonicalUrls.push(links[0]);
+  }
+  for (const file of ['trip.html', 'app.html', 'admin.html', 'admin-villas.html', 'chatgpt-callback.html']) {
+    const html = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(html, /<link rel="canonical"/i, `${file} must not be indexable via a canonical`);
+  }
+  const sitemap = await readFile(new URL('../sitemap.xml', import.meta.url), 'utf8');
+  const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
+  assert.deepEqual(urls.sort(), canonicalUrls.sort());
 });

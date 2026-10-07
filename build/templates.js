@@ -180,7 +180,7 @@ function Footer() {
 /* ------------------------------------------------------------ the shell */
 
 function layout({ title, description, body, active, lightHead, canonical, extraStyles = [], extraScripts = [] }) {
-  const canonicalHref = canonical ? publicUrl(canonical, SITE_ORIGIN) : null;
+  const canonicalHref = canonical && SITE_ORIGIN ? publicUrl(canonical, SITE_ORIGIN) : null;
   return `<!doctype html>
 <html lang="en">
 <head>

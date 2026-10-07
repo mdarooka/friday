@@ -1,2 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://fridaytravel.vercel.app/</loc></url>
+  <url><loc>https://fridaytravel.vercel.app/kerala-guide.html</loc></url>
+  <url><loc>https://fridaytravel.vercel.app/partner.html</loc></url>
+  <url><loc>https://fridaytravel.vercel.app/villas.html</loc></url>
+  <url><loc>https://fridaytravel.vercel.app/villa.html</loc></url>
+  <url><loc>https://fridaytravel.vercel.app/about.html</loc></url>
+  <url><loc>https://fridaytravel.vercel.app/help.html</loc></url>
+  <url><loc>https://fridaytravel.vercel.app/departures.html</loc></url>
+  <url><loc>https://fridaytravel.vercel.app/contact.html</loc></url>
+  <url><loc>https://fridaytravel.vercel.app/privacy.html</loc></url>
+  <url><loc>https://fridaytravel.vercel.app/terms.html</loc></url>
+</urlset>
