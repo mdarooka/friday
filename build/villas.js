@@ -7,6 +7,7 @@ function villasBody() {
       <p class="eyebrow">A Friday stay</p>
       <h1 class="villa-title">A place to<br><em>begin.</em></h1>
       <p class="villa-lede">Private homes, chosen for the way they make a journey feel.</p>
+      <p class="villa-lede"><a class="link" href="mumbai-quiet-weekend.html">Planning a quiet weekend from Mumbai? <span class="arrow">&rarr;</span></a></p>
       <form class="villa-search" data-villa-search role="search">
         <label for="villa-location">Where would you like to stay?</label>
         <div class="villa-search__row"><input id="villa-location" name="location" type="search" autocomplete="off" placeholder="City or region"><button class="btn btn--solid" type="submit">Find a villa <span class="arrow">&rarr;</span></button></div>

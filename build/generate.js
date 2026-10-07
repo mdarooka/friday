@@ -212,6 +212,86 @@ page('kerala-guide.html', {
   body: keralaGuide, canonical: 'kerala-guide.html',
 });
 
+/* ============================================== Mumbai quiet weekend guide */
+
+const mumbaiQuietWeekend = `
+${PageHero({
+  eyebrow: 'A Friday field guide · from Bombay',
+  title: 'A quieter<br>two-night break.',
+  lede: 'For two people who want a little green, good food and a private place to slow down — without spending the whole weekend travelling.',
+  meta: [{ k: 'Starting point', v: 'Mumbai' }, { k: 'Best shape', v: 'One base · two nights' }],
+  seed: 'kerala-guide-backwaters', scene: 'forest', tone: 'moss',
+})}
+<section class="section section--tight"><div class="wrap grid" style="align-items:start">
+  <article class="c-6 c-md-12 prose" data-reveal>
+    <p class="eyebrow">A useful filter</p><h2 class="h2">One good base, not a checklist.</h2>
+    <p>Choose a private home or small retreat outside a busy town centre, then ask whether meals are available or there is a kitchen. These places are spread out; a stay’s exact location matters more than the destination name. Keep one day free of driving.</p>
+  </article>
+  <article class="c-6 c-md-12 prose" data-reveal style="--i:1">
+    <p class="eyebrow">Travel time</p><h2 class="h2">Allow for the last mile.</h2>
+    <p>Times below are planning ranges from central Mumbai, not guarantees. Weekend traffic, your starting neighbourhood, train schedules and the road from the station to your stay can add time. Check the route for your dates before you book.</p>
+  </article>
+</div></section>
+<section class="section inverse"><div class="wrap">
+  <p class="eyebrow">Five places to consider</p><h2 class="h2">Pick the kind of quiet<br>you actually want.</h2>
+  <div class="grid" style="margin-top:2rem">
+    <article class="c-6 c-md-12 prose" data-reveal>
+      <p class="eyebrow eyebrow--accent">01 · River and hillside</p><h3 class="h3">Karjat</h3>
+      <p><strong>Getting there:</strong> Allow 2–3 hours by train to Karjat plus a local transfer, or by car depending on Mumbai traffic. Rail journeys from Dadar range from about 1 hour 20 minutes on a faster service to around 2 hours 20 minutes on a local.</p>
+      <p><strong>Best:</strong> October–February for cooler days and easy outdoor time. The monsoon brings green hills, but rain can change road and trail conditions.</p>
+      <p><strong>Avoid:</strong> A central, event-led resort if quiet matters; choose a home outside the station town and confirm meals before travelling.</p>
+      <p><a class="link" href="https://www.rome2rio.com/s/Mumbai/Karjat-Station" target="_blank" rel="noopener noreferrer">Check Mumbai–Karjat route options <span class="arrow">&rarr;</span></a></p>
+    </article>
+    <article class="c-6 c-md-12 prose" data-reveal style="--i:1">
+      <p class="eyebrow eyebrow--accent">02 · Green hills and valley views</p><h3 class="h3">Igatpuri</h3>
+      <p><strong>Getting there:</strong> Around 2–3 hours by train to Igatpuri, with a further transfer to most stays; allow roughly 2½–3½ hours by road, traffic permitting. The Dadar train journey is listed at about 2 hours 10 minutes.</p>
+      <p><strong>Best:</strong> October–February for a slower stay and clearer outdoor plans. June–September is lush, but heavy rain can disrupt travel and make trails slippery.</p>
+      <p><strong>Avoid:</strong> Building a weekend around a long trek in poor weather; keep the stay itself as the plan.</p>
+      <p><a class="link" href="https://www.rome2rio.com/s/Mumbai/Igatpuri" target="_blank" rel="noopener noreferrer">Check Mumbai–Igatpuri routes <span class="arrow">&rarr;</span></a> · <a class="link" href="https://maharashtratourism.gov.in/nature/igatpuri" target="_blank" rel="noopener noreferrer">Maharashtra Tourism on Igatpuri <span class="arrow">&rarr;</span></a></p>
+    </article>
+    <article class="c-6 c-md-12 prose" data-reveal>
+      <p class="eyebrow eyebrow--accent">03 · Lake country</p><h3 class="h3">Kamshet and Pawna</h3>
+      <p><strong>Getting there:</strong> Plan about 2½–3½ hours by rail to Lonavala and onward by taxi, or by car when traffic is kind. From Lonavala, the final drive to a lakeside stay still takes time; confirm the exact pin and road access.</p>
+      <p><strong>Best:</strong> October–February for dry evenings and unhurried lake views. Monsoon brings greener hills, but check current road and activity conditions.</p>
+      <p><strong>Avoid:</strong> A campsite cluster if you want privacy. Pick a separate private stay, and confirm its food arrangements and lake access rather than assuming they come with the address.</p>
+      <p><a class="link" href="https://www.rome2rio.com/s/Mumbai/Kamshet" target="_blank" rel="noopener noreferrer">Check Mumbai–Kamshet routes <span class="arrow">&rarr;</span></a> · <a class="link" href="https://www.rome2rio.com/s/Mumbai/Pawna-Lake-Camping-and-Resort-Lonavala" target="_blank" rel="noopener noreferrer">See rail-and-road timing to Pawna <span class="arrow">&rarr;</span></a></p>
+    </article>
+    <article class="c-6 c-md-12 prose" data-reveal style="--i:1">
+      <p class="eyebrow eyebrow--accent">04 · Coast and orchards</p><h3 class="h3">Dahanu–Bordi</h3>
+      <p><strong>Getting there:</strong> About 2½–3 hours from Bandra by train, then a local transfer; allow around 2½–3½ hours by road from central Mumbai, depending on traffic.</p>
+      <p><strong>Best:</strong> October–March, when Maharashtra Tourism recommends the season for outdoor visits. The long shoreline and chikoo orchards suit a slower, coast-and-countryside stay.</p>
+      <p><strong>Avoid:</strong> A dry-beach weekend in the June–September monsoon; check weather and sea conditions before planning a beach day.</p>
+      <p><a class="link" href="https://www.rome2rio.com/s/Mumbai/D%C4%81h%C4%81nu" target="_blank" rel="noopener noreferrer">Check Mumbai–Dahanu routes <span class="arrow">&rarr;</span></a> · <a class="link" href="https://maharashtratourism.gov.in/districts/palghar/" target="_blank" rel="noopener noreferrer">Maharashtra Tourism on Palghar <span class="arrow">&rarr;</span></a></p>
+    </article>
+    <article class="c-6 c-md-12 prose" data-reveal>
+      <p class="eyebrow eyebrow--accent">05 · Hills, reached by rail</p><h3 class="h3">Lonavala’s quieter edges</h3>
+      <p><strong>Getting there:</strong> Roughly 2 hours by train from Dadar to Lonavala, then transfer to your stay; driving can take longer around weekend departures.</p>
+      <p><strong>Best:</strong> October–February for pleasant weather and outdoor plans. June–September is green and dramatic, but the popular viewpoints and picnic spots get busy in the rains.</p>
+      <p><strong>Avoid:</strong> Bhushi Dam and the main tourist circuit if you want calm; Maharashtra Tourism describes Bhushi Dam as a bustling rainy-season picnic spot. Stay away from the busiest centre and keep plans flexible.</p>
+      <p><a class="link" href="https://www.rome2rio.com/s/Mumbai/Lonavala" target="_blank" rel="noopener noreferrer">Check Mumbai–Lonavala routes <span class="arrow">&rarr;</span></a> · <a class="link" href="https://maharashtratourism.gov.in/nature/lonavala/" target="_blank" rel="noopener noreferrer">Maharashtra Tourism on Lonavala <span class="arrow">&rarr;</span></a></p>
+    </article>
+  </div>
+</div></section>
+<section class="section section--tight"><div class="wrap grid" style="align-items:start">
+  <article class="c-6 c-md-12 prose" data-reveal>
+    <p class="eyebrow">A note on stays</p><h2 class="h2">No unverified villa names.</h2>
+    <p>Friday’s villa listings are not a live availability calendar, so this guide does not name a property or imply that a room is open. Share your dates, budget and preferred setting; Friday can check options before you make a plan.</p>
+  </article>
+  <article class="c-6 c-md-12 prose" data-reveal style="--i:1">
+    <p class="eyebrow">Season notes</p><h2 class="h2">Check the weather close to departure.</h2>
+    <p>The monsoon can make the Sahyadris beautiful and also change road, trail and beach conditions. Maharashtra Tourism’s <a href="https://maharashtratourism.gov.in/monsoon-tourism/" target="_blank" rel="noopener noreferrer">monsoon guide</a> is a useful starting point, not a live safety or closure notice.</p>
+  </article>
+</div></section>
+<section class="section inverse"><div class="wrap grid" style="align-items:center">
+  <div class="c-7 c-md-12"><p class="eyebrow">Make the weekend yours</p><h2 class="h2">Two nights.<br>Your kind of quiet.</h2><p class="lede" style="margin-top:1rem">Tell Friday your dates, how you want to travel, and what a good stay feels like. We’ll check the details with you.</p></div>
+  <div class="c-5 c-md-12"><a class="btn" href="contact.html?from=mumbai-quiet-weekend">Ask Friday to plan this weekend <span class="arrow">&rarr;</span></a></div>
+</div></section>`;
+page('mumbai-quiet-weekend.html', {
+  title: 'Quiet 2-Night Weekend Breaks from Mumbai | Friday',
+  description: 'A practical shortlist for couples seeking two quiet nights near Mumbai: travel estimates, season notes and stay advice for Karjat, Igatpuri, Pawna, Dahanu and Lonavala.',
+  body: mumbaiQuietWeekend, canonical: 'mumbai-quiet-weekend.html',
+});
+
 page('partner.html', { title: 'List your villa', description: 'Introduce your villa to Friday for consideration in its collection of considered places to stay.', body: partnerBody(), active: 'partner.html', lightHead: true, extraStyles: ['assets/css/partner.css'], extraScripts: ['assets/js/partner.js'] });
 
 if (Villas.villasBody && Villas.villaBody && Villas.adminVillasBody) {
@@ -1247,7 +1327,7 @@ fs.readdirSync(OUT).filter((file) => /^note-.+\.html$/.test(file)).forEach((file
 
 /* Search files only name public pages. Configure PUBLIC_SITE_ORIGIN for a stable production sitemap.
    APP_ORIGIN and Vercel's production URL are supported as fallbacks; no domain is guessed at build time. */
-const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'kerala-guide.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
+const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'kerala-guide.html', 'mumbai-quiet-weekend.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
 write('sitemap.xml', sitemapXml(sitemapPages, PUBLIC_ORIGIN));
 write('robots.txt', robotsTxt(PUBLIC_ORIGIN));
 

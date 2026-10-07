@@ -62,6 +62,16 @@ test('first touch keeps sanitized campaign fields and sends one non-PII quote_re
   assert.equal(fixture.users, 1);
 });
 
+test('Mumbai quiet-weekend enquiries keep the request type and carry their own from attribution', async () => {
+  const fixture = setup({ search: '?from=mumbai-quiet-weekend' });
+  assert.equal(fixture.analytics.pathForEnquiry(null), 'enquiry');
+  await fixture.analytics.track(fixture.analytics.pathForEnquiry(null), 'mumbai-request-1');
+  const event = fixture.batches[0].events[0];
+  assert.equal(event.event_type, 'quote_requested');
+  assert.equal(event.data.path, 'enquiry');
+  assert.equal(event.data.from, 'mumbai-quiet-weekend');
+});
+
 test('first touch saved by the earlier quote-only script is kept, and invalid path tags fall back to enquiry', async () => {
   const fixture = setup({ existing: { 'friday.quote-attribution.v1': JSON.stringify({ source: 'instagram', medium: 'social', campaign: 'first', referrer: 'instagram.com' }) } });
   assert.equal(fixture.analytics.firstTouch().campaign, 'first');

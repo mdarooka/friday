@@ -8,7 +8,9 @@
     if (paths.indexOf(path) === -1) path = 'enquiry';
     var id = typeof requestId === 'string' && requestId.length <= 160 ? requestId : A.uuid();
     var touch = A.firstTouch();
-    return A.track('quote_requested', { request_id: id, path: path, source: touch.source, medium: touch.medium, campaign: touch.campaign, referrer: touch.referrer }, id);
+    var data = { request_id: id, path: path, source: touch.source, medium: touch.medium, campaign: touch.campaign, referrer: touch.referrer };
+    if (new URLSearchParams(location.search || '').get('from') === 'mumbai-quiet-weekend') data.from = 'mumbai-quiet-weekend';
+    return A.track('quote_requested', data, id);
   }
   function pathForEnquiry(form) {
     var requested = new URLSearchParams(location.search || '').get('quote_path');
