@@ -445,4 +445,52 @@
   .admin-filter-fields {
     grid-template-columns: 1fr;
   }
+  .admin-table--data-requests {
+    display: block;
+    width: 100%;
+  }
+  .admin-table--data-requests thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .admin-table--data-requests tbody,
+  .admin-table--data-requests tr {
+    display: block;
+    width: 100%;
+  }
+  .admin-table--data-requests tr {
+    padding: .65rem .9rem;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .admin-table--data-requests td {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: .5rem;
+    padding: .35rem 0;
+    border: 0;
+    overflow-wrap: anywhere;
+  }
+  .admin-table--data-requests td::before {
+    content: attr(data-label);
+    color: var(--fg-mute);
+    font-size: var(--admin-label);
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .admin-table--data-requests td:last-child {
+    display: block;
+    padding-top: .6rem;
+  }
+  .admin-table--data-requests td:last-child::before {
+    display: block;
+    margin-bottom: .4rem;
+  }
+  .admin-table--data-requests td:last-child button {
+    width: 100%;
+    white-space: normal;
+  }
 }

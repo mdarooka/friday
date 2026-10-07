@@ -203,9 +203,9 @@
 
   function renderDataRequests(rows) {
     if (!rows.length) { dom.dataRequests.innerHTML = empty('No account deletion requests are waiting.'); return; }
-    dom.dataRequests.innerHTML = '<table class="admin-table"><thead><tr><th>Account</th><th>Requested</th><th>Due</th><th>Status</th><th>Action</th></tr></thead><tbody>' + rows.map(function (row) {
+    dom.dataRequests.innerHTML = '<table class="admin-table admin-table--data-requests"><thead><tr><th>Account</th><th>Requested</th><th>Due</th><th>Status</th><th>Action</th></tr></thead><tbody>' + rows.map(function (row) {
       var waiting = row.status !== 'completed';
-      return '<tr><td>' + esc(row.requester_email) + '</td><td>' + esc(formatDate(row.created)) + '</td><td>' + esc(formatDate(row.due_at)) + '</td><td>' + badge(row.status) + '</td><td>' + (waiting ? '<button class="btn btn--danger" type="button" data-complete-data-request="' + esc(row.id) + '">' + (row.status === 'account_deletion_pending' ? 'Retry account deletion' : 'Delete account data') + '</button>' : 'Complete') + '</td></tr>';
+      return '<tr><td data-label="Account">' + esc(row.requester_email) + '</td><td data-label="Requested">' + esc(formatDate(row.created)) + '</td><td data-label="Due">' + esc(formatDate(row.due_at)) + '</td><td data-label="Status">' + badge(row.status) + '</td><td data-label="Action">' + (waiting ? '<button class="btn btn--danger" type="button" data-complete-data-request="' + esc(row.id) + '">' + (row.status === 'account_deletion_pending' ? 'Retry account deletion' : 'Delete account data') + '</button>' : 'Complete') + '</td></tr>';
     }).join('') + '</tbody></table>';
   }
 
