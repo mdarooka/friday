@@ -50,6 +50,7 @@
     selectedQuoteId: null,
     selectedAiEventKey: null,
     briefings: [],
+    dataRequests: [],
     emailConfigured: false,
     quotes: [],
     aiEvents: [],
@@ -116,6 +117,8 @@
     dom.aiLoadMoreBtn = $('[data-ai-load-more]', dom.page);
     dom.briefings = $('[data-admin-briefings]', dom.page);
     dom.briefingSetup = $('[data-briefing-setup]', dom.page);
+    dom.dataRequests = $('[data-admin-data-requests]', dom.page);
+    dom.dataRequestNote = $('[data-data-request-note]', dom.page);
 
     /* Comms */
     dom.enquiriesTable = $('[data-admin-enquiries-table]', dom.page);
@@ -165,6 +168,7 @@
     else if (tabKey === 'briefings') loadBriefingsTab();
     else if (tabKey === 'ai') loadAiTab(true);
     else if (tabKey === 'comms') loadCommsTab();
+    else if (tabKey === 'data-requests') loadDataRequestsTab();
   }
 
   /* ---------------- Trip briefings ---------------- */
@@ -184,6 +188,24 @@
     dom.briefings.innerHTML = '<table class="admin-table"><thead><tr><th>Trip</th><th>Departure</th><th>Bookings</th><th>Action</th></tr></thead><tbody>' + rows.map(function (row) {
       var allowed = !!row.eligible && state.emailConfigured;
       return '<tr><td><strong>' + esc(row.title) + '</strong></td><td>' + esc(row.departureDate) + ' · ' + esc(row.daysBeforeDeparture) + ' days</td><td>' + esc(row.bookingCount) + '</td><td><button class="btn btn--solid" type="button" data-send-briefing="' + esc(row.tripId) + '" data-days-before="' + esc(row.daysBeforeDeparture) + '" ' + (allowed ? '' : 'disabled') + '>Send briefing</button><small>' + (allowed ? '' : esc(row.reason || 'Email delivery is not configured.')) + '</small></td></tr>';
+    }).join('') + '</tbody></table>';
+  }
+
+  /* ---------------- Data requests ---------------- */
+
+  function loadDataRequestsTab() {
+    dom.dataRequests.innerHTML = empty('Loading data requests…');
+    return FridayAdmin.request('/api/admin/data-requests').then(function (res) {
+      state.dataRequests = res.requests || [];
+      renderDataRequests(state.dataRequests);
+    }).catch(function (err) { dom.dataRequests.innerHTML = empty('Could not load data requests: ' + err.message); });
+  }
+
+  function renderDataRequests(rows) {
+    if (!rows.length) { dom.dataRequests.innerHTML = empty('No account deletion requests are waiting.'); return; }
+    dom.dataRequests.innerHTML = '<table class="admin-table"><thead><tr><th>Account</th><th>Requested</th><th>Due</th><th>Status</th><th>Action</th></tr></thead><tbody>' + rows.map(function (row) {
+      var waiting = row.status !== 'completed';
+      return '<tr><td>' + esc(row.requester_email) + '</td><td>' + esc(formatDate(row.created)) + '</td><td>' + esc(formatDate(row.due_at)) + '</td><td>' + badge(row.status) + '</td><td>' + (waiting ? '<button class="btn btn--danger" type="button" data-complete-data-request="' + esc(row.id) + '">' + (row.status === 'account_deletion_pending' ? 'Retry account deletion' : 'Delete account data') + '</button>' : 'Complete') + '</td></tr>';
     }).join('') + '</tbody></table>';
   }
 
@@ -794,6 +816,19 @@
           .then(function () { return loadVillasTab(); })
           .catch(function (err) { alert('Could not update submission: ' + err.message); })
           .finally(function () { subStatus.disabled = false; });
+      }
+
+      var completeDataRequest = e.target.closest('[data-complete-data-request]');
+      if (completeDataRequest) {
+        if (!confirm('Delete this traveller’s Friday data, revoke their share links and Google connections, and remove their sign-in account? This cannot be undone.')) return;
+        completeDataRequest.disabled = true;
+        dom.dataRequestNote.textContent = 'Deleting Friday data and the sign-in account…';
+        FridayAdmin.request('/api/admin/data-requests/' + encodeURIComponent(completeDataRequest.dataset.completeDataRequest) + '/complete', 'POST', {})
+          .then(function (res) {
+            dom.dataRequestNote.textContent = res.request.status === 'account_deletion_pending' ? (res.message || 'Friday data is deleted; sign-in removal still needs a retry.') : 'Friday data and the sign-in account were deleted.';
+            return loadDataRequestsTab();
+          })
+          .catch(function (err) { dom.dataRequestNote.textContent = 'Could not complete deletion: ' + err.message; completeDataRequest.disabled = false; });
       }
 
       /* Trip briefing send */

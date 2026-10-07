@@ -36,7 +36,10 @@ async function createSchema(tx, { tripsInVault = false } = {}) {
     CREATE TABLE IF NOT EXISTS friday_handoffs(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,draft_id TEXT NOT NULL,version INTEGER NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,created TEXT NOT NULL,UNIQUE(owner_id,draft_id,version));
     CREATE INDEX IF NOT EXISTS friday_handoffs_owner ON friday_handoffs(owner_id,created DESC);
     CREATE TABLE IF NOT EXISTS callback_requests(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL,best_time TEXT NOT NULL,entry_point TEXT NOT NULL,trip_id TEXT,status TEXT NOT NULL DEFAULT 'new',created TEXT NOT NULL);
+    ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id) ON DELETE SET NULL;
     CREATE INDEX IF NOT EXISTS callback_requests_created ON callback_requests(created DESC);
+    CREATE INDEX IF NOT EXISTS callback_requests_owner ON callback_requests(owner_id,created DESC);
+    CREATE TABLE IF NOT EXISTS data_requests(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL,requester_email TEXT NOT NULL,request_type TEXT NOT NULL CHECK(request_type IN ('deletion')),status TEXT NOT NULL CHECK(status IN ('requested','account_deletion_pending','completed')),created TEXT NOT NULL,due_at TEXT NOT NULL,completed_at TEXT);
     CREATE TABLE IF NOT EXISTS friday_quotes(id TEXT PRIMARY KEY,handoff_id TEXT NOT NULL UNIQUE REFERENCES friday_handoffs(id),owner_id TEXT NOT NULL REFERENCES users(id),customer_email TEXT NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,quote TEXT,attempted_at TEXT,created TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reel_chats(owner_id TEXT NOT NULL,conversation_id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(owner_id,conversation_id));
     CREATE TABLE IF NOT EXISTS google_connections(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('gmail','calendar')),refresh_token TEXT NOT NULL,scopes TEXT NOT NULL,connected_at TEXT NOT NULL,PRIMARY KEY(user_id,kind));
@@ -84,6 +87,7 @@ export const upsertAiConversationEvent = async (db, row) => { await db.query(`IN
   [row.eventKey,row.ownerId,row.conversationId,row.tripId||null,row.eventType,row.role||null,row.content,row.status,row.created,row.updated]); };
 export const updateAiConversationEvent = async (db, row) => changes(await db.query('UPDATE ai_conversation_events SET content=$1,status=$2,updated=$3 WHERE owner_id=$4 AND conversation_id=$5 AND event_key=$6',
   [row.content,row.status,row.updated,row.ownerId,row.conversationId,row.eventKey]));
+export const listOwnerAiConversationEvents = (db, ownerId) => db.all('SELECT event_key,owner_id,conversation_id,trip_id,event_type,role,content,status,created,updated FROM ai_conversation_events WHERE owner_id=$1 ORDER BY created,event_key',[ownerId]);
 export const listAiConversationEvents = (db, { ownerId, conversationId, limit=500, before }={}) => {
   const requested=limit==null||limit===''?500:Number(limit),safeLimit=Number.isFinite(requested)?Math.max(1,Math.min(2000,Math.trunc(requested))):500;
   const clauses=[],params=[],p=value=>{params.push(value);return `$${params.length}`;};
@@ -101,9 +105,48 @@ export const updateFridayDraft = async (db,row) => changes(await db.query('UPDAT
 export const insertFridayHandoff = async (db,row) => { await db.query('INSERT INTO friday_handoffs(id,owner_id,draft_id,version,snapshot,status,created) VALUES($1,$2,$3,$4,$5,$6,$7)',[row.id,row.ownerId,row.draftId,row.version,row.snapshot,row.status,row.created]); };
 export const createFridayHandoffWithQuote = (db,handoff,quote) => db.transaction(async tx => { await insertFridayHandoff(tx,handoff); await insertFridayQuote(tx,quote); return true; });
 export const listFridayHandoffs = (db,owner) => db.all('SELECT id,draft_id,version,snapshot,status,created FROM friday_handoffs WHERE owner_id=$1 ORDER BY created DESC',[owner]);
+export const listOwnerFridayQuotes = (db,owner) => db.all('SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created FROM friday_quotes WHERE owner_id=$1 ORDER BY created DESC',[owner]);
+export const listOwnerReelChats = (db,owner) => db.all('SELECT conversation_id,data FROM reel_chats WHERE owner_id=$1 ORDER BY conversation_id',[owner]);
 export const listFridayQuotes = db => db.all('SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created FROM friday_quotes ORDER BY created');
-export const createCallbackRequest = async (db, row) => { await db.query('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created]); };
-export const listCallbackRequests = db => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,status,created FROM callback_requests ORDER BY created DESC');
+export const createCallbackRequest = async (db, row) => { await db.query('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created,owner_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created,row.ownerId||null]); };
+export const listCallbackRequests = db => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,status,created,owner_id FROM callback_requests ORDER BY created DESC');
+export const listOwnedCallbackRequests = (db, ownerId) => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,status,created FROM callback_requests WHERE owner_id=$1 ORDER BY created DESC',[ownerId]);
+export const createDataRequest = async (db, row) => { await db.query("INSERT INTO data_requests(id,owner_id,requester_email,request_type,status,created,due_at) VALUES($1,$2,$3,'deletion','requested',$4,$5)",[row.id,row.ownerId,row.email,row.created,row.dueAt]); };
+export const listDataRequests = db => db.all('SELECT id,owner_id,requester_email,request_type,status,created,due_at,completed_at FROM data_requests ORDER BY created DESC');
+export const listOwnerDataRequests = (db, ownerId) => db.all('SELECT id,request_type,status,created,due_at,completed_at FROM data_requests WHERE owner_id=$1 ORDER BY created DESC',[ownerId]);
+export const getDataRequest = (db, id) => db.one('SELECT id,owner_id,requester_email,request_type,status,created,due_at,completed_at FROM data_requests WHERE id=$1',[id]);
+export const updateDataRequestStatus = async (db,id,status,completedAt=null) => changes(await db.query('UPDATE data_requests SET status=$1,completed_at=$2 WHERE id=$3',[status,completedAt,id]));
+export const anonymizeDataRequest = async (db,id,completedAt) => changes(await db.query("UPDATE data_requests SET status='completed',completed_at=$1,owner_id='deleted:'||id,requester_email='deleted' WHERE id=$2",[completedAt,id]));
+export const listAllOwnerRecords = (db, ownerId) => db.all('SELECT id,kind,data,version,updated FROM records WHERE user_id=$1 ORDER BY kind,updated DESC',[ownerId]);
+export const listOwnerShares = (db, ownerId) => db.all('SELECT trip_id,expires,created FROM shares WHERE user_id=$1 ORDER BY created DESC',[ownerId]);
+export const listOwnerShareActivity = (db, ownerId) => db.all('SELECT s.trip_id,e.event_type,e.created FROM shares s JOIN trip_share_events e ON e.token_hash=s.token_hash WHERE s.user_id=$1 ORDER BY e.created DESC',[ownerId]);
+export const listOwnerEnquiries = (db, email) => db.all("SELECT id,kind,data,created FROM enquiries WHERE lower(data::jsonb->>'email')=lower($1) ORDER BY created DESC",[email]);
+export const listOwnerItineraries = (db, ownerId) => db.all('SELECT id,created,request,provider,plan,fallback_reason FROM itineraries WHERE user_id=$1 ORDER BY created DESC',[ownerId]);
+export const listOwnerJobs = (db, ownerId) => db.all('SELECT id,trip_id,status,stage,result,created FROM jobs WHERE user_id=$1 ORDER BY created DESC',[ownerId]);
+export const getHexclaveUserId = (db, ownerId) => db.one('SELECT hexclave_user_id FROM hexclave_identities WHERE user_id=$1',[ownerId]);
+export const deleteFridayAccountData = async (db, ownerId, email) => db.transaction(async tx => {
+  await tx.query('DELETE FROM trip_share_events WHERE token_hash IN (SELECT token_hash FROM shares WHERE user_id=$1)',[ownerId]);
+  await tx.query('DELETE FROM shares WHERE user_id=$1',[ownerId]);
+  await tx.query('DELETE FROM friday_quotes WHERE owner_id=$1',[ownerId]);
+  await tx.query('DELETE FROM friday_handoffs WHERE owner_id=$1',[ownerId]);
+  await tx.query('DELETE FROM friday_drafts WHERE owner_id=$1',[ownerId]);
+  await tx.query('DELETE FROM ai_conversation_events WHERE owner_id=$1',[ownerId]);
+  await tx.query('DELETE FROM reel_chats WHERE owner_id=$1',[ownerId]);
+  await tx.query('DELETE FROM jobs WHERE user_id=$1',[ownerId]);
+  await tx.query('DELETE FROM itineraries WHERE user_id=$1',[ownerId]);
+  await tx.query('DELETE FROM callback_requests WHERE owner_id=$1',[ownerId]);
+  await tx.query('DELETE FROM google_connections WHERE user_id=$1',[ownerId]);
+  await tx.query('DELETE FROM google_oauth_states WHERE user_id=$1',[ownerId]);
+  await tx.query('DELETE FROM records WHERE user_id=$1',[ownerId]);
+  await tx.query('DELETE FROM email_outbox WHERE lower(recipient)=lower($1)',[email]);
+  await tx.query("DELETE FROM enquiries WHERE lower(data::jsonb->>'email')=lower($1)",[email]);
+  return true;
+});
+export const deleteLocalAccount = async (db, ownerId) => db.transaction(async tx => {
+  await tx.query('DELETE FROM sessions WHERE user_id=$1',[ownerId]);
+  await tx.query('DELETE FROM hexclave_identities WHERE user_id=$1',[ownerId]);
+  await tx.query('DELETE FROM users WHERE id=$1',[ownerId]);
+});
 export const getFridayQuote = (db,id) => db.one('SELECT * FROM friday_quotes WHERE id=$1',[id]);
 export const insertFridayQuote = async (db,row) => { await db.query('INSERT INTO friday_quotes(id,handoff_id,owner_id,customer_email,snapshot,status,created) VALUES($1,$2,$3,$4,$5,$6,$7)',[row.id,row.handoffId,row.ownerId,row.customerEmail,row.snapshot,row.status,row.created]); };
 export const claimFridayQuote = async (db,id,quote,attempted) => changes(await db.query("UPDATE friday_quotes SET status='sending',quote=$1,attempted_at=$2 WHERE id=$3 AND status='pending'",[quote,attempted,id]));
@@ -205,6 +248,7 @@ export const unsubscribeNewsletterSubscriber = async (db, email, unsubscribedAt 
 export const findGoogleRefreshToken = (db, userId, kind) => db.one('SELECT refresh_token FROM google_connections WHERE user_id=$1 AND kind=$2',[userId, kind]);
 export const setGoogleRefreshToken = async (db, userId, kind, sealed) => { await db.query('UPDATE google_connections SET refresh_token=$1 WHERE user_id=$2 AND kind=$3',[sealed, userId, kind]); };
 export const listGoogleConnections = (db, userId) => db.all('SELECT kind,scopes,connected_at FROM google_connections WHERE user_id=$1',[userId]);
+export const listGoogleRefreshTokens = (db,userId) => db.all('SELECT kind,refresh_token FROM google_connections WHERE user_id=$1 ORDER BY kind',[userId]);
 export const upsertGoogleConnection = async (db, { userId, kind, refreshToken, scopes, connectedAt }) => { await db.query('INSERT INTO google_connections(user_id,kind,refresh_token,scopes,connected_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(user_id,kind) DO UPDATE SET refresh_token=excluded.refresh_token,scopes=excluded.scopes,connected_at=excluded.connected_at',[userId, kind, refreshToken, scopes, connectedAt]); };
 export const deleteGoogleConnection = async (db, userId, kind) => { await db.query('DELETE FROM google_connections WHERE user_id=$1 AND kind=$2',[userId, kind]); };
 export const findGoogleOAuthState = (db, stateHash, userId, now) => db.one('SELECT * FROM google_oauth_states WHERE state_hash=$1 AND user_id=$2 AND expires>$3',[stateHash, userId, now]);

@@ -10,6 +10,13 @@ const projectId='123e4567-e89b-42d3-a456-426614174000';
 const secretServerKey='test-secret-server-key';
 const appOrigin='https://friday.example';
 
+test('Hexclave server adapter deletes a named account through the server user object',async()=>{
+  let deleted='';
+  const auth=createHexclaveAuth({env:{HEXCLAVE_PROJECT_ID:projectId,HEXCLAVE_SECRET_SERVER_KEY:secretServerKey},serverApp:{getUser:async id=>({id,delete:async()=>{deleted=id;}})}});
+  assert.deepEqual(await auth.deleteUser('hx-account-to-delete'),{deleted:true});
+  assert.equal(deleted,'hx-account-to-delete');
+});
+
 test('Hexclave server adapter verifies the request and carries verified email and restriction state',async()=>{
   const seen=[];
   const auth=createHexclaveAuth({env:{HEXCLAVE_PROJECT_ID:projectId,HEXCLAVE_SECRET_SERVER_KEY:secretServerKey},serverApp:{getUser:async options=>{seen.push(options);return{id:'hx-user-1',primaryEmail:'traveller@example.com',displayName:'Traveller',primaryEmailVerified:true,isRestricted:false,isAnonymous:false};}}});
@@ -23,14 +30,15 @@ test('Hexclave server adapter verifies the request and carries verified email an
 });
 
 async function start(t,{legacy=false}={}) {
-  const server=createApp({memory:true,origin:appOrigin,env:{NODE_ENV:'production',APP_ORIGIN:appOrigin,AUTH_PROVIDER:'hexclave',HEXCLAVE_PROJECT_ID:projectId,HEXCLAVE_SECRET_SERVER_KEY:secretServerKey,AI_REVIEW_ADMIN_EMAILS:'reviewer@example.com'},hexclaveAuth:{configured:true,projectId,currentUser:async req=>{
+  const deletions=[];
+  const server=createApp({memory:true,origin:appOrigin,env:{NODE_ENV:'production',APP_ORIGIN:appOrigin,AUTH_PROVIDER:'hexclave',HEXCLAVE_PROJECT_ID:projectId,HEXCLAVE_SECRET_SERVER_KEY:secretServerKey,AI_REVIEW_ADMIN_EMAILS:'reviewer@example.com',ADMIN_EMAILS:'reviewer@example.com'},hexclaveAuth:{configured:true,projectId,currentUser:async req=>{
     const value=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');
     if(value==='revoked'||!value)return null;
     if(value==='restricted')return{id:'restricted-owner',email:'pending@example.com',name:'Pending user',emailVerified:false,restricted:true,restrictedReason:'email_not_verified'};
     if(value==='legacy')return{id:'legacy-hex-id',email:'legacy@example.com',name:'Legacy owner',emailVerified:true,restricted:false};
     if(value==='reviewer')return{id:'reviewer-hex-id',email:'reviewer@example.com',name:'Review',emailVerified:true,restricted:false};
     return{id:'owner-'+value,email:value+'@example.com',name:value,emailVerified:true,restricted:false};
-  }}});
+  },deleteUser:async id=>{deletions.push(id);return{deleted:true};}}});
   if(legacy){
     const password='legacy Friday password 123';
     const salt=randomBytes(16).toString('hex'),key=(await scrypt(password,salt,64)).toString('hex');
@@ -44,8 +52,19 @@ async function start(t,{legacy=false}={}) {
     const result=(res.headers.get('content-type')||'').includes('json')?await res.json():await res.text();return{status:res.status,result};
   };
   t.after(async()=>{await new Promise(resolve=>server.close(resolve));});
-  return{request,db:server.db};
+  return{request,db:server.db,deletions};
 }
+
+test('Hexclave account deletion request removes the mapped sign-in account through the server admin adapter',async t=>{
+  const {request,deletions,db}=await start(t);
+  assert.equal((await request('/api/auth/me','GET',undefined,'alice')).status,200);
+  const submitted=await request('/api/account/data-requests','POST',{},'alice');assert.equal(submitted.status,201);
+  assert.equal((await request('/api/admin/data-requests','GET',undefined,'reviewer')).status,200);
+  const completed=await request('/api/admin/data-requests/'+submitted.result.request.id+'/complete','POST',{},'reviewer');
+  assert.equal(completed.status,200);assert.equal(completed.result.request.status,'completed');
+  assert.deepEqual(deletions,['owner-alice']);
+  assert.equal(await db.one("SELECT id FROM users WHERE email='alice@example.com'"),undefined);
+});
 
 test('Hexclave tokens are rechecked, restricted users stay outside private APIs, and review stays owner-scoped',async t=>{
   const {request}=await start(t);

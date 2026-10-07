@@ -36,5 +36,13 @@ export function createHexclaveAuth({ env = process.env, serverApp, log = () => {
         return null;
       }
     },
+    async deleteUser(userId) {
+      if (!app || typeof app.getUser !== 'function') throw new Error('Hexclave account deletion is not available on this server.');
+      const target = await app.getUser(userId);
+      if (!target) return { alreadyDeleted: true };
+      if (target.id !== userId || typeof target.delete !== 'function') throw new Error('Hexclave did not return a deletable account.');
+      await target.delete();
+      return { deleted: true };
+    },
   };
 }

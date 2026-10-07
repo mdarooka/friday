@@ -579,6 +579,64 @@ export function createApp(options = {}) {
       const effectiveQuoteAdmins = (quoteAdminEmails.length === 0 && generalAdminEmails.length === 0)
         ? new Set([uEmail])
         : new Set([...quoteAdminEmails, ...generalAdminEmails]);
+      if(p==='/api/account/export'&&method==='GET'){
+        if(!user)fail(401,'Please sign in to download your data.');
+        rate('data-export:'+user.id,2);
+        const tripRows=await trips.list(user.id);
+        const recordRows=(await store.listAllOwnerRecords(db,user.id)).filter(row=>row.kind!=='trips');
+        const records=recordRows.map(row=>({id:row.id,kind:row.kind,data:JSON.parse(row.data),version:row.version,updated:row.updated}));
+        const relatedTrips=tripRows.map(row=>({id:row.id,data:JSON.parse(row.data),version:row.version,updated:row.updated}));
+        const callbacks=await store.listOwnedCallbackRequests(db,user.id);
+        const quotes=(await store.listOwnerFridayQuotes(db,user.id)).map(row=>({...row,snapshot:JSON.parse(row.snapshot),quote:row.quote?JSON.parse(row.quote):null}));
+        const handoffs=(await store.listFridayHandoffs(db,user.id)).map(row=>({...row,snapshot:JSON.parse(row.snapshot)}));
+        const drafts=(await store.listFridayDrafts(db,user.id)).map(row=>({...row,data:JSON.parse(row.data)}));
+        const conversations=await store.listOwnerAiConversationEvents(db,user.id);
+        const enquiries=(await store.listOwnerEnquiries(db,user.hexclave_email||user.email)).map(row=>({...row,data:JSON.parse(row.data)}));
+        const itineraries=(await store.listOwnerItineraries(db,user.id)).map(row=>({...row,request:JSON.parse(row.request),plan:JSON.parse(row.plan)}));
+        const jobs=(await store.listOwnerJobs(db,user.id)).map(row=>({...row,result:row.result?JSON.parse(row.result):null}));
+        const exportBody={format:'friday-account-export',version:1,exportedAt:new Date().toISOString(),account:{email:user.hexclave_email||user.email,name:user.hexclave_name||user.name,profile:JSON.parse(user.profile||'{}')},trips:relatedTrips,records,planning:{drafts,handoffs,quotes,reelChats:await store.listOwnerReelChats(db,user.id),generatedItineraries:itineraries,researchJobs:jobs},requests:{callbacks,enquiries,quotes},aiConversationEvents:conversations,shareLinks:await store.listOwnerShares(db,user.id),shareActivity:await store.listOwnerShareActivity(db,user.id),googleConnections:await store.listGoogleConnections(db,user.id).then(rows=>rows.map(({kind,scopes,connected_at})=>({kind,scopes,connectedAt:connected_at}))),friendResponses:[],newsletterSubscription:await store.getNewsletterSubscriber(db,user.hexclave_email||user.email)};
+        const filename='friday-data-'+new Date().toISOString().slice(0,10)+'.json';
+        res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Content-Disposition':`attachment; filename="${filename}"`,'Cache-Control':'no-store, private','X-Content-Type-Options':'nosniff'});
+        res.end(JSON.stringify(exportBody,null,2));return;
+      }
+      if(p==='/api/account/data-requests'){
+        allow('GET','POST');if(!user)fail(401,'Please sign in to manage your data requests.');
+        if(method==='GET')return send(200,{requests:await store.listOwnerDataRequests(db,user.id)});
+        rate('data-request:'+user.id,3);
+        const current=await store.listOwnerDataRequests(db,user.id);
+        if(current.some(item=>item.status!=='completed'))fail(409,'A deletion request is already open for this account.');
+        const created=new Date().toISOString(),dueAt=new Date(Date.now()+30*86400000).toISOString(),id=randomUUID();
+        await store.createDataRequest(db,{id,ownerId:user.id,email:user.hexclave_email||user.email,created,dueAt});
+        return send(201,{request:{id,type:'deletion',status:'requested',created,dueAt}});
+      }
+      if(p==='/api/admin/data-requests'){
+        allow('GET');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
+        return send(200,{requests:await store.listDataRequests(db)});
+      }
+      const dataRequestMatch=p.match(/^\/api\/admin\/data-requests\/([0-9a-f-]{36})\/complete$/i);
+      if(dataRequestMatch){
+        allow('POST');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
+        const request=await store.getDataRequest(db,dataRequestMatch[1]);if(!request)fail(404,'This data request was not found.');
+        if(request.status==='completed')return send(200,{request:{id:request.id,status:'completed',completedAt:request.completed_at}});
+        const ownerId=request.owner_id,emailAddress=request.requester_email;
+        if(typeof google.revokeUserConnections==='function')await google.revokeUserConnections(ownerId);
+        const ownedTrips=await trips.list(ownerId);
+        await store.deleteFridayAccountData(db,ownerId,emailAddress);
+        for(const trip of ownedTrips)await trips.delete(trip.id,ownerId);
+        const identity=await store.getHexclaveUserId(db,ownerId);
+        if(identity?.hexclave_user_id){
+          try {
+            if(typeof hexclaveAuth.deleteUser!=='function')throw new Error('Hexclave account deletion is unavailable on this server.');
+            await hexclaveAuth.deleteUser(identity.hexclave_user_id);
+          }catch(error){
+            await store.updateDataRequestStatus(db,request.id,'account_deletion_pending',null);
+            return send(200,{request:{id:request.id,status:'account_deletion_pending'},message:'Friday data was deleted, but the sign-in account could not be removed yet. Retry this action.'});
+          }
+        }
+        await store.deleteLocalAccount(db,ownerId);
+        const completedAt=new Date().toISOString();await store.anonymizeDataRequest(db,request.id,completedAt);
+        return send(200,{request:{id:request.id,status:'completed',completedAt}});
+      }
       if(p==='/api/ai-conversations/events'){
         allow('POST');if(!user)fail(401,'Please sign in to save conversation history.');
         if(body.ownerId!==user.id)fail(409,'Your account changed before this conversation entry could be saved.');
@@ -803,7 +861,7 @@ export function createApp(options = {}) {
         if(tripId&&!/^[A-Za-z0-9_-]+$/.test(tripId)) fail(422,'This trip link is not valid.');
         const id=randomUUID(),created=new Date().toISOString();
         const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {})};
-        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,status:'new',created});
+        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,status:'new',created,ownerId:user?.id||null});
         const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
         const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
         return send(201,{id,saved:true,delivery:{notification:notification?.status||'blocked'}});

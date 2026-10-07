@@ -118,6 +118,7 @@
         <button type="button" class="admin-tab" role="tab" aria-selected="false" data-tab="briefings">Trip Briefings</button>
         <button type="button" class="admin-tab" role="tab" aria-selected="false" data-tab="ai">AI Conversation Review</button>
         <button type="button" class="admin-tab" role="tab" aria-selected="false" data-tab="comms">Enquiries &amp; Outbox</button>
+        <button type="button" class="admin-tab" role="tab" aria-selected="false" data-tab="data-requests">Data requests</button>
       </nav>
 
       <!-- Tab 1: Villas & Stays -->
@@ -277,6 +278,16 @@
           <div class="admin-ai-pagination">
             <button type="button" class="btn" data-ai-load-more hidden>Load older events</button>
           </div>
+        </section>
+      </div>
+
+      <!-- Tab 5: Data requests -->
+      <div class="admin-panel" data-panel="data-requests" role="tabpanel" hidden>
+        <section class="villa-admin__section">
+          <div class="villa-section-head"><div><p class="eyebrow">Privacy &amp; account care</p><h2 class="h3">Data requests</h2></div></div>
+          <p class="card__d">Complete the request only after checking the account. This removes Friday data, share links and Google tokens, then removes the sign-in account.</p>
+          <div class="admin-table-container" data-admin-data-requests></div>
+          <p class="villa-form-note" data-data-request-note role="status"></p>
         </section>
       </div>
 
