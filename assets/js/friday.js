@@ -275,6 +275,7 @@
         const result=await response.json();if(!response.ok)throw new Error(result.error||'Your request could not be saved. Please try again.');
         if(window.FridayCallbackAnalytics)window.FridayCallbackAnalytics.track('contact',result.id);
         form.reset();form.querySelector('[name="bestTime"]').value='morning';
+        document.dispatchEvent(new CustomEvent('friday:callback-saved',{detail:{id:result.id,checklistToken:result.checklistToken,anchor:form.parentElement}}));
         if(status)status.textContent=result.delivery?.notification==='provider_accepted'?'Thanks. Friday’s team has your number and will call at that time.':result.delivery?.notification==='delivery_unknown'?'Your request is saved. Friday could not confirm the team notification.':'Your request is saved. The team will call at that time.';
       }catch(err){if(status)status.textContent=err.message||'Your request could not be saved. Please try again.';}
       finally{button.disabled=false;}

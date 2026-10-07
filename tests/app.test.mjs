@@ -97,6 +97,15 @@ test('Deep jobs persist progress, save drafts and do not overwrite manual edits'
   assert.equal(saved.data.brief,'My manual edit');assert.deepEqual(saved.data.days,[]);assert.equal(saved.data.researchDraft.days[0].title,'Gardens');assert.equal(saved.data.messages.length,2);assert.equal(saved.data.messages[1].places[0].title,'Garden museum');
   const savedPlaces=(await request('/api/places','GET',undefined,a.cookie)).result.records;assert.equal(savedPlaces.length,1);assert.equal(savedPlaces[0].data.tripId,trip.id);
 });
+test('shared trips carry only validated map pins and no other location fields',async t=>{
+  const request=await fixture(t),a=await signup(request,'PinOwner');
+  const trip=(await request('/api/trips','POST',{data:{title:'Pins',destination:'Japan',days:[{title:'D1',items:[{title:'Shrine',lat:35.011636789,lng:135.768,placeId:'secret-place',location:{latitude:1,longitude:2},home:'private'},{title:'Bad',lat:'x',lng:500},{title:'Half',lat:12},{title:'Out',lat:91,lng:10}]}]}},a.cookie)).result.record;
+  const token=new URL((await request('/api/trips/'+trip.id+'/share','POST',{},a.cookie)).result.share.url,'http://localhost').searchParams.get('share');
+  const items=(await request('/api/shared/'+token)).result.trip.days[0].items;
+  assert.equal(items[0].lat,35.0116);assert.equal(items[0].lng,135.768);
+  for(const i of [1,2,3]){assert.equal('lat' in items[i],false);assert.equal('lng' in items[i],false);}
+  const text=JSON.stringify(items);assert.equal(text.includes('secret-place'),false);assert.equal(text.includes('private'),false);assert.equal(text.includes('latitude'),false);
+});
 test('profile edits preserve airport removals and enquiries persist',async t=>{
   const request=await fixture(t);const a=await signup(request,'persist');
   await request('/api/profile','PATCH',{city:'San Francisco',airports:['SFO']},a.cookie);
@@ -132,9 +141,9 @@ test('trip share previews are server-rendered and share use is counted in SQLite
   const created=await request('/api/trips/'+trip.id+'/share','POST',{},owner.cookie);assert.equal(created.status,201);
   const token=new URL(created.result.share.url,origin).searchParams.get('share');
   const human=await request('/app.html?share='+token,'GET',undefined,'',{'User-Agent':'Friday trip visitor'});
-  assert.equal(human.status,200);assert.match(human.result,/property=\"og:title\" content=\"Kyoto &lt;friends&gt;\"/);
+  assert.equal(human.status,200);assert.match(human.result,/property=\"og:title\" content=\"Kyoto &lt;friends&gt; · a Friday itinerary\"/);
   assert.match(human.result,/property=\"og:description\" content=\"Japan · 2026-11-01–2026-11-03 · 1 stop\./);
-  assert.match(human.result,/property=\"og:image\" content=\"https:\/\/images.example\/garden.jpg\"/);
+  assert.match(human.result,/property=\"og:image\" content=\"http:\/\/localhost:4871\/assets\/images\/og\/kyoto.jpg\?v=\d+\"/);
   assert.match(human.result,/property=\"og:url\" content=\"http:\/\/localhost:4871\/app.html\?share=/);
   assert.match(human.result,/name=\"twitter:card\" content=\"summary_large_image\"/);
   assert.equal(human.result.includes('PRIVATE conversation'),false);

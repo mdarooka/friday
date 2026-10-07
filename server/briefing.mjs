@@ -14,7 +14,7 @@ function questionList(data) {
   return source.map(item => clean(typeof item === 'string' ? item : item?.question || item?.text || item?.label || item?.title, 300)).filter(Boolean).slice(0, 12);
 }
 
-export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient, origin, now = new Date() }) {
+export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient, origin, now = new Date(), source = '' }) {
   const state = tripData?.claudeState && typeof tripData.claudeState === 'object' ? tripData.claudeState : {};
   const linked = bookingRows.map(row => {
     const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data || {};
@@ -36,7 +36,7 @@ export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient,
   const questions = questionList(tripData);
   const title = clean(tripData.title || state.title || tripData.destination || 'Your Friday trip');
   const endDate = tripData.endDate || state.endDate || state.prefs?.dates?.end || '';
-  const backUrl = `${String(origin || '').replace(/\/$/, '')}/trip.html?ref=briefing&trip=${encodeURIComponent(tripId)}`;
+  const backUrl = `${String(origin || '').replace(/\/$/, '')}/trip.html?ref=briefing&trip=${encodeURIComponent(tripId)}${/^[a-z]{1,20}$/.test(source) ? `&src=${source}` : ''}`;
   const contact = `${String(origin || '').replace(/\/$/, '')}/contact.html`;
   const bookingLines = bookings.length ? bookings.map(item => `• ${item.title}${item.date ? ` · ${item.date}${item.end ? `–${item.end}` : ''}` : ''}${item.confirmed ? ' · confirmed date' : ' · date to confirm'}`).join('\n') : 'No bookings have been linked to this trip yet.';
   const questionLines = questions.length ? questions.map(item => `• ${item}`).join('\n') : 'No open questions are saved for this trip.';

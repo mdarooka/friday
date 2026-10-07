@@ -446,3 +446,5 @@
     grid-template-columns: 1fr;
   }
 }
+
+.admin-quote-card.is-done { opacity: 0.55; }

@@ -42,6 +42,8 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         GOOGLE_TOKEN_KEY: secret("GOOGLE_TOKEN_KEY", ""),
         GOOGLE_PLACES_API_KEY: secret("GOOGLE_PLACES_API_KEY", ""),
         OPENAI_API_KEY: secret("OPENAI_API_KEY", ""),
+        FRIDAY_BRIEFING_AUTOSEND: "dry-run",
+        FRIDAY_CRON_SECRET: secret("FRIDAY_CRON_SECRET", ""),
       },
     },
     // Private PostgreSQL, reachable only from other services in this project (raw TCP). It scales to zero, so the web

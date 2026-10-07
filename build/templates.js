@@ -150,6 +150,7 @@ function Footer() {
         { label: 'Villas', href: 'villas.html' },
         { label: 'Packages', href: 'departures.html' },
         { label: 'Kerala guide', href: 'kerala-guide.html' },
+        { label: 'Kyoto guide', href: 'kyoto-guide.html' },
         { label: 'Field Notes', href: 'field-notes.html' },
         { label: 'Plan a trip', href: 'trip.html' },
       ])}
@@ -180,7 +181,10 @@ function Footer() {
 
 /* ------------------------------------------------------------ the shell */
 
-function layout({ title, description, body, active, lightHead, canonical, extraStyles = [], extraScripts = [] }) {
+function layout({ title, description, body, active, lightHead, canonical, social, extraStyles = [], extraScripts = [] }) {
+  /* `social` = { image, alt } overrides the default share card (see build/social-cards.js). `image` must be absolute. */
+  const socialImage = (social && social.image) || SOCIAL_IMAGE;
+  const socialAlt = (social && social.alt) || 'A coastal travel scene with Friday’s thoughtful journeys message';
   const canonicalHref = canonical ? publicUrl(canonical, SITE_ORIGIN) : null;
   return `<!doctype html>
 <html lang="en">
@@ -193,11 +197,14 @@ function layout({ title, description, body, active, lightHead, canonical, extraS
 <meta property="og:title" content="${esc(title)} · ${esc(D.brand.name)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:type" content="website">
-<meta property="og:image" content="${esc(SOCIAL_IMAGE)}">
+<meta property="og:image" content="${esc(socialImage)}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="A coastal travel scene with Friday’s thoughtful journeys message">
+<meta property="og:image:alt" content="${esc(socialAlt)}">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(title)} · ${esc(D.brand.name)}">
+<meta name="twitter:description" content="${esc(description)}">
+<meta name="twitter:image" content="${esc(socialImage)}">
 ${canonicalHref ? `<link rel="canonical" href="${esc(canonicalHref)}">\n<meta property="og:url" content="${esc(canonicalHref)}">` : ''}
 ${FONT_LINKS}
 <link rel="stylesheet" href="assets/css/friday.css">
@@ -222,7 +229,7 @@ ${extraScripts.map((src) => `<script src="${esc(src)}"></script>`).join('\n')}
 /* ------------------------------------------------------- shared sections */
 
 /** Interior page masthead. */
-function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedReveal = 'mask' }) {
+function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, image, seedReveal = 'mask' }) {
   return `<section class="phero wrap">
     <div class="phero__grid">
       <div class="phero__title">
@@ -234,7 +241,7 @@ function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedRevea
         ${meta ? `<div class="stack stack--sm" data-reveal>${meta.map((m) => `<div><p class="eyebrow">${m.k}</p><p style="margin:.25rem 0 0;font-family:var(--serif);font-size:1.2rem">${m.v}</p></div>`).join('')}</div>` : ''}
       </div>
     </div>
-    ${seed ? `<div class="phero__art" style="margin-top:clamp(2.4rem,5vw,4.5rem)"${seedReveal ? ` data-reveal="${esc(seedReveal)}"` : ''}>${Plate(seed, { ratio: 'w', scene, tone, svgRatio: 'panorama' })}</div>` : ''}
+    ${seed || image ? `<div class="phero__art" style="margin-top:clamp(2.4rem,5vw,4.5rem)"${seedReveal ? ` data-reveal="${esc(seedReveal)}"` : ''}>${image ? `<div class="plate plate--ratio-w"><img class="plate__image" src="${esc(image.src)}" width="${image.width}" height="${image.height}" alt="${esc(image.alt)}" loading="lazy" decoding="async"></div>` : Plate(seed, { ratio: 'w', scene, tone, svgRatio: 'panorama' })}</div>` : ''}
   </section>`;
 }
 

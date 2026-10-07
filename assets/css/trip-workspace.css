@@ -793,3 +793,34 @@ body[data-route="trip"] .wsp-inlineadd {
 .fx-new__memory-row label input { margin-top: .25rem; }
 .fx-new__memory-row label span { font-size: .8rem; }
 .fx-new__memory-content > .fx-btn { margin-top: .25rem; }
+
+/* Friends' reactions and comments (shared view + owner panel). Reuses .fx-chip / .fx-input / .fx-link / .fx-hint. */
+.fx-fb { margin-top: .6rem; }
+.fx-fb__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fx-fb__react { cursor: pointer; }
+.fx-fb__toggle, .fx-fb__del { background: none; border: 0; padding: 0 4px; font: inherit; font-size: .8125rem; cursor: pointer; }
+.fx-fb__panel { margin-top: .6rem; display: grid; gap: .5rem; }
+.fx-fb__form { display: grid; gap: .5rem; }
+.fx-fb__form .fx-btn { justify-self: start; }
+.fx-fb__comment { padding: .4rem 0; border-top: 1px solid var(--rule-soft, var(--rule)); }
+.fx-fb__comment.is-hidden { opacity: .55; }
+.fx-fb__text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fx-fb__meta { display: block; font-size: .75rem; color: var(--fg-mute); }
+.fx-fb-owner { margin-top: 12px; border-top: 1px solid var(--rule-soft, var(--rule)); padding-top: 10px; }
+.fx-fb-owner > summary { cursor: pointer; font-size: .875rem; }
+.fx-fb-owner__body { max-height: 260px; overflow: auto; margin-top: 8px; }
+.fx-fb-owner__stop { padding: 6px 0; }
+@media (max-width: 480px) { .fx-fb__react { min-height: 36px; } }
+
+/* Shared itinerary: read-only map of the stops */
+.fx-sharedmap { margin:2rem 0 0; border:1px solid var(--rule); background:transparent; }
+.fx-sharedmap > summary { padding:.8rem 1rem; cursor:pointer; font:500 .72rem var(--sans,inherit); letter-spacing:.14em; text-transform:uppercase; color:var(--fg-mute); }
+.fx-sharedmap__days { display:flex; flex-wrap:wrap; gap:.4rem; padding:0 1rem .8rem; }
+.fx-sharedmap__chip { padding:.3rem .7rem; border:1px solid var(--rule); background:transparent; color:var(--ink); font:inherit; font-size:.78rem; cursor:pointer; }
+.fx-sharedmap__chip[aria-pressed="true"] { background:var(--ink); color:var(--paper); border-color:var(--ink); }
+.fx-sharedmap__svg { display:block; width:100%; height:auto; max-height:46vh; }
+.fx-sharedmap__pin { cursor:pointer; }
+.fx-sharedmap__pin:focus-visible { outline:none; }
+.fx-sharedmap__pin:focus-visible circle,.fx-sharedmap__pin.is-on circle { stroke:#1a1a1a; stroke-width:3; }
+.fx-shared__day li[data-map-stop] { cursor:pointer; }
+.fx-sharedmap__row--on { box-shadow:-3px 0 0 var(--ochre); transition:box-shadow .2s; }

@@ -17,6 +17,9 @@ async function createSchema(tx, { tripsInVault = false } = {}) {
     CREATE INDEX IF NOT EXISTS shares_trip_owner ON shares(user_id,trip_id);
     CREATE TABLE IF NOT EXISTS trip_share_events(id TEXT PRIMARY KEY,token_hash TEXT NOT NULL,event_type TEXT NOT NULL CHECK(event_type IN ('trip_share_link_created','trip_share_whatsapp_clicked','trip_share_link_opened','trip_share_preview_bot')),created TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS trip_share_events_type_created ON trip_share_events(event_type,created);
+    CREATE TABLE IF NOT EXISTS trip_feedback(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,trip_id TEXT NOT NULL,stop_key TEXT NOT NULL,viewer_hash TEXT NOT NULL,viewer_name TEXT NOT NULL DEFAULT '',kind TEXT NOT NULL CHECK(kind IN ('reaction','comment')),value TEXT NOT NULL,created TEXT NOT NULL,hidden INTEGER NOT NULL DEFAULT 0);
+    CREATE INDEX IF NOT EXISTS trip_feedback_trip ON trip_feedback(owner_id,trip_id,created);
+    CREATE UNIQUE INDEX IF NOT EXISTS trip_feedback_one_reaction ON trip_feedback(owner_id,trip_id,stop_key,viewer_hash) WHERE kind='reaction';
     CREATE TABLE IF NOT EXISTS enquiries(id TEXT PRIMARY KEY,kind TEXT NOT NULL,data TEXT NOT NULL,created TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS email_outbox(id TEXT PRIMARY KEY,dedupe_key TEXT NOT NULL UNIQUE,kind TEXT NOT NULL,recipient TEXT NOT NULL,subject TEXT NOT NULL,content TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN ('queued','sending','provider_accepted','delivery_unknown','blocked')),attempted_at TEXT,created TEXT NOT NULL,updated TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS email_outbox_status ON email_outbox(status,created);
@@ -35,12 +38,21 @@ async function createSchema(tx, { tripsInVault = false } = {}) {
     CREATE INDEX IF NOT EXISTS friday_drafts_owner ON friday_drafts(owner_id,updated DESC);
     CREATE TABLE IF NOT EXISTS friday_handoffs(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,draft_id TEXT NOT NULL,version INTEGER NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,created TEXT NOT NULL,UNIQUE(owner_id,draft_id,version));
     CREATE INDEX IF NOT EXISTS friday_handoffs_owner ON friday_handoffs(owner_id,created DESC);
-    CREATE TABLE IF NOT EXISTS callback_requests(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL,best_time TEXT NOT NULL,entry_point TEXT NOT NULL,trip_id TEXT,status TEXT NOT NULL DEFAULT 'new',created TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS callback_requests(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL,best_time TEXT NOT NULL,entry_point TEXT NOT NULL,trip_id TEXT,status TEXT NOT NULL DEFAULT 'new',created TEXT NOT NULL,topic TEXT);
     CREATE INDEX IF NOT EXISTS callback_requests_created ON callback_requests(created DESC);
+    ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS topic TEXT;   -- optional booking question ("Ask designer about this"); added after the first release
     CREATE TABLE IF NOT EXISTS friday_quotes(id TEXT PRIMARY KEY,handoff_id TEXT NOT NULL UNIQUE REFERENCES friday_handoffs(id),owner_id TEXT NOT NULL REFERENCES users(id),customer_email TEXT NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,quote TEXT,attempted_at TEXT,created TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reel_chats(owner_id TEXT NOT NULL,conversation_id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(owner_id,conversation_id));
     CREATE TABLE IF NOT EXISTS google_connections(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('gmail','calendar')),refresh_token TEXT NOT NULL,scopes TEXT NOT NULL,connected_at TEXT NOT NULL,PRIMARY KEY(user_id,kind));
-    CREATE TABLE IF NOT EXISTS google_oauth_states(state_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,verifier TEXT NOT NULL,expires BIGINT NOT NULL);`);
+    CREATE TABLE IF NOT EXISTS google_oauth_states(state_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,verifier TEXT NOT NULL,expires BIGINT NOT NULL);
+    CREATE TABLE IF NOT EXISTS guide_feedback(slug TEXT NOT NULL,viewer_hash TEXT NOT NULL,vote TEXT NOT NULL CHECK(vote IN ('yes','no')),note TEXT NOT NULL DEFAULT '',created TEXT NOT NULL,updated TEXT NOT NULL,PRIMARY KEY(slug,viewer_hash));
+    CREATE INDEX IF NOT EXISTS guide_feedback_updated ON guide_feedback(updated);
+    CREATE TABLE IF NOT EXISTS guide_digest_runs(run_date TEXT NOT NULL,mode TEXT NOT NULL,requested_mode TEXT NOT NULL,started TEXT NOT NULL,finished TEXT,note TEXT NOT NULL DEFAULT '',votes INTEGER NOT NULL DEFAULT 0,outcome TEXT NOT NULL DEFAULT '',PRIMARY KEY(run_date,mode));
+    CREATE TABLE IF NOT EXISTS quote_digest_runs(run_date TEXT NOT NULL,mode TEXT NOT NULL,requested_mode TEXT NOT NULL,started TEXT NOT NULL,finished TEXT,note TEXT NOT NULL DEFAULT '',callbacks INTEGER NOT NULL DEFAULT 0,quotes INTEGER NOT NULL DEFAULT 0,outcome TEXT NOT NULL DEFAULT '',PRIMARY KEY(run_date,mode));
+    CREATE TABLE IF NOT EXISTS callback_checklists(callback_id TEXT PRIMARY KEY,owner_id TEXT,token_hash TEXT NOT NULL,answers TEXT NOT NULL DEFAULT '{}',updated TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS briefing_runs(run_date TEXT NOT NULL,mode TEXT NOT NULL,requested_mode TEXT NOT NULL,started TEXT NOT NULL,finished TEXT,note TEXT NOT NULL DEFAULT '',selected INTEGER NOT NULL DEFAULT 0,would_send INTEGER NOT NULL DEFAULT 0,sent INTEGER NOT NULL DEFAULT 0,skipped INTEGER NOT NULL DEFAULT 0,failed INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(run_date,mode));
+    CREATE TABLE IF NOT EXISTS briefing_run_items(id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,run_date TEXT NOT NULL,mode TEXT NOT NULL,trip_id TEXT NOT NULL,user_id TEXT NOT NULL,departure_date TEXT NOT NULL,days_before INTEGER NOT NULL,outcome TEXT NOT NULL CHECK(outcome IN ('would_send','sent','skipped_already_sent','skipped_no_email','failed')),created TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS briefing_run_items_run ON briefing_run_items(run_date,mode);`);
 }
 
 /* Opens the app database (PostgreSQL, or PGlite locally and in tests) and creates the schema. Options are those of openDatabase
@@ -102,8 +114,9 @@ export const insertFridayHandoff = async (db,row) => { await db.query('INSERT IN
 export const createFridayHandoffWithQuote = (db,handoff,quote) => db.transaction(async tx => { await insertFridayHandoff(tx,handoff); await insertFridayQuote(tx,quote); return true; });
 export const listFridayHandoffs = (db,owner) => db.all('SELECT id,draft_id,version,snapshot,status,created FROM friday_handoffs WHERE owner_id=$1 ORDER BY created DESC',[owner]);
 export const listFridayQuotes = db => db.all('SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created FROM friday_quotes ORDER BY created');
-export const createCallbackRequest = async (db, row) => { await db.query('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created]); };
-export const listCallbackRequests = db => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,status,created FROM callback_requests ORDER BY created DESC');
+export const createCallbackRequest = async (db, row) => { await db.query('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created,topic) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created,row.topic||null]); };
+export const setCallbackStatus = async (db, id, status) => changes(await db.query('UPDATE callback_requests SET status=$1 WHERE id=$2',[status,id]));
+export const listCallbackRequests = db => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,status,created,topic FROM callback_requests ORDER BY created DESC');
 export const getFridayQuote = (db,id) => db.one('SELECT * FROM friday_quotes WHERE id=$1',[id]);
 export const insertFridayQuote = async (db,row) => { await db.query('INSERT INTO friday_quotes(id,handoff_id,owner_id,customer_email,snapshot,status,created) VALUES($1,$2,$3,$4,$5,$6,$7)',[row.id,row.handoffId,row.ownerId,row.customerEmail,row.snapshot,row.status,row.created]); };
 export const claimFridayQuote = async (db,id,quote,attempted) => changes(await db.query("UPDATE friday_quotes SET status='sending',quote=$1,attempted_at=$2 WHERE id=$3 AND status='pending'",[quote,attempted,id]));
@@ -212,3 +225,19 @@ export const createGoogleOAuthState = async (db, { stateHash, userId, kind, veri
 export const deleteGoogleOAuthState = async (db, stateHash) => { await db.query('DELETE FROM google_oauth_states WHERE state_hash=$1',[stateHash]); };
 export const deleteExpiredGoogleOAuthStates = async (db, now) => { await db.query('DELETE FROM google_oauth_states WHERE expires<$1',[now]); };
 export const deleteGoogleOAuthStatesFor = async (db, userId, kind) => { await db.query('DELETE FROM google_oauth_states WHERE user_id=$1 AND kind=$2',[userId, kind]); };
+
+/* Automatic T-7 briefings: run log only. No recipient addresses or email bodies are stored here.
+   The (run_date, mode) primary key plus ON CONFLICT DO NOTHING in startBriefingRun is what makes a run once-per-day. */
+export async function startBriefingRun(db, { runDate, mode, requestedMode, started, note = '', replace = false }) {
+  if (replace) {
+    await db.query("DELETE FROM briefing_run_items WHERE run_date=$1 AND mode='dry-run'", [runDate]);
+    await db.query("DELETE FROM briefing_runs WHERE run_date=$1 AND mode='dry-run'", [runDate]);
+  }
+  return changes(await db.query('INSERT INTO briefing_runs(run_date,mode,requested_mode,started,note) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING', [runDate, mode, requestedMode, started, note])) === 1;
+}
+export const insertBriefingRunItem = async (db, r) => { await db.query('INSERT INTO briefing_run_items(run_date,mode,trip_id,user_id,departure_date,days_before,outcome,created) VALUES($1,$2,$3,$4,$5,$6,$7,$8)', [r.runDate, r.mode, r.tripId, r.userId, r.departureDate, r.daysBefore, r.outcome, r.created]); };
+export const finishBriefingRun = async (db, { runDate, mode, finished, counts }) => { await db.query('UPDATE briefing_runs SET finished=$1,selected=$2,would_send=$3,sent=$4,skipped=$5,failed=$6 WHERE run_date=$7 AND mode=$8', [finished, counts.selected, counts.would_send, counts.sent, counts.skipped_already_sent + counts.skipped_no_email, counts.failed, runDate, mode]); };
+export const countCompletedBriefingDryRunDays = async db => Number((await db.one("SELECT COUNT(DISTINCT run_date) AS n FROM briefing_runs WHERE mode='dry-run' AND finished IS NOT NULL")).n);
+export const listBriefingRuns = (db, limit = 14) => db.all('SELECT * FROM briefing_runs ORDER BY run_date DESC,started DESC LIMIT $1', [Math.min(Math.max(Number(limit) || 14, 1), 60)]);
+export const listBriefingRunItems = (db, limit = 100) => db.all('SELECT * FROM briefing_run_items ORDER BY id DESC LIMIT $1', [Math.min(Math.max(Number(limit) || 100, 1), 300)]);
+export const hasAcceptedAdminBriefing = async (db, tripId) => !!(await db.one("SELECT 1 AS x FROM email_outbox WHERE kind='pre_departure_briefing' AND status='provider_accepted' AND dedupe_key LIKE $1 ESCAPE '\\' LIMIT 1", [`briefing:${String(tripId).replace(/[\\%_]/g, '\\$&')}:%`]));

@@ -482,9 +482,11 @@
     el.className = 'wsp-share-pop';
     el.innerHTML = '<p class="wsp-share-pop__hint">Create a link anyone can open to view this trip’s itinerary. It does not include your conversations or reservations.</p>' +
       '<button type="button" class="wsp-btn wsp-btn--ink" data-x="create">Create share link</button><div data-share-result></div>' +
-      '<hr><button type="button" class="wsp-share-pop__print" data-x="print">' + ic('printer', 16) + '<span>Print itinerary</span></button>';
+      '<div data-x="friends"></div><hr><button type="button" class="wsp-share-pop__print" data-x="print">' + ic('printer', 16) + '<span>Print itinerary</span></button>';
     popover(anchor, el);
     var result = el.querySelector('[data-share-result]');
+    var tripNow = T();
+    if (F.feedback && F.backend && F.backend.request && tripNow) el.querySelector('[data-x="friends"]').appendChild(F.feedback.ownerPanel(tripNow.serverId || tripNow.id, F.backend.request));
     el.querySelector('[data-x="create"]').addEventListener('click', function () {
       var btn = el.querySelector('[data-x="create"]'), t = T();
       if (!F.backend || !F.backend.share) { toast('Sharing is unavailable right now'); return; }
