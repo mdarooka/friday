@@ -23,7 +23,7 @@ Hexclave provides Friday's sign-in and transactional email. Friday can run on He
 Before the first deploy:
 
 1. Turn on the Deploy app in the Hexclave dashboard and choose a paid plan; persistent disks and an always-running server require it. Do not push `hexclave.config.ts` as part of this step.
-2. Add the `secret()` values listed in `hexclave.deploy.ts` under Project Settings → Secrets. Deploy supplies `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY` itself.
+2. Add the required project secrets `APP_ORIGIN` and `FRIDAY_ENQUIRY_EMAIL` under Project Settings → Secrets. The optional `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY`, `GOOGLE_PLACES_API_KEY`, and `OPENAI_API_KEY` default to empty and keep those integrations off until configured. For Gmail/Calendar, set the Google client ID, client secret, and a 64-character hexadecimal `GOOGLE_TOKEN_KEY` together. Deploy supplies `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY` itself; without a valid enquiry inbox, enquiries are saved but the team notification is not sent.
 3. Buy or choose a domain and set its exact HTTPS origin as `APP_ORIGIN`; attach and verify that domain on the public service. Set `FRIDAY_ENQUIRY_EMAIL` to the inbox that should receive enquiries.
 4. From the repository root, run `npx @hexclave/cli@latest deploy`.
 
