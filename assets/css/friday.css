@@ -921,7 +921,7 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
   color: var(--fg);
 }
 .foot__grid { display: grid; grid-template-columns: minmax(11rem, 1fr) minmax(0, 3fr); gap: clamp(2rem, 4vw, 4rem); padding-top: 2rem; border-top: 1px solid var(--rule); }
-.foot__brand { align-self: end; color: var(--fg); font-family: var(--serif); font-size: clamp(4rem, 8vw, 7rem); font-weight: 500; line-height: .85; letter-spacing: -.03em; text-decoration: none; }
+.foot__brand { align-self: center; color: var(--fg); font-family: var(--serif); font-size: clamp(4rem, 8vw, 7rem); font-weight: 500; line-height: .85; letter-spacing: -.03em; text-decoration: none; }
 .foot__links { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--gap); }
 .foot__col { min-width: 0; }
 .foot__col--wide { grid-column: span 4; }
