@@ -34,6 +34,8 @@ export function openStore(file, { tripsInVault = false } = {}) {
     CREATE INDEX IF NOT EXISTS friday_drafts_owner ON friday_drafts(owner_id,updated DESC);
     CREATE TABLE IF NOT EXISTS friday_handoffs(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,draft_id TEXT NOT NULL,version INTEGER NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,created TEXT NOT NULL,UNIQUE(owner_id,draft_id,version));
     CREATE INDEX IF NOT EXISTS friday_handoffs_owner ON friday_handoffs(owner_id,created DESC);
+    CREATE TABLE IF NOT EXISTS callback_requests(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL,best_time TEXT NOT NULL,entry_point TEXT NOT NULL,trip_id TEXT,status TEXT NOT NULL DEFAULT 'new',created TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS callback_requests_created ON callback_requests(created DESC);
     CREATE TABLE IF NOT EXISTS friday_quotes(id TEXT PRIMARY KEY,handoff_id TEXT NOT NULL UNIQUE REFERENCES friday_handoffs(id),owner_id TEXT NOT NULL REFERENCES users(id),customer_email TEXT NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,quote TEXT,attempted_at TEXT,created TEXT NOT NULL);`);
   if (tripsInVault && db.prepare("SELECT 1 FROM pragma_foreign_key_list('shares') WHERE \"table\"='records'").get()) {
     db.exec(`BEGIN; CREATE TABLE shares_nofk(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),trip_id TEXT NOT NULL,expires INTEGER NOT NULL,created TEXT NOT NULL);
@@ -94,6 +96,8 @@ export const insertFridayHandoff = (db,row) => db.prepare('INSERT INTO friday_ha
 export function createFridayHandoffWithQuote(db,handoff,quote){db.exec('BEGIN IMMEDIATE');try{insertFridayHandoff(db,handoff);insertFridayQuote(db,quote);db.exec('COMMIT');return true;}catch(e){db.exec('ROLLBACK');throw e;}}
 export const listFridayHandoffs = (db,owner) => db.prepare('SELECT id,draft_id,version,snapshot,status,created FROM friday_handoffs WHERE owner_id=? ORDER BY created DESC').all(owner);
 export const listFridayQuotes = db => db.prepare('SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created FROM friday_quotes ORDER BY created').all();
+export const createCallbackRequest = (db, row) => db.prepare('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created) VALUES(?,?,?,?,?,?,?,?)').run(row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created);
+export const listCallbackRequests = db => db.prepare('SELECT id,name,phone,best_time,entry_point,trip_id,status,created FROM callback_requests ORDER BY created DESC').all();
 export const getFridayQuote = (db,id) => db.prepare('SELECT * FROM friday_quotes WHERE id=?').get(id);
 export const insertFridayQuote = (db,row) => db.prepare('INSERT INTO friday_quotes(id,handoff_id,owner_id,customer_email,snapshot,status,created) VALUES(?,?,?,?,?,?,?)').run(row.id,row.handoffId,row.ownerId,row.customerEmail,row.snapshot,row.status,row.created);
 export const claimFridayQuote = (db,id,quote,attempted) => db.prepare("UPDATE friday_quotes SET status='sending',quote=?,attempted_at=? WHERE id=? AND status='pending'").run(quote,attempted,id).changes;

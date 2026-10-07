@@ -359,20 +359,21 @@
     dom.quotesList.innerHTML = quotes.map(function (q) {
       var isSel = state.selectedQuoteId === q.id;
       var snap = q.snapshot || {};
-      var dest = snap.destination || 'Unspecified destination';
-      var dates = (snap.dates && (snap.dates.start || snap.dates.end))
+      var isCallback = q.kind === 'callback';
+      var dest = isCallback ? 'Call me back' : (snap.destination || 'Unspecified destination');
+      var dates = isCallback ? esc(q.phone || '') + ' · ' + esc(q.bestTime || 'time not set') : ((snap.dates && (snap.dates.start || snap.dates.end))
         ? (snap.dates.start || '') + ' &ndash; ' + (snap.dates.end || '')
-        : 'Dates flexible';
+        : 'Dates flexible');
       var qInfo = q.quote;
-      var amountDisplay = qInfo ? esc(qInfo.currency) + ' ' + Number(qInfo.amount).toFixed(2) : 'Unquoted';
+      var amountDisplay = isCallback ? 'Callback request' : (qInfo ? esc(qInfo.currency) + ' ' + Number(qInfo.amount).toFixed(2) : 'Unquoted');
 
       return '<div class="admin-quote-card' + (isSel ? ' is-selected' : '') + '" data-open-quote="' + esc(q.id) + '">' +
         '<div class="admin-quote-card__head">' +
-        '<span class="admin-quote-card__client">' + esc(q.customerEmail || 'Guest') + '</span>' +
-        badge(q.status) +
+        '<span class="admin-quote-card__client">' + esc(isCallback ? q.name : (q.customerEmail || 'Guest')) + '</span>' +
+        (isCallback ? '<span class="admin-badge">Callback</span>' : badge(q.status)) +
         '</div>' +
         '<h4 class="admin-quote-card__dest">' + esc(dest) + '</h4>' +
-        '<div class="admin-quote-card__meta">' + dates + ' &middot; ' + esc(snap.travelers || 1) + ' travellers</div>' +
+        '<div class="admin-quote-card__meta">' + (isCallback ? dates + ' · ' + esc(q.entryPoint || '') : dates + ' · ' + esc(snap.travelers || 1) + ' travellers') + '</div>' +
         '<div class="admin-quote-card__amount">' + amountDisplay + '</div>' +
         '</div>';
     }).join('');
@@ -385,9 +386,19 @@
     if (!q) return;
 
     dom.quoteDrawer.hidden = false;
-    dom.quoteTitle.textContent = 'Quote for ' + (q.customerEmail || 'client');
     dom.quoteNote.textContent = '';
     dom.quotePreviewBox.hidden = true;
+    dom.quoteForm.hidden = q.kind === 'callback';
+    if (q.kind === 'callback') {
+      dom.quoteTitle.textContent = 'Callback request';
+      var tripLink = q.tripId ? '<p><strong>Trip:</strong> <a href="trip.html#/trip/' + encodeURIComponent(q.tripId) + '" target="_blank" rel="noopener noreferrer">Open planner trip</a></p>' : '';
+      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>';
+      dom.quoteNote.textContent = 'Call this traveler at their preferred time. This is a callback request, not a quote to send.';
+      renderQuotes(state.quotes);
+      return;
+    }
+    dom.quoteForm.hidden = false;
+    dom.quoteTitle.textContent = 'Quote for ' + (q.customerEmail || 'client');
 
     var snap = q.snapshot || {};
     var itemsList = (snap.items || []).map(function (i) { return i.title; }).filter(Boolean).join(', ');
