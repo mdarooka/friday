@@ -11,14 +11,14 @@ test('Friday workflow routes enforce session, ownership, admin allowlist, previe
   const customer=await signUp(request,'Customer'),other=await signUp(request,'Other'),admin=await signUp(request,'Admin');
   assert.deepEqual((await request('/api/friday/status','GET',undefined,{cookie:customer.cookie})).result,{quoteAdmin:false,emailConfigured:true,commissionEmailConfigured:false});
   assert.equal((await request('/api/admin/quotes','GET',undefined,{cookie:customer.cookie})).status,403);
-  const answer={destination:'Kenya',startDate:'2026-11-01',endDate:'2026-11-10',travelers:2,budget:'4200 USD',listingIds:['departure:super-tuskers'],bookingIds:[]};
+  const answer={destination:'Kenya',startDate:'2026-11-01',endDate:'2026-11-10',travelers:2,budget:'4200 USD',listingIds:['departure:super-tuskers'],bookingIds:[],instructions:'Preferences the traveler chose to share with the travel designer:\n- Travel memory: Slow mornings and small locally owned hotels'};
   const planned=await request('/api/friday/plan','POST',{message:'Plan a Kenya trip around this package',answers:answer},{cookie:customer.cookie});
   assert.equal(planned.status,200);const draft=planned.result.draft;assert.ok(draft);
   assert.equal((await request('/api/friday/plan','POST',{message:'Change it',tripId:'00000000-0000-4000-8000-000000000001',answers:answer},{cookie:customer.cookie})).status,404);
   assert.equal((await request('/api/friday/plan','POST',{message:'Adjust the trip',draftId:draft.id,draftVersion:0,answers:answer},{cookie:customer.cookie})).status,409);
   assert.equal((await request('/api/friday/plan','POST',{message:'Adjust the trip',draftId:draft.id,draftVersion:draft.version,answers:answer},{cookie:other.cookie})).status,404);
   assert.equal((await request('/api/friday/handoffs','POST',{draftId:draft.id,version:draft.version-1,confirmed:true},{cookie:customer.cookie})).status,409);
-  const handoff=await request('/api/friday/handoffs','POST',{draftId:draft.id,version:draft.version,confirmed:true},{cookie:customer.cookie});assert.equal(handoff.status,201);
+  const handoff=await request('/api/friday/handoffs','POST',{draftId:draft.id,version:draft.version,confirmed:true},{cookie:customer.cookie});assert.equal(handoff.status,201);assert.match(handoff.result.handoff.snapshot.instructions,/Slow mornings and small locally owned hotels/);
   const repeated=await request('/api/friday/handoffs','POST',{draftId:draft.id,version:draft.version,confirmed:true},{cookie:customer.cookie});assert.equal(repeated.result.handoff.id,handoff.result.handoff.id);
   const quote=(await request('/api/admin/quotes','GET',undefined,{cookie:admin.cookie})).result.quotes[0];assert.equal(quote.customerEmail,'customer@example.com');
   assert.equal((await request('/api/admin/quotes','GET',undefined,{cookie:other.cookie})).status,403);
