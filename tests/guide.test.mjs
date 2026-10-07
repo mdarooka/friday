@@ -83,9 +83,22 @@ test('generated legal pages use a real effective date and do not mark About as c
     assert.doesNotMatch(html, /OWNER: launch date/);
     assert.doesNotMatch(html, /href="about\.html" aria-current="page"/);
   }
-  assert.match(fieldNotes, /Travel guides and considered starting points/);
-  assert.match(fieldNotes, /A thoughtful first plan for Kerala/);
-  assert.match(fieldNotes, /href="kerala-guide\.html"/);
+  assert.match(fieldNotes, /Short planning notes drawn from Friday/);
+  assert.match(fieldNotes, /A shorter Kerala trip can still have a shape/);
+  assert.match(fieldNotes, /Two different ways onto Kerala/);
+  assert.match(fieldNotes, /Let the season follow the Kerala trip/);
+  assert.doesNotMatch(fieldNotes, /out-of-hours permits|four years for a single afternoon|correct side of the train|Twice a year/);
+  const hub = await readFile(new URL('../guides.html', import.meta.url), 'utf8');
+  assert.match(hub, /<link rel="canonical" href="https:\/\/fridaytravel\.vercel\.app\/guides\.html">/);
+  assert.match(hub, /href="kerala-guide\.html"/);
+  assert.match(hub, /href="field-notes\.html"/);
+  const note = await readFile(new URL('../note-kerala-short-trip.html', import.meta.url), 'utf8');
+  assert.match(note, /href="trip\.html\?destination=kerala&amp;from_note=kerala-short-trip#\/new">Plan this with Friday/);
+  assert.match(note, /href="kerala-guide\.html"/);
+  assert.doesNotMatch(note, /Written by|client decision|founder’s first profession/);
+  const sitemap = await readFile(new URL('../sitemap.xml', import.meta.url), 'utf8');
+  assert.match(sitemap, /guides\.html/);
+  assert.match(sitemap, /note-kerala-two-waterways\.html/);
   assert.doesNotMatch(fieldNotes, /This page has moved/);
 });
 

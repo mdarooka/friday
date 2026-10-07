@@ -149,6 +149,7 @@ function Footer() {
       ${col('Explore', [
         { label: 'Villas', href: 'villas.html' },
         { label: 'Packages', href: 'departures.html' },
+        { label: 'Travel guides', href: 'guides.html' },
         { label: 'Kerala guide', href: 'kerala-guide.html' },
         { label: 'Field Notes', href: 'field-notes.html' },
         { label: 'Plan a trip', href: 'trip.html' },

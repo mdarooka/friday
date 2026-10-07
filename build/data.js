@@ -464,7 +464,44 @@ const salon = {
   lede: '', body: [], kinds: [], upcoming: [],
 };
 
-const fieldNotes = [];
+const fieldNotes = [
+  {
+    slug: 'kerala-short-trip',
+    title: 'A shorter Kerala trip can still have a shape',
+    place: 'Kerala',
+    dek: 'A useful way to choose what belongs in the days you have.',
+    scene: 'isles', tone: 'jade', destination: 'kerala',
+    body: [
+      'Friday’s Kerala guide offers three starting points: a 4–5 day escape, an unhurried week, or a longer two-week loop. They are prompts, not fixed packages.',
+      'For fewer days, the guide suggests choosing a smaller part of the state instead of trying to join every coast, hill and backwater stop. The route is yours to shape around dates and pace.'
+    ],
+    sources: [{ label: 'Friday’s Kerala guide', href: 'kerala-guide.html' }]
+  },
+  {
+    slug: 'kerala-two-waterways',
+    title: 'Two different ways onto Kerala’s water',
+    place: 'Alleppey & Kumarakom',
+    dek: 'The catalogue lists a houseboat cruise in one place and a sunset cruise in the other; it does not rank them.',
+    scene: 'isles', tone: 'indigo', destination: 'kerala',
+    body: [
+      'Friday’s catalogue lists a backwater houseboat cruise in Alleppey (Alappuzha) and a sunset cruise on Vembanad Lake in Kumarakom. They are distinct starting points, not a verdict on which is better.',
+      'The guide does not confirm current routes, availability or prices. Check those details for your dates before making a booking.'
+    ],
+    sources: [{ label: 'Friday’s Kerala guide', href: 'kerala-guide.html' }, { label: 'Kerala Tourism’s Alappuzha guide', href: 'https://www.keralatourism.org/destination/alappuzha-beach/60/' }]
+  },
+  {
+    slug: 'kerala-season-and-water',
+    title: 'Let the season follow the Kerala trip',
+    place: 'Kerala',
+    dek: 'Season guidance changes with the activity, so check the detail that matters to your plan.',
+    scene: 'forest', tone: 'moss', destination: 'kerala',
+    body: [
+      'Kerala Tourism describes November to February as pleasant and points to October–February for backwater houseboat cruises. Those are different pieces of seasonal guidance for different parts of a trip.',
+      'Use them as a starting point, then check current weather and local operating guidance before you book. Friday’s guide does not confirm live conditions.'
+    ],
+    sources: [{ label: 'Kerala Tourism travel basics', href: 'https://www.keralatourism.org/faq/20-things-to-know-before-you-visit-kerala' }, { label: 'Friday’s Kerala guide', href: 'kerala-guide.html' }]
+  }
+];
 
 const nav = [
   {
