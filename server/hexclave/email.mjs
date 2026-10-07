@@ -127,7 +127,7 @@ export function createHexclaveEmailService({ db, store, env = process.env, fetch
       const address = String(email || '').trim().toLowerCase();
       const consent = typeof consentAt === 'string' ? consentAt : '';
       const secret = env.NEWSLETTER_UNSUBSCRIBE_SECRET || env.HEXCLAVE_SECRET_SERVER_KEY;
-      const origin = String(env.APP_ORIGIN || (env.VERCEL_PROJECT_PRODUCTION_URL && `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`) || (env.VERCEL_URL && `https://${env.VERCEL_URL}`) || '').replace(/\/$/, '');
+      const origin = String(env.APP_ORIGIN || env.PUBLIC_SITE_ORIGIN || (env.NODE_ENV === 'production' ? 'https://fridaytravel.vercel.app' : '')).replace(/\/$/, '');
       const token = secret && consent && `${Buffer.from(address).toString('base64url')}.${Buffer.from(consent).toString('base64url')}.${createHmac('sha256', secret).update(`${address}\n${consent}`).digest('base64url')}`;
       const unsubscribeUrl = token && origin ? `${origin}/api/newsletter/unsubscribe?token=${encodeURIComponent(token)}` : '';
       const footer = unsubscribeUrl ? `\n\nTo unsubscribe at any time: ${unsubscribeUrl}` : '';

@@ -8,7 +8,7 @@ const { Plate, SecHead, eyebrow, facts, practice, places, quote, glyph, layout, 
 const { partnerBody } = require('./partner');
 const Villas = require('./villas');
 const Admin = require('./admin');
-const { siteOrigin, sitemapXml, robotsTxt } = require('./site-metadata');
+const { siteOrigin, publicUrl, sitemapXml, robotsTxt } = require('./site-metadata');
 const PUBLIC_ORIGIN = siteOrigin();
 
 const OUT = path.join(__dirname, '..');
@@ -17,12 +17,14 @@ const write = (file, html) => {
   return file;
 };
 const written = [];
+const publicPages = [];
 const legacyPage = /^(?:ethos|method|designers|alliances|compositions|wild|drive|salon|commission)\.html$|^(?:composition-|departure-).+\.html$/;
 const page = (file, opts) => {
   if (legacyPage.test(file)) return;
   const privatePage = file === 'admin.html' || file === 'admin-villas.html';
+  if (!privatePage) publicPages.push(file);
   const extraScripts = [...(privatePage ? [] : ['assets/js/guide-analytics.js']), ...(opts.extraScripts || [])];
-  written.push(write(file, layout({ ...opts, extraScripts })));
+  written.push(write(file, layout({ ...opts, canonical: privatePage ? null : file, extraScripts })));
 };
 
 /* ========================================================== 1. Home */
@@ -234,7 +236,7 @@ ${PageHero({
 page('kerala-guide.html', {
   title: 'Kerala Travel Guide: Itineraries, Munnar & Backwaters',
   description: 'Plan a Kerala trip around the time you have, from Kochi and Munnar to Alleppey backwaters and the coast. Browse Friday’s curated places.',
-  body: keralaGuide, canonical: 'kerala-guide.html',
+  body: keralaGuide,
 });
 
 page('partner.html', { title: 'List your villa', description: 'Introduce your villa to Friday for consideration in its collection of considered places to stay.', body: partnerBody(), active: 'partner.html', lightHead: true, extraStyles: ['assets/css/partner.css'], extraScripts: ['assets/js/partner.js'] });
@@ -1262,7 +1264,8 @@ const scriptsWritten = Object.keys(tripScripts).map((file) => {
 /* Old studio essays and journey catalogues remain as small, useful route aliases. */
 const redirectPage = (file, target, label) => {
   const safeTarget = T.esc(target);
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="0;url=${safeTarget}"><link rel="canonical" href="${safeTarget}"><title>${label} · Friday</title><link rel="stylesheet" href="assets/css/friday.css"></head><body><main style="min-height:100vh;display:grid;place-items:center;padding:2rem;text-align:center"><div><a class="wordmark" href="index.html"><span class="wordmark__name">Friday</span></a><p style="margin-top:2rem">This page has moved.</p><p><a class="link" href="${safeTarget}">Continue to ${label} <span class="arrow">&rarr;</span></a></p></div></main><script>location.replace(${JSON.stringify(target)})</script></body></html>`;
+  const canonicalHref = T.esc(publicUrl(target, PUBLIC_ORIGIN));
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="0;url=${safeTarget}"><link rel="canonical" href="${canonicalHref}"><title>${label} · Friday</title><link rel="stylesheet" href="assets/css/friday.css"></head><body><main style="min-height:100vh;display:grid;place-items:center;padding:2rem;text-align:center"><div><a class="wordmark" href="index.html"><span class="wordmark__name">Friday</span></a><p style="margin-top:2rem">This page has moved.</p><p><a class="link" href="${safeTarget}">Continue to ${label} <span class="arrow">&rarr;</span></a></p></div></main><script>location.replace(${JSON.stringify(target)})</script></body></html>`;
   written.push(write(file, html));
 };
 [
@@ -1279,8 +1282,8 @@ const redirectPage = (file, target, label) => {
 D.compositions.forEach((item) => redirectPage(`composition-${item.slug}.html`, 'departures.html', 'Packages'));
 D.departures.forEach((item) => redirectPage(`departure-${item.slug}.html`, 'departures.html', 'Packages'));
 
-/* Friday's public Vercel domain is the canonical fallback; deployments can override it. */
-const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'kerala-guide.html', 'field-notes.html', 'privacy.html', 'terms.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
+/* Public pages share one origin. index.html canonicalizes to /. */
+const sitemapPages = publicPages.filter((file) => fs.existsSync(path.join(OUT, file)));
 write('sitemap.xml', sitemapXml(sitemapPages, PUBLIC_ORIGIN));
 write('robots.txt', robotsTxt(PUBLIC_ORIGIN));
 

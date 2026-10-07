@@ -4,6 +4,41 @@
   "buildCommand": "",
   "installCommand": "",
   "outputDirectory": "vercel-public",
+  "redirects": [
+    {
+      "source": "/index.html",
+      "destination": "https://fridaytravel.vercel.app/",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "^(?!fridaytravel\\.vercel\\.app$).+$"
+        }
+      ],
+      "destination": "https://fridaytravel.vercel.app/$1",
+      "permanent": true
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "^(?!fridaytravel\\.vercel\\.app$).+$"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
