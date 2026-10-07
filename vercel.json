@@ -16,7 +16,6 @@
       "has": [
         {
           "type": "host",
-          "key": "host",
           "value": "fridaytravel.vercel.app"
         }
       ],
