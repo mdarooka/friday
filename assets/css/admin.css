@@ -443,3 +443,20 @@
     grid-template-columns: 1fr;
   }
 }
+
+.admin-quote-card__waiting {
+  margin-top: 0.7rem;
+  color: var(--fg-mute);
+  font-size: 0.78rem;
+}
+
+.admin-quote-card__reply {
+  margin-top: 0.65rem;
+}
+
+.badge--overdue {
+  margin-left: 0.35rem;
+  background: rgba(176, 58, 46, 0.1);
+  color: #922b21;
+  border: 1px solid rgba(176, 58, 46, 0.25);
+}

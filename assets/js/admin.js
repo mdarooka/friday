@@ -381,7 +381,13 @@
       return;
     }
 
-    dom.quotesList.innerHTML = quotes.map(function (q) {
+    var orderedQuotes = quotes.slice().sort(function (a, b) {
+      var aOpen = a.kind !== 'callback' && a.status === 'pending' && !a.firstReplyAt;
+      var bOpen = b.kind !== 'callback' && b.status === 'pending' && !b.firstReplyAt;
+      if (aOpen !== bOpen) return aOpen ? -1 : 1;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+    dom.quotesList.innerHTML = orderedQuotes.map(function (q) {
       var isSel = state.selectedQuoteId === q.id;
       var snap = q.snapshot || {};
       var isCallback = q.kind === 'callback';
@@ -391,6 +397,16 @@
         : 'Dates flexible');
       var qInfo = q.quote;
       var amountDisplay = isCallback ? 'Callback request' : (qInfo ? esc(qInfo.currency) + ' ' + Number(qInfo.amount).toFixed(2) : 'Unquoted');
+      var isOpen = !isCallback && q.status === 'pending' && !q.firstReplyAt;
+      var waitingMarkup = '';
+      if (isOpen) {
+        var waitedMs = Math.max(0, Date.now() - new Date(q.createdAt).getTime());
+        var waitedHours = Math.floor(waitedMs / 3600000);
+        var waitedLabel = waitedHours < 1 ? 'Waiting less than an hour' : (waitedHours < 24 ? 'Waiting ' + waitedHours + 'h' : 'Waiting ' + Math.floor(waitedHours / 24) + 'd ' + (waitedHours % 24) + 'h');
+        waitingMarkup = '<div class="admin-quote-card__waiting">' + esc(waitedLabel) + (waitedMs > 86400000 ? ' <span class="admin-badge badge--overdue">Over 24h</span>' : '') + '</div><button class="btn admin-quote-card__reply" type="button" data-mark-quote-replied="' + esc(q.id) + '">Mark replied</button>';
+      } else if (q.firstReplyAt) {
+        waitingMarkup = '<div class="admin-quote-card__waiting">First reply · ' + esc(formatDate(q.firstReplyAt)) + '</div>';
+      }
 
       return '<div class="admin-quote-card' + (isSel ? ' is-selected' : '') + '" data-open-quote="' + esc(q.id) + '">' +
         '<div class="admin-quote-card__head">' +
@@ -399,7 +415,7 @@
         '</div>' +
         '<h4 class="admin-quote-card__dest">' + esc(dest) + '</h4>' +
         '<div class="admin-quote-card__meta">' + (isCallback ? dates + ' · ' + esc(q.entryPoint || '') : dates + ' · ' + esc(snap.travelers || 1) + ' travellers') + '</div>' +
-        '<div class="admin-quote-card__amount">' + amountDisplay + '</div>' +
+        '<div class="admin-quote-card__amount">' + amountDisplay + '</div>' + waitingMarkup +
         '</div>';
     }).join('');
   }
@@ -812,7 +828,19 @@
       }
 
       /* Quote actions */
-      var openQuote = e.target.closest('[data-open-quote]');
+      var markReplied = e.target.closest('[data-mark-quote-replied]');
+      if (markReplied) {
+        e.preventDefault();
+        e.stopPropagation();
+        markReplied.disabled = true;
+        FridayAdmin.request('/api/admin/quotes/' + encodeURIComponent(markReplied.dataset.markQuoteReplied) + '/replied', 'POST', {})
+          .then(function (res) {
+            if (window.FridayAnalytics && res.reply) window.FridayAnalytics.track('quote_replied', { hours_waited: res.reply.hoursWaited }, markReplied.dataset.markQuoteReplied);
+            return loadQuotesTab();
+          })
+          .catch(function (err) { markReplied.disabled = false; dom.quoteSetupNote.textContent = 'Could not mark this quote replied: ' + err.message; });
+      }
+      var openQuote = markReplied ? null : e.target.closest('[data-open-quote]');
       var closeQuoteDrawer = e.target.closest('[data-close-quote-drawer]');
 
       if (openQuote) openQuoteDrawer(openQuote.dataset.openQuote);

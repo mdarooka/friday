@@ -38,7 +38,8 @@ export function openStore(file, { tripsInVault = false } = {}) {
     CREATE INDEX IF NOT EXISTS friday_handoffs_owner ON friday_handoffs(owner_id,created DESC);
     CREATE TABLE IF NOT EXISTS callback_requests(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL,best_time TEXT NOT NULL,entry_point TEXT NOT NULL,trip_id TEXT,status TEXT NOT NULL DEFAULT 'new',created TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS callback_requests_created ON callback_requests(created DESC);
-    CREATE TABLE IF NOT EXISTS friday_quotes(id TEXT PRIMARY KEY,handoff_id TEXT NOT NULL UNIQUE REFERENCES friday_handoffs(id),owner_id TEXT NOT NULL REFERENCES users(id),customer_email TEXT NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,quote TEXT,attempted_at TEXT,created TEXT NOT NULL);`);
+    CREATE TABLE IF NOT EXISTS friday_quotes(id TEXT PRIMARY KEY,handoff_id TEXT NOT NULL UNIQUE REFERENCES friday_handoffs(id),owner_id TEXT NOT NULL REFERENCES users(id),customer_email TEXT NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,quote TEXT,attempted_at TEXT,created TEXT NOT NULL,first_reply_at TEXT);`);
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('friday_quotes') WHERE name='first_reply_at'").get()) db.exec('ALTER TABLE friday_quotes ADD COLUMN first_reply_at TEXT');
   if (tripsInVault && db.prepare("SELECT 1 FROM pragma_foreign_key_list('shares') WHERE \"table\"='records'").get()) {
     db.exec(`BEGIN; CREATE TABLE shares_nofk(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),trip_id TEXT NOT NULL,expires INTEGER NOT NULL,created TEXT NOT NULL);
       INSERT INTO shares_nofk SELECT token_hash,user_id,trip_id,expires,created FROM shares; DROP TABLE shares; ALTER TABLE shares_nofk RENAME TO shares;
@@ -97,12 +98,13 @@ export const updateFridayDraft = (db,row) => db.prepare('UPDATE friday_drafts SE
 export const insertFridayHandoff = (db,row) => db.prepare('INSERT INTO friday_handoffs(id,owner_id,draft_id,version,snapshot,status,created) VALUES(?,?,?,?,?,?,?)').run(row.id,row.ownerId,row.draftId,row.version,row.snapshot,row.status,row.created);
 export function createFridayHandoffWithQuote(db,handoff,quote){db.exec('BEGIN IMMEDIATE');try{insertFridayHandoff(db,handoff);insertFridayQuote(db,quote);db.exec('COMMIT');return true;}catch(e){db.exec('ROLLBACK');throw e;}}
 export const listFridayHandoffs = (db,owner) => db.prepare('SELECT id,draft_id,version,snapshot,status,created FROM friday_handoffs WHERE owner_id=? ORDER BY created DESC').all(owner);
-export const listFridayQuotes = db => db.prepare('SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created FROM friday_quotes ORDER BY created').all();
+export const listFridayQuotes = db => db.prepare("SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created,first_reply_at FROM friday_quotes ORDER BY CASE WHEN status='pending' AND first_reply_at IS NULL THEN 0 ELSE 1 END,created ASC").all();
 export const createCallbackRequest = (db, row) => db.prepare('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created) VALUES(?,?,?,?,?,?,?,?)').run(row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created);
 export const listCallbackRequests = db => db.prepare('SELECT id,name,phone,best_time,entry_point,trip_id,status,created FROM callback_requests ORDER BY created DESC').all();
 export const getFridayQuote = (db,id) => db.prepare('SELECT * FROM friday_quotes WHERE id=?').get(id);
 export const insertFridayQuote = (db,row) => db.prepare('INSERT INTO friday_quotes(id,handoff_id,owner_id,customer_email,snapshot,status,created) VALUES(?,?,?,?,?,?,?)').run(row.id,row.handoffId,row.ownerId,row.customerEmail,row.snapshot,row.status,row.created);
 export const claimFridayQuote = (db,id,quote,attempted) => db.prepare("UPDATE friday_quotes SET status='sending',quote=?,attempted_at=? WHERE id=? AND status='pending'").run(quote,attempted,id).changes;
+export const markFridayQuoteReplied = (db,id,repliedAt) => db.prepare("UPDATE friday_quotes SET first_reply_at=? WHERE id=? AND status='pending' AND first_reply_at IS NULL").run(repliedAt,id).changes;
 export function setFridayQuoteStatus(db,id,status){db.exec('BEGIN IMMEDIATE');try{db.prepare("UPDATE friday_quotes SET status=? WHERE id=? AND status='sending'").run(status,id);db.prepare('UPDATE friday_handoffs SET status=? WHERE id=(SELECT handoff_id FROM friday_quotes WHERE id=?)').run(status,id);db.exec('COMMIT');return true;}catch(e){db.exec('ROLLBACK');throw e;}}
 
 /* ---- villas and private owner-submission inbox ---- */

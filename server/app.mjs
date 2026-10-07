@@ -641,6 +641,8 @@ export function createApp(options = {}) {
         const callbacks=store.listCallbackRequests(db).map(row=>({id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,status:row.status,createdAt:row.created}));
         return send(200,{quotes:[...callbacks,...quotes]});
       }
+      const quoteReplied=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/replied$/i);
+      if(quoteReplied){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{reply:friday.markQuoteReplied(user,effectiveQuoteAdmins,quoteReplied[1])});}
       const quotePreview=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/preview$/i);
       if(quotePreview){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{preview:friday.previewQuote(user,effectiveQuoteAdmins,quotePreview[1],body)});}
       const quoteSend=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/send$/i);
