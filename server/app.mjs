@@ -232,7 +232,33 @@ export function createApp(options = {}) {
         const full = await realpath(path.resolve(realRoot,relative)).catch(()=>fail(404,'Not found.'));
         if (!full.startsWith(realRoot+path.sep) || !(await stat(full)).isFile()) fail(404,'Not found.');
         const types={'.html':'text/html','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2'};
-        const content=await readFile(full);
+        let content=await readFile(full);
+        if (relative==='app.html') {
+          const sharedToken=url.searchParams.get('share')||'';
+          if (/^[a-f0-9]{64}$/.test(sharedToken)) {
+            const tokenHash=hash(sharedToken),share=await trips.findShare(tokenHash);
+            if(share&&share.expires>Date.now()) {
+              const data=JSON.parse(share.data),title=typeof data.title==='string'?data.title.slice(0,200):'A journey';
+              const days=Array.isArray(data.days)?data.days:[],stops=days.reduce((n,day)=>n+(Array.isArray(day.items)?day.items.length:0),0);
+              const destination=typeof data.destination==='string'?data.destination.slice(0,120):'';
+              const start=typeof data.startDate==='string'?data.startDate:'';const end=typeof data.endDate==='string'?data.endDate:'';
+              const dateText=start?(end&&end!==start?`${start}–${end}`:start):'';
+              const parts=[destination,dateText,stops?`${stops} ${stops===1?'stop':'stops'}`:''].filter(Boolean);
+              const description=(parts.length?parts.join(' · ')+'. ':'')+'Shared with you on Friday.';
+              const firstPhoto=days.flatMap(day=>(Array.isArray(day.items)?day.items:[])).flatMap(item=>Array.isArray(item.photos)?item.photos:[]).find(photo=>{
+                if(!photo||typeof photo.url!=='string')return false;const match=photoMatch(photo.url);if(match)return true;try{return ['http:','https:'].includes(new URL(photo.url).protocol);}catch{return false;}
+              });
+              const photoRoute=firstPhoto&&photoMatch(firstPhoto.url);
+              const imageUrl=firstPhoto?(photoRoute?new URL(`/api/shared/${sharedToken}/photo/${photoRoute[1]}/${photoRoute[2]}`,origin).href:new URL(firstPhoto.url).href):new URL('/assets/images/friday-coastal-banner.jpg',origin).href;
+              const pageUrl=new URL(`/app.html?share=${sharedToken}`,origin).href;
+              const attr=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+              const meta=`<meta property="og:title" content="${attr(title)}"><meta property="og:description" content="${attr(description)}"><meta property="og:type" content="website"><meta property="og:url" content="${attr(pageUrl)}"><meta property="og:image" content="${attr(imageUrl)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${attr(title)}"><meta name="twitter:description" content="${attr(description)}"><meta name="twitter:image" content="${attr(imageUrl)}">`;
+              if(method==='GET'&&!req.headers['user-agent']?.match(/WhatsApp|facebookexternalhit|Facebot|Twitterbot|Slackbot|Discordbot|TelegramBot|LinkedInBot|Googlebot/i)) store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_link_opened',created:new Date().toISOString()});
+              else if(method==='GET') store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_preview_bot',created:new Date().toISOString()});
+              content=Buffer.from(content.toString('utf8').replace('</head>',`${meta}</head>`));
+            }
+          }
+        }
         res.writeHead(200,{'Content-Type':types[path.extname(full)]+'; charset=utf-8'}); res.end(method==='HEAD'?undefined:content);return;
       }
       rate('api:'+ip,240);
@@ -399,6 +425,14 @@ export function createApp(options = {}) {
         if(!share||share.expires<=Date.now())fail(404,'This shared journey is unavailable.');
         return share;
       };
+      const whatsappClick=p.match(/^\/api\/shared\/([a-f0-9]{64})\/whatsapp-click$/);
+      if(whatsappClick&&method==='POST') {
+        rate('share-whatsapp:'+ip,30);
+        const share=await trips.findShare(hash(whatsappClick[1]));
+        if(!share||share.expires<=Date.now())fail(404,'This shared journey is unavailable.');
+        store.recordTripShareEvent(db,{id:randomUUID(),tokenHash:hash(whatsappClick[1]),eventType:'trip_share_whatsapp_clicked',created:new Date().toISOString()});
+        return send(200,{ok:true});
+      }
       if(sharedPhoto&&method==='GET') {
         // Anonymous viewers load a shared trip's photos through the share token, and only photos that trip references.
         rate('sharedphoto:'+ip,120);
@@ -719,7 +753,9 @@ export function createApp(options = {}) {
         await getRecord(shareMatch[1],user.id,'trips');
         const token=randomBytes(32).toString('hex'),expires=Date.now()+30*86400000;
         store.deleteShares(db,shareMatch[1],user.id);
-        store.createShare(db,{tokenHash:hash(token),userId:user.id,tripId:shareMatch[1],expires,created:new Date().toISOString()});
+        const tokenHash=hash(token),created=new Date().toISOString();
+        store.createShare(db,{tokenHash,userId:user.id,tripId:shareMatch[1],expires,created});
+        store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_link_created',created});
         return send(201,{share:{url:`/app.html?share=${token}`,expires:new Date(expires).toISOString()}});
       }
       if(shareMatch&&method==='DELETE') {
