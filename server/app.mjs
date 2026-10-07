@@ -233,21 +233,37 @@ export function createApp(options = {}) {
     res.setHeader('X-Frame-Options','DENY');
     const ip=clientIp(req);
     const send=(status,data,extra)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...extra});res.end(JSON.stringify(data));};
+    const missingPage=async()=>{
+      if (/application\/json/i.test(req.headers.accept||'')) return send(404,{error:'Not found.'});
+      const page=await readFile(path.join(root,'404.html')).catch(()=>Buffer.from('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="robots" content="noindex, nofollow"><title>Page not found · Friday</title><body><main><h1>This page wandered off.</h1><p><a href="/">Go home</a></p></main></body></html>'));
+      res.writeHead(404,{'Content-Type':'text/html; charset=utf-8','X-Robots-Tag':'noindex, nofollow'});
+      res.end(req.method==='HEAD'?undefined:page);
+    };
     try {
       const url = new URL(req.url,origin), method=req.method;
       if (!url.pathname.startsWith('/api/')) {
         if (!['GET','HEAD'].includes(method)) fail(405,'Method not allowed.');
         // Decode first, then refuse anything that could climb out of the root: dot segments (including ones hidden as %2e or
         // %2f), doubled or backslash separators and NUL. The containment check below is the backstop.
-        let decoded;try{decoded=decodeURIComponent(url.pathname);}catch{fail(404,'Not found.');}
-        if (/[\0\\]/.test(decoded) || decoded.includes('//') || decoded.split('/').some(s=>s==='..'||s==='.')) fail(404,'Not found.');
+        let decoded;try{decoded=decodeURIComponent(url.pathname);}catch{return missingPage();}
+        if (/[\0\\]/.test(decoded) || decoded.includes('//') || decoded.split('/').some(s=>s==='..'||s==='.')) return missingPage();
         let relative = decoded.replace(/^\//,'') || 'index.html';
         if (relative === 'app') relative='app.html';
-        // Only public generated pages and assets may be served, never backend/source/data.
-        if (!(/^[a-z0-9-]+\.html$/.test(relative) || /^(robots\.txt|sitemap\.xml)$/.test(relative) || /^assets\/[a-zA-Z0-9_./-]+\.(css|js|svg|png|jpg|jpeg|webp|ico|woff2)$/.test(relative))) fail(404,'Not found.');
         const realRoot = await realpath(root);
-        const full = await realpath(path.resolve(realRoot,relative)).catch(()=>fail(404,'Not found.'));
-        if (!full.startsWith(realRoot+path.sep) || !(await stat(full)).isFile()) fail(404,'Not found.');
+        // Public extensionless routes point to their canonical .html pages. Private app and staff pages keep their existing access paths.
+        const privatePages = new Set(['trip.html','app.html','admin.html','admin-villas.html','chatgpt-callback.html','404.html']);
+        if (/^[a-z0-9-]+$/.test(relative) && !privatePages.has(`${relative}.html`)) {
+          const candidate = await realpath(path.resolve(realRoot,`${relative}.html`)).catch(()=>null);
+          if (candidate && candidate.startsWith(realRoot+path.sep) && (await stat(candidate)).isFile()) {
+            res.writeHead(301,{'Location':`/${relative}.html${url.search}`,'Cache-Control':'public, max-age=86400'});res.end();return;
+          }
+        }
+        // The generated 404 document is an internal response template, never a successful public route.
+        if (relative === '404.html') return missingPage();
+        // Only public generated pages and assets may be served, never backend/source/data.
+        if (!(/^[a-z0-9-]+\.html$/.test(relative) || /^(robots\.txt|sitemap\.xml)$/.test(relative) || /^assets\/[a-zA-Z0-9_./-]+\.(css|js|svg|png|jpg|jpeg|webp|ico|woff2)$/.test(relative))) return missingPage();
+        const full = await realpath(path.resolve(realRoot,relative)).catch(()=>null);
+        if (!full || !full.startsWith(realRoot+path.sep) || !(await stat(full)).isFile()) return missingPage();
         const types={'.html':'text/html','.txt':'text/plain','.xml':'application/xml','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2'};
         let content=await readFile(full);
         if (relative==='app.html') {
