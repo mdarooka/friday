@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { hostPolicy, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, visitorHost } from '../server/canonical-host.mjs';
+import { ensureRobotsMeta, hostPolicy, isPrivateSurface, PRIVATE_API_PREFIXES, PRIVATE_PAGES, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, visitorHost } from '../server/canonical-host.mjs';
 import { startApp } from './helpers.mjs';
 
 const canonical = 'https://fridaytravel.vercel.app';
@@ -48,7 +48,16 @@ test('served metadata is rebased onto the configured origin and external images 
   assert.match(rewriteRobotsSitemap('User-agent: *\nAllow: /\n', canonical), /Sitemap: https:\/\/fridaytravel\.vercel\.app\/sitemap\.xml/);
 });
 
-test('vercel proxy redirects every non-canonical host and does not noindex the public origin', async () => {
+function headerCovers(source, path) {
+  if (source === path) return true;
+  if (source.endsWith('/:path*')) {
+    const base = source.slice(0, -'/:path*'.length);
+    return path === base || path.startsWith(`${base}/`);
+  }
+  return false;
+}
+
+test('vercel proxy redirects every non-canonical host and noindexes private paths on the public origin', async () => {
   const config = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
   const hostRedirect = config.redirects.find(rule => rule.has);
   const pattern = new RegExp(hostRedirect.has[0].value);
@@ -59,12 +68,21 @@ test('vercel proxy redirects every non-canonical host and does not noindex the p
   assert.equal(pattern.test('friday-travel-git-main-user.vercel.app'), true);
   assert.equal(config.redirects[0].destination, 'https://fridaytravel.vercel.app/');
   assert.equal(config.rewrites[0].destination.includes('deploy.built-with-hexclave.com'), true);
-  for (const rule of config.headers || []) {
-    const noindex = (rule.headers || []).some(header => header.key === 'X-Robots-Tag' && /noindex/i.test(header.value));
-    if (!noindex) continue;
-    const host = rule.has.find(item => item.type === 'host').value;
-    assert.equal(new RegExp(host).test('fridaytravel.vercel.app'), false, 'the public origin stays indexable');
-    assert.equal(new RegExp(host).test('friday-travel-peach.vercel.app'), true);
+  const noindexRules = (config.headers || []).filter(rule => (rule.headers || []).some(header => header.key === 'X-Robots-Tag' && /noindex/i.test(header.value)));
+  const hostRules = noindexRules.filter(rule => rule.has);
+  const pathRules = noindexRules.filter(rule => !rule.has);
+  assert.equal(hostRules.length, 1);
+  const host = hostRules[0].has.find(item => item.type === 'host').value;
+  assert.equal(new RegExp(host).test('fridaytravel.vercel.app'), false);
+  assert.equal(new RegExp(host).test('friday-travel-peach.vercel.app'), true);
+  assert.equal(hostRules[0].source, '/(.*)');
+  const publicPaths = ['/', '/index.html', '/about.html', '/kerala-guide.html', '/field-notes.html', '/privacy.html', '/terms.html', '/api/health', '/api/villas', '/api/destinations', '/api/airports', '/api/capabilities'];
+  for (const rule of pathRules) {
+    assert.equal(rule.source === '/(.*)', false, rule.source);
+    for (const path of publicPaths) assert.equal(headerCovers(rule.source, path), false, `${rule.source} must not noindex ${path}`);
+  }
+  for (const path of [...PRIVATE_PAGES, ...PRIVATE_API_PREFIXES]) {
+    assert.equal(pathRules.some(rule => headerCovers(rule.source, path)), true, path);
   }
 });
 
@@ -73,6 +91,7 @@ test('public pages canonicalize to fridaytravel.vercel.app and private pages do 
   const canonicalUrls = [];
   for (const file of publicPages) {
     const html = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(html, /<meta\s+name="robots"/i, file);
     const links = [...html.matchAll(/<link rel="canonical" href="([^"]+)">/g)].map(match => match[1]);
     assert.equal(links.length, 1, file);
     const expected = file === 'index.html' ? `${canonical}/` : `${canonical}/${file}`;
@@ -86,6 +105,11 @@ test('public pages canonicalize to fridaytravel.vercel.app and private pages do 
   for (const file of ['trip.html', 'app.html', 'admin.html', 'admin-villas.html', 'chatgpt-callback.html']) {
     const html = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
     assert.doesNotMatch(html, /<link rel="canonical"/i, file);
+    assert.match(html, /<meta name="robots" content="noindex, nofollow">/, file);
+  }
+  const robots = await readFile(new URL('../robots.txt', import.meta.url), 'utf8');
+  for (const path of ['/trip.html', '/app.html', '/admin.html', '/admin-villas.html', '/chatgpt-callback.html', '/api/']) {
+    assert.match(robots, new RegExp(`Disallow: ${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
   }
   const moved = await readFile(new URL('../salon.html', import.meta.url), 'utf8');
   assert.match(moved, /<link rel="canonical" href="https:\/\/fridaytravel\.vercel\.app\/departures\.html">/);
@@ -93,6 +117,26 @@ test('public pages canonicalize to fridaytravel.vercel.app and private pages do 
   const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
   assert.deepEqual(urls.sort(), canonicalUrls.sort());
   assert.doesNotMatch(sitemap, /peach/);
+});
+
+test('private surfaces include planner, staff, share, and owner routes', () => {
+  for (const path of PRIVATE_PAGES) assert.equal(isPrivateSurface(path), true, path);
+  for (const path of ['/api/shared/abc', '/api/auth/signup', '/api/admin/status', '/api/trips/1/share', '/api/profile', '/api/newsletter/unsubscribe', '/api/itineraries', '/api/friday/plan']) {
+    assert.equal(isPrivateSurface(path), true, path);
+  }
+  assert.equal(isPrivateSurface('/about.html', '?share=abc'), true);
+  assert.equal(isPrivateSurface('/kerala-guide.html'), false);
+  assert.equal(isPrivateSurface('/field-notes.html'), false);
+  assert.equal(isPrivateSurface('/privacy.html'), false);
+  assert.equal(isPrivateSurface('/terms.html'), false);
+  assert.equal(isPrivateSurface('/api/health'), false);
+  assert.equal(isPrivateSurface('/api/villas'), false);
+  assert.equal(isPrivateSurface('/api/villas/11111111-1111-1111-1111-111111111111'), false);
+  assert.equal(isPrivateSurface('/api/destinations'), false);
+  assert.equal(isPrivateSurface('/api/airports'), false);
+  assert.equal(isPrivateSurface('/api/capabilities'), false);
+  assert.equal(ensureRobotsMeta('<head><meta name="robots" content="noindex"></head>'), '<head><meta name="robots" content="noindex, nofollow"></head>');
+  assert.match(ensureRobotsMeta('<head><title>Friday</title></head>'), /<meta name="robots" content="noindex, nofollow"><\/head>/);
 });
 
 test('production redirects non-canonical hosts, noindexes only those responses, and keeps deploy API', async (t) => {
@@ -148,8 +192,49 @@ test('production redirects non-canonical hosts, noindexes only those responses, 
   assert.equal(home.headers.location, '/?src=legacy');
   assert.equal(home.headers['x-robots-tag'], undefined);
 
+  const robotsMeta = '<meta name="robots" content="noindex, nofollow">';
+  for (const path of ['/trip.html', '/app.html', '/admin.html', '/admin-villas.html', '/chatgpt-callback.html']) {
+    const privatePage = await raw(server, path, { host: 'fridaytravel.vercel.app' });
+    assert.equal(privatePage.status, 200, path);
+    assert.equal(privatePage.headers['x-robots-tag'], 'noindex, nofollow', path);
+    assert.match(privatePage.body, new RegExp(robotsMeta.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), path);
+  }
+  for (const path of ['/field-notes.html', '/privacy.html', '/terms.html', '/about.html']) {
+    const publicPage = await raw(server, path, { host: 'fridaytravel.vercel.app' });
+    assert.equal(publicPage.status, 200, path);
+    assert.equal(publicPage.headers['x-robots-tag'], undefined, path);
+    assert.doesNotMatch(publicPage.body, /<meta\s+name="robots"/i, path);
+  }
+  for (const path of ['/api/health', '/api/villas', '/api/destinations', '/api/airports', '/api/capabilities']) {
+    const catalog = await raw(server, path, { host: 'fridaytravel.vercel.app' });
+    assert.equal(catalog.status, 200, path);
+    assert.equal(catalog.headers['x-robots-tag'], undefined, path);
+  }
+  for (const path of ['/api/auth/me', '/api/admin/status', '/api/trips', '/api/profile']) {
+    const owned = await raw(server, path, { host: 'fridaytravel.vercel.app' });
+    assert.equal(owned.headers['x-robots-tag'], 'noindex, nofollow', path);
+  }
+  const aliasedTrip = await raw(server, '/trip.html?share=abc', { host: 'friday-travel-peach.vercel.app' });
+  assert.equal(aliasedTrip.status, 308);
+  assert.equal(aliasedTrip.headers['x-robots-tag'], 'noindex, nofollow');
+
   const account = name => ({ name, email: `${name}@example.com`, password: 'long test password 123' });
-  assert.equal((await request('/api/auth/signup', 'POST', account('Canonical'), { headers: { Origin: canonical } })).status, 200);
+  const signedUp = await request('/api/auth/signup', 'POST', account('Canonical'), { headers: { Origin: canonical } });
+  assert.equal(signedUp.status, 200);
+  const trip = await request('/api/trips', 'POST', { data: { title: 'Kyoto', destination: 'Japan', days: [{ title: 'Temple', items: [{ title: 'Garden' }] }] } }, { cookie: signedUp.cookie, headers: { Origin: canonical } });
+  assert.equal(trip.status, 201);
+  const created = await request(`/api/trips/${trip.result.record.id}/share`, 'POST', {}, { cookie: signedUp.cookie, headers: { Origin: canonical } });
+  assert.equal(created.status, 201);
+  const token = new URL(created.result.share.url, canonical).searchParams.get('share');
+  const sharedPage = await raw(server, `/app.html?share=${token}`, { host: 'fridaytravel.vercel.app', 'user-agent': 'Friday trip visitor' });
+  assert.equal(sharedPage.status, 200);
+  assert.equal(sharedPage.headers['x-robots-tag'], 'noindex, nofollow');
+  assert.match(sharedPage.body, /<meta name="robots" content="noindex, nofollow">/);
+  assert.match(sharedPage.body, /property="og:title" content="Kyoto"/);
+  const sharedJson = await raw(server, `/api/shared/${token}`, { host: 'fridaytravel.vercel.app' });
+  assert.equal(sharedJson.status, 200);
+  assert.equal(sharedJson.headers['x-robots-tag'], 'noindex, nofollow');
+  assert.match(sharedJson.body, /Kyoto/);
   assert.equal((await request('/api/auth/signup', 'POST', account('Deploy'), { headers: { Origin: deploy } })).status, 200);
   assert.equal((await request('/api/auth/signup', 'POST', account('Peach'), { headers: { Origin: 'https://friday-travel-peach.vercel.app' } })).status, 403);
 });

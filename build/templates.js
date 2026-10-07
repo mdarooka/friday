@@ -180,7 +180,7 @@ function Footer() {
 
 /* ------------------------------------------------------------ the shell */
 
-function layout({ title, description, body, active, lightHead, canonical, extraStyles = [], extraScripts = [] }) {
+function layout({ title, description, body, active, lightHead, canonical, robots, extraStyles = [], extraScripts = [] }) {
   const canonicalHref = canonical && SITE_ORIGIN ? publicUrl(canonical, SITE_ORIGIN) : null;
   return `<!doctype html>
 <html lang="en">
@@ -189,7 +189,7 @@ function layout({ title, description, body, active, lightHead, canonical, extraS
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} &middot; ${esc(D.brand.name)}</title>
 <meta name="description" content="${esc(description)}">
-<meta name="theme-color" content="#F4F1EA">
+${robots ? `<meta name="robots" content="${esc(robots)}">\n` : ''}<meta name="theme-color" content="#F4F1EA">
 <meta property="og:title" content="${esc(title)} · ${esc(D.brand.name)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:type" content="website">

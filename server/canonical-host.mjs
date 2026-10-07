@@ -2,6 +2,66 @@
 // The Hexclave Deploy origin stays in APP_ORIGIN_ALIASES so direct API calls
 // (health checks, and the Vercel rewrite that proxies with that Host) keep working.
 export const CANONICAL_ORIGIN = 'https://fridaytravel.vercel.app';
+export const ROBOTS_NOINDEX = 'noindex, nofollow';
+
+// Planner, staff consoles, the ChatGPT return page, and the share alias.
+// Sign-in, email verification, and account screens render on these documents.
+export const PRIVATE_PAGES = [
+  '/trip', '/trip.html',
+  '/app', '/app.html',
+  '/admin', '/admin.html',
+  '/admin-villas', '/admin-villas.html',
+  '/chatgpt-callback.html',
+];
+
+// Owner-scoped and staff APIs. Public catalog routes (health, villas, destinations,
+// airports, capabilities) stay off this list.
+export const PRIVATE_API_PREFIXES = [
+  '/api/shared',
+  '/api/auth',
+  '/api/admin',
+  '/api/newsletter/unsubscribe',
+  '/api/trips',
+  '/api/places',
+  '/api/lists',
+  '/api/bookings',
+  '/api/memories',
+  '/api/alerts',
+  '/api/imports',
+  '/api/profile',
+  '/api/research',
+  '/api/itineraries',
+  '/api/friday',
+  '/api/ai-conversations',
+  '/api/integrations',
+  '/api/callbacks',
+  '/api/place-details',
+  '/api/place-photo',
+];
+
+const PRIVATE_PAGE_SET = new Set(PRIVATE_PAGES);
+
+function matchesPrefix(path, prefix) {
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+
+export function isPrivateSurface(pathname = '/', search = '') {
+  const path = String(pathname || '/');
+  if (PRIVATE_PAGE_SET.has(path)) return true;
+  if (PRIVATE_API_PREFIXES.some(prefix => matchesPrefix(path, prefix))) return true;
+  const params = new URLSearchParams(String(search || '').replace(/^\?/, ''));
+  return params.has('share');
+}
+
+export function ensureRobotsMeta(html) {
+  const source = String(html);
+  const tag = '<meta name="robots" content="noindex, nofollow">';
+  if (/<meta\s+name=["']robots["']/i.test(source)) {
+    return source.replace(/<meta\s+name=["']robots["'][^>]*>/gi, tag);
+  }
+  if (/<\/head>/i.test(source)) return source.replace(/<\/head>/i, `${tag}</head>`);
+  return source.replace(/<head[^>]*>/i, match => `${match}${tag}`);
+}
 
 export function firstHeaderValue(value) {
   return String(value || '').split(',')[0].trim().toLowerCase();

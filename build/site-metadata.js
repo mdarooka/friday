@@ -40,6 +40,7 @@ function robotsTxt(origin = siteOrigin()) {
     'Disallow: /admin',
     'Disallow: /admin-villas.html',
     'Disallow: /admin-villas',
+    'Disallow: /chatgpt-callback.html',
     'Disallow: /api/',
     'Disallow: /.data/',
     ...(origin ? [`Sitemap: ${publicUrl('sitemap.xml', origin)}`] : []),
