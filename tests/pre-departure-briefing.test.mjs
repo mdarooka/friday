@@ -36,6 +36,13 @@ test('briefing email renders trip dates, linked bookings, open questions, design
   assert.match(briefing.html, /confirmed date/);
 });
 
+test('briefing subject reflects the actual departure window through departure day', () => {
+  assert.match(sample({ days: 0 }).subject, /^Your trip starts today:/);
+  assert.match(sample({ days: 1 }).subject, /^Your trip starts tomorrow:/);
+  for (let days = 2; days <= 6; days++) assert.match(sample({ days }).subject, new RegExp(`^${days} days to go:`));
+  assert.match(sample({ days: 7 }).subject, /^A week to go:/);
+});
+
 test('staff can send an eligible trip briefing through the existing email service without real delivery in tests', async t => {
   const sent = [];
   const emailService = { configured: true, async send(message) { sent.push(message); return { status: 'provider_accepted' }; } };

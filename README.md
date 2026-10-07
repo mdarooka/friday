@@ -24,7 +24,7 @@ Before the first deploy:
 
 1. Turn on the Deploy app in the Hexclave dashboard. The service uses `minInstances: 0`, so it suspends when idle (keeping its disk) and resumes on the next request; an always-running server (`minInstances: 1`) needs a paid plan. Do not push `hexclave.config.ts` as part of this step.
 2. `APP_ORIGIN`, `FRIDAY_ENQUIRY_EMAIL`, and `QUOTE_ADMIN_EMAILS` are set directly in `hexclave.deploy.ts`; update them there when the domain or inbox changes. Under Project Settings → Secrets, the optional `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY`, `GOOGLE_PLACES_API_KEY`, and `OPENAI_API_KEY` default to empty and keep those integrations off until configured. For Gmail/Calendar, set the Google client ID, client secret, and a 64-character hexadecimal `GOOGLE_TOKEN_KEY` together. Deploy supplies `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY` itself; without a valid enquiry inbox, enquiries are saved but the team notification is not sent.
-Vercel (`vercel.json`, project `friday-travel`) is only a reverse proxy: it serves `https://fridaytravel.vercel.app` by rewriting every path to the Hexclave Deploy origin, so all data stays on the persistent server. `APP_ORIGIN` is the public proxy origin, because browsers send `Origin: https://fridaytravel.vercel.app` on API writes.
+Vercel (`vercel.json`, project `friday-travel`) is only a reverse proxy: it serves `https://fridaytravel.vercel.app` by rewriting every path to the Hexclave Deploy origin, so all data stays on the persistent server. `APP_ORIGIN` is the public proxy origin, because browsers send `Origin: https://fridaytravel.vercel.app` on API writes. `APP_ORIGIN_ALIASES` explicitly lists the direct Deploy origin for browser sessions opened on that host; the server accepts only those exact configured origins for writes and never trusts arbitrary request hosts.
 3. To move to your own domain, attach and verify it on the public `web` service and set its exact HTTPS origin as `APP_ORIGIN` in `hexclave.deploy.ts`.
 4. From the repository root, run `npx @hexclave/cli@latest deploy --cloud-project-id 38c9a741-73e3-4e6a-9c1b-6438f1239457`.
 
@@ -72,7 +72,7 @@ The production host and DNS name still need to be selected before a live deploym
 
 ## AI research configuration
 
-Deep is the default research mode. Set `AI_PROVIDER=claude` with `ANTHROPIC_API_KEY` to use Claude and its web search. The default example configuration uses `AI_MODEL=claude-sonnet-5-5` and `AI_EFFORT=medium`; set `AI_DEEP_MODEL` to override the model for Deep research, or leave it empty to inherit `AI_MODEL`. Effort may be `low`, `medium`, `high`, `xhigh`, or `max`; leave it empty for the provider default. Effort is sent only when configured. `AI_PROVIDER=perplexity` uses `PERPLEXITY_API_KEY` for research generation. To use Perplexity Search for retrieval alongside Claude, set `SEARCH_PROVIDER=perplexity` and `PERPLEXITY_API_KEY`; all provider keys remain on the server. Without a supported key and model, Friday still supports accounts and saved itineraries, while research stays unavailable.
+Deep is the default research mode. All user-facing research and reel itinerary generation uses OpenAI's Responses API with web search. Set server-only `OPENAI_API_KEY`; `OPENAI_RESEARCH_MODEL` defaults to `OPENAI_MODEL` or `gpt-5-mini`. Optionally set `OPENAI_DEEP_MODEL`. Legacy Claude and Perplexity environment variables do not select the production research provider. Without the OpenAI key, research is unavailable and existing saved itineraries remain accessible.
 
 ## Feature status
 
@@ -107,7 +107,7 @@ Public owner intake is `POST /api/villa-submissions` with `{ contactName, email,
 
 ## Itinerary generation
 
-The planner asks the server for its plan. That is separate from the AI research above: `AI_PROVIDER` (Claude or Perplexity) powers research chat and Deep research jobs, while `ITINERARY_PROVIDER` chooses how the planner's first plan is generated.
+The planner asks the server for its plan. That is separate from the AI research above: OpenAI Responses with web search powers research chat and Deep research jobs, while `ITINERARY_PROVIDER` chooses how the planner's first plan is generated.
 
 | Route | |
 | --- | --- |
@@ -163,10 +163,10 @@ Visitors can sign in with ChatGPT (OpenAI's "Sign in with ChatGPT", OAuth 2.0 Au
 
 ## Deployment settings
 
-- `NODE_ENV=production` requires `APP_ORIGIN` (the exact public origin) and the server refuses to start without it. In development, `APP_ORIGIN` is not required and a request whose `Origin` matches its `Host` (127.0.0.1, a LAN address, a dev proxy) is accepted as well; production accepts only `APP_ORIGIN`.
+- `NODE_ENV=production` requires `APP_ORIGIN` (the exact public origin) and the server refuses to start without it. Set optional `APP_ORIGIN_ALIASES` to a comma-separated list of exact additional origins when a direct deployment host also serves the app. In development, `APP_ORIGIN` is not required and a request whose `Origin` matches its `Host` (127.0.0.1, a LAN address, a dev proxy) is accepted as well; production accepts only configured origins.
 - `TRUST_PROXY=1` makes rate limits use the right-most `X-Forwarded-For` hop. Set it only behind a reverse proxy that appends the client address, never when the app is reachable directly. Sign-in is also throttled per email.
 - Saved Google photo links are re-signed each time a record is read, so they do not expire in storage; a shared trip's photos load through `/api/shared/:token/photo/...`.
-- Errors the server did not expect are written to stderr (`console.error`), without request bodies or keys. A provider key set without `AI_MODEL` prints a startup warning.
+- Errors the server did not expect are written to stderr (`console.error`), without request bodies or keys.
 - `npm test` runs `node --test tests/*.test.mjs`; `npm run test:hexclave` runs the same suite with trips on a fake Hexclave vault.
 
 ## Rebuild the public pages
@@ -177,7 +177,7 @@ Edit `build/` sources and regenerate root HTML files with:
 npm run build
 ```
 
-`build/data.js` contains public copy and content, `build/templates.js` contains page structures, and `build/generate.js` writes generated HTML. Avoid editing root HTML pages directly. The sitemap and canonical/social URLs use `PUBLIC_SITE_ORIGIN` when set, then `APP_ORIGIN`, then Vercel's `VERCEL_PROJECT_PRODUCTION_URL` or `VERCEL_URL`; set `PUBLIC_SITE_ORIGIN` to Friday's stable public HTTPS origin for production builds. Without a configured origin, canonical and image references stay relative and the sitemap has no URL entries rather than inventing a domain.
+`build/data.js` contains public copy and content, `build/templates.js` contains page structures, and `build/generate.js` writes generated HTML. Avoid editing root HTML pages directly. The sitemap and canonical/social URLs use `PUBLIC_SITE_ORIGIN` when set, then `APP_ORIGIN`, then Vercel's `VERCEL_PROJECT_PRODUCTION_URL` or `VERCEL_URL`; the build falls back to Friday's canonical `https://fridaytravel.vercel.app` origin when none is configured. Set `PUBLIC_SITE_ORIGIN` to Friday's stable public HTTPS origin for production builds, especially when moving to a custom domain.
 
 ## Trip storage in Hexclave
 

@@ -17,7 +17,7 @@ const write = (file, html) => {
   return file;
 };
 const written = [];
-const legacyPage = /^(?:ethos|method|designers|alliances|compositions|wild|drive|salon|field-notes|commission)\.html$|^(?:composition-|departure-|note-).+\.html$/;
+const legacyPage = /^(?:ethos|method|designers|alliances|compositions|wild|drive|salon|commission)\.html$|^(?:composition-|departure-).+\.html$/;
 const page = (file, opts) => {
   if (legacyPage.test(file)) return;
   const privatePage = file === 'admin.html' || file === 'admin-villas.html';
@@ -38,7 +38,7 @@ const home = `
       <span class="hero__line hero__line--indent hero__line--fit" style="--i:1"><span><em>your travel designer.</em></span></span>
     </h1>
     <div class="hero__meta">
-      <p class="hero__note">Plan a trip with Friday&rsquo;s AI, explore villa stays and nearby places, or start with a sample journey.</p>
+      <p class="hero__note">Tell Friday where you want to go and how you like to travel. Shape a day-by-day plan with AI, or explore villas and sample journeys.</p>
       <a class="btn btn--solid hero__cta" href="trip.html">Plan a trip with Friday <span class="arrow">&rarr;</span></a>
       <a class="scrollcue" href="#offerings"><i></i> Explore</a>
     </div>
@@ -70,6 +70,31 @@ const home = `
           <p class="card__d">Share a destination and the way you want to travel. Friday helps draft and refine your plan.</p>
         </a>
       </article>
+    </div>
+  </div>
+</section>
+
+<section class="section home-ai" id="how-friday-ai-works" aria-labelledby="home-ai-title">
+  <div class="wrap">
+    <div class="grid home-ai__intro">
+      <div class="c-6 c-md-12" data-reveal>
+        ${eyebrow('How Friday AI works')}
+        <h2 class="h2" id="home-ai-title">A first thought.<br><em>A plan you can shape.</em></h2>
+      </div>
+      <div class="c-5 s-8 c-md-12" data-reveal style="--i:1">
+        <p class="lede">Begin in your own words. Friday asks for the details it needs, drafts the days, and keeps the conversation beside your working itinerary.</p>
+        <p class="home-ai__example"><span class="eyebrow">For example</span><span>“A week in Kerala in January. We love food and quiet stays, and we don&rsquo;t want to change hotels every night.”</span></p>
+      </div>
+    </div>
+    <div class="steps home-ai__steps">
+      <div class="step" data-reveal><span class="step__n">01</span><h3 class="step__t">Describe the trip.</h3><p class="step__d">Share a destination or just an idea. Add your dates, interests and preferred pace when you know them; Friday can ask about anything missing.</p></div>
+      <div class="step" data-reveal><span class="step__n">02</span><h3 class="step__t">See the days take shape.</h3><p class="step__d">Friday drafts a day-by-day itinerary around your choices. Explore the route, places and stay ideas in the planner as the trip comes together.</p></div>
+      <div class="step" data-reveal><span class="step__n">03</span><h3 class="step__t">Make it yours.</h3><p class="step__d">Ask for a slower day, a different stop or more time somewhere. Keep the places you like and add reservations you have already made.</p></div>
+      <div class="step" data-reveal><span class="step__n">04</span><h3 class="step__t">Take the next step.</h3><p class="step__d">Keep working on your plan, or <a href="contact.html">contact the Friday team</a> about a quote. Prices, availability and bookings are confirmed separately.</p></div>
+    </div>
+    <div class="home-ai__foot" data-reveal>
+      <a class="btn" href="trip.html#/new">Start with Friday AI <span class="arrow">&rarr;</span></a>
+      <p>AI plans are suggestions to review before travel. The planner does not make reservations.</p>
     </div>
   </div>
 </section>
@@ -923,14 +948,14 @@ page('salon.html', { title: 'The Salon', description: 'Small gatherings the stud
 const notesIndex = `
 ${PageHero({
   eyebrow: 'Field Notes',
-  title: 'What we learnt<br>on the ground.',
-  lede: 'Working notes from the studio. Published when there is something worth saying, which is not often — usually a small obsession, defended at length.',
-  meta: [{ k: 'Published', v: 'When warranted' }, { k: 'Written by', v: 'Whoever was there' }],
+  title: 'Ideas for<br>the journey ahead.',
+  lede: 'Travel guides and considered starting points for planning with Friday.',
+  meta: [{ k: 'Explore', v: 'Travel guides' }, { k: 'From', v: 'Friday' }],
 })}
 
 <section class="section section--flush-top">
   <div class="wrap">
-    ${D.fieldNotes.map((n, i) => `
+    ${D.fieldNotes.length ? D.fieldNotes.map((n, i) => `
     <article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
       <div class="${i % 2 ? 'c-5 s-8' : 'c-5'} c-md-12" data-reveal="mask" style="order:${i % 2 ? 2 : 1}">
         <a href="note-${n.slug}.html" data-cursor="Read">${Plate(`ni-${n.slug}`, { ratio: 'l', scene: n.scene, tone: n.tone, svgRatio: 'landscape' })}</a>
@@ -941,7 +966,16 @@ ${PageHero({
         <p class="lede" style="margin-top:1.1rem" data-reveal>${n.dek}</p>
         <p style="margin-top:1.6rem" data-reveal><a class="link" href="note-${n.slug}.html">Read the note <span class="arrow">&rarr;</span></a> &nbsp;&nbsp;<span class="eyebrow" style="display:inline">${n.author}</span></p>
       </div>
-    </article>`).join('')}
+    </article>`).join('') : `
+    <article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
+      <div class="c-5 c-md-12" data-reveal="mask"><a href="kerala-guide.html">${Plate('field-notes-kerala', { ratio: 'l', scene: 'forest', tone: 'moss', svgRatio: 'landscape' })}</a></div>
+      <div class="c-6 s-7 c-md-12">
+        <p class="eyebrow eyebrow--accent">A Friday guide</p>
+        <h2 class="h2" style="margin-top:.9rem" data-reveal><a href="kerala-guide.html" style="text-decoration:none">A thoughtful first plan for Kerala.</a></h2>
+        <p class="lede" style="margin-top:1.1rem" data-reveal>Explore a few ways to shape the days, places and pace of a Kerala trip, with practical answers to common planning questions.</p>
+        <p style="margin-top:1.6rem" data-reveal><a class="link" href="kerala-guide.html">Read the Kerala guide <span class="arrow">&rarr;</span></a></p>
+      </div>
+    </article>`}
   </div>
 </section>
 
@@ -1015,6 +1049,8 @@ ${Closer({
 `;
   page(`note-${n.slug}.html`, { title: n.title, description: n.dek, body, active: 'field-notes.html', lightHead: true });
 });
+const liveNotePages = new Set(D.fieldNotes.map((n) => `note-${n.slug}.html`));
+fs.readdirSync(OUT).filter((file) => /^note-.+\.html$/.test(file) && !liveNotePages.has(file)).forEach((file) => fs.unlinkSync(path.join(OUT, file)));
 
 /* =================================================== 11. Commission */
 
@@ -1137,7 +1173,7 @@ ${PageHero({
   eyebrow: 'Privacy policy',
   title: 'Your details, handled with care.',
   lede: 'This page explains what Friday collects, why we use it, and the choices you have.',
-  meta: [{ k: 'Effective date', v: '[OWNER: launch date]' }],
+  meta: [{ k: 'Effective date', v: 'October 7, 2026' }],
   seed: 'friday-privacy', scene: 'forest', tone: 'moss',
 })}
 <section class="section section--tight"><div class="wrap prose legal-document">
@@ -1167,20 +1203,20 @@ ${PageHero({
   <p>The site loads its fonts from Google Fonts. On account pages where Friday’s Hexclave browser app runs, its current settings enable automatic usage analytics and session replay. These can include the page address and title, click location, clicked text and link, and page content shown during a replay, such as trip details and visible chat messages; the SDK masks form inputs by default. Hexclave Clickmaps can show aggregate patterns from these click events. Friday does not use these tools for advertising. When quote-request measurement is active, Friday stores first-visit campaign source, medium, campaign and referring-site hostname in local storage, along with a short event queue and recent request references to prevent duplicates. After a successful enquiry or quote handoff, it sends Hexclave Analytics a quote event with a request reference Friday can match to the enquiry or handoff, the page category (enquiry, planner, villa or package) and those attribution details; it does not include your name, email, phone number or message text. You can clear the local attribution and event queue by clearing Friday’s site storage in your browser. The quote-event client turns off its own automatic analytics and session replay; the signed-in planner’s Hexclave client is separate.</p>
   <h2 class="h3" style="margin:2.5rem 0 .8rem">How long we keep information</h2>
   <p>Friday’s server keeps account records, saved trips, planning conversations and research records, Google-imported booking details, villa submissions, quote enquiries, email delivery records and newsletter subscription records. The current app code does not set an automatic deletion period for these records. We keep newsletter opt-in and unsubscribe status so we can respect your email choices. Google connection setup state expires after ten minutes. A trip share link stops working after 30 days, but its expired server record may remain until it is replaced, revoked or otherwise removed. Deleted data may remain in backups. We aim to delete backups within 30 days.</p>
-  <p>You can delete individual trip and planner records in the app, revoke a share link, and disconnect Google. There is no self-service account deletion or data-export control in the current app. Contact the privacy address above to request access, a copy, correction, deletion or account closure. We will verify the request and respond as required by applicable law. Unsubscribing from the newsletter currently requires contacting Friday; the site does not yet provide a self-service unsubscribe link.</p>
+  <p>You can delete individual trip and planner records in the app, revoke a share link, and disconnect Google. There is no self-service account deletion or data-export control in the current app. Contact the privacy address above to request access, a copy, correction, deletion or account closure. We will verify the request and respond as required by applicable law. To unsubscribe from the newsletter, use the unsubscribe link in any Friday newsletter email.</p>
   <h2 class="h3" style="margin:2.5rem 0 .8rem">Your rights and choices</h2>
   <p>Depending on the law that applies to you, you may have rights to access, obtain a copy of, correct, update or erase your personal data; withdraw consent where processing relies on consent; object to or restrict certain processing; and raise a grievance. For people in India, requests will be handled under the Digital Personal Data Protection Act, 2023 and applicable rules as they come into force. To make a request or raise a grievance, email <a href="mailto:manavdarooka1@gmail.com"><strong>manavdarooka1@gmail.com</strong></a>. You may also disconnect Google or clear browser storage as described above. Withdrawing consent does not affect processing already carried out lawfully before withdrawal.</p>
   <h2 class="h3" style="margin:2.5rem 0 .8rem">Security and changes</h2>
   <p>We use access controls and safeguards intended to protect information, but no internet service can guarantee absolute security. Please do not send passwords, payment-card details or sensitive identity documents in a trip note or enquiry. We may update this policy when Friday’s practices or legal requirements change. We will post the updated version here with a new effective date.</p>
 </div></section>`;
-page('privacy.html', { title: 'Privacy policy', description: 'How Friday collects, uses, stores and shares personal information.', body: privacy, active: 'about.html', lightHead: true });
+page('privacy.html', { title: 'Privacy policy', description: 'How Friday collects, uses, stores and shares personal information.', body: privacy, active: 'privacy.html', lightHead: true });
 
 const terms = `
 ${PageHero({
   eyebrow: 'Terms of use',
   title: 'A clearer way to plan.',
   lede: 'These terms explain what Friday offers and what to expect when you use it.',
-  meta: [{ k: 'Effective date', v: '[OWNER: launch date]' }],
+  meta: [{ k: 'Effective date', v: 'October 7, 2026' }],
   seed: 'friday-terms', scene: 'terraces', tone: 'slate',
 })}
 <section class="section section--tight"><div class="wrap prose legal-document">
@@ -1207,7 +1243,7 @@ ${PageHero({
   <p>We may revise these terms by posting an updated version here. If a change materially affects your rights, we will take steps required by law to notify you. If one part of these terms is unenforceable, the rest remains in effect.</p>
   <p>Not legal advice. Friday’s policies and terms should be reviewed by an Indian lawyer before launch.</p>
 </div></section>`;
-page('terms.html', { title: 'Terms of use', description: 'Terms for using Friday’s AI travel planning and enquiry service.', body: terms, active: 'about.html', lightHead: true });
+page('terms.html', { title: 'Terms of use', description: 'Terms for using Friday’s AI travel planning and enquiry service.', body: terms, active: 'terms.html', lightHead: true });
 
 /* ======================================================= 13. The planner */
 
@@ -1238,16 +1274,13 @@ const redirectPage = (file, target, label) => {
   ['wild.html', 'departures.html', 'Packages'],
   ['drive.html', 'departures.html', 'Packages'],
   ['salon.html', 'departures.html', 'Packages'],
-  ['field-notes.html', 'about.html', 'About Friday'],
   ['commission.html', 'contact.html', 'Contact Friday'],
 ].forEach(([file, target, label]) => redirectPage(file, target, label));
 D.compositions.forEach((item) => redirectPage(`composition-${item.slug}.html`, 'departures.html', 'Packages'));
 D.departures.forEach((item) => redirectPage(`departure-${item.slug}.html`, 'departures.html', 'Packages'));
-fs.readdirSync(OUT).filter((file) => /^note-.+\.html$/.test(file)).forEach((file) => redirectPage(file, 'about.html', 'About Friday'));
 
-/* Search files only name public pages. Configure PUBLIC_SITE_ORIGIN for a stable production sitemap.
-   APP_ORIGIN and Vercel's production URL are supported as fallbacks; no domain is guessed at build time. */
-const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'kerala-guide.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
+/* Friday's public Vercel domain is the canonical fallback; deployments can override it. */
+const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'kerala-guide.html', 'field-notes.html', 'privacy.html', 'terms.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
 write('sitemap.xml', sitemapXml(sitemapPages, PUBLIC_ORIGIN));
 write('robots.txt', robotsTxt(PUBLIC_ORIGIN));
 

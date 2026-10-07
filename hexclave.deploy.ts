@@ -19,6 +19,7 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, hexclave }) => ({
         HOST: "0.0.0.0",
         PORT: "3000",
         APP_ORIGIN: "https://fridaytravel.vercel.app",
+        APP_ORIGIN_ALIASES: "https://p-81-we-5b6199efcb56de4167-c098b2d7396b0066.deploy.built-with-hexclave.com",
         DATABASE_PATH: "/data/app/friday.sqlite",
         DATABASE_BACKUP_DIR: "/data/backups",
         DATABASE_BACKUP_INTERVAL_SECONDS: "86400",

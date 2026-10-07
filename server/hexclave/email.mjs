@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 const API_URL = 'https://api.hexclave.com/api/v1/emails/send-email';
 const validAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ''));
 
@@ -121,14 +123,21 @@ export function createHexclaveEmailService({ db, store, env = process.env, fetch
         html: content,
       });
     },
-    subscriptionConfirmation({ id, email }) {
+    subscriptionConfirmation({ id, email, consentAt }) {
+      const address = String(email || '').trim().toLowerCase();
+      const consent = typeof consentAt === 'string' ? consentAt : '';
+      const secret = env.NEWSLETTER_UNSUBSCRIBE_SECRET || env.HEXCLAVE_SECRET_SERVER_KEY;
+      const origin = String(env.APP_ORIGIN || (env.VERCEL_PROJECT_PRODUCTION_URL && `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`) || (env.VERCEL_URL && `https://${env.VERCEL_URL}`) || '').replace(/\/$/, '');
+      const token = secret && consent && `${Buffer.from(address).toString('base64url')}.${Buffer.from(consent).toString('base64url')}.${createHmac('sha256', secret).update(`${address}\n${consent}`).digest('base64url')}`;
+      const unsubscribeUrl = token && origin ? `${origin}/api/newsletter/unsubscribe?token=${encodeURIComponent(token)}` : '';
+      const footer = unsubscribeUrl ? `\n\nTo unsubscribe at any time: ${unsubscribeUrl}` : '';
       return send({
         dedupeKey: `subscription:${id}:confirmation`,
         kind: 'subscription_confirmation',
         to: email,
         subject: 'You’re on Friday’s list',
-        text: 'Thanks for choosing to receive occasional marketing notes from Friday. We have saved your signup and consent.',
-        html: '<p>Thanks for choosing to receive occasional marketing notes from Friday. We have saved your signup and consent.</p>',
+        text: `Thanks for choosing to receive occasional marketing notes from Friday. We have saved your signup and consent.${footer}`,
+        html: `<p>Thanks for choosing to receive occasional marketing notes from Friday. We have saved your signup and consent.</p>${unsubscribeUrl ? `<p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from Friday emails</a></p>` : ''}`,
       });
     },
     quote({ id, to, subject, text }) {

@@ -1,5 +1,6 @@
+import { createReelChat } from './reel-chat.mjs';
 import { createServer } from 'node:http';
-import { randomBytes, randomUUID, createHash, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomUUID, createHash, createHmac, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -87,9 +88,17 @@ export function createApp(options = {}) {
   const root = options.root || defaultRoot;
   const env = options.env || process.env;
   const production = env.NODE_ENV === 'production';
-  const configuredOrigin = options.origin || env.APP_ORIGIN || (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined));
+  const configuredOrigin = options.origin || env.APP_ORIGIN || (env.PUBLIC_SITE_ORIGIN ? env.PUBLIC_SITE_ORIGIN.replace(/\/$/, '') : (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined)));
   if (production && !configuredOrigin) throw new Error('APP_ORIGIN must be set to the exact public origin (for example https://friday.example) when NODE_ENV=production.');
   const origin = configuredOrigin || 'http://localhost:4871';
+  // Exact, explicitly configured aliases support a direct deployment URL alongside the canonical public site.
+  // Never infer production trust from Host, X-Forwarded-Host, or VERCEL_URL request data.
+  const trustedWriteOrigins = new Set([origin, ...String(env.APP_ORIGIN_ALIASES || '').split(',').map(value => value.trim()).filter(Boolean)]);
+  for (const value of trustedWriteOrigins) {
+    let parsed;
+    try { parsed = new URL(value); } catch { throw new Error(`Invalid trusted application origin: ${value}`); }
+    if (!['https:', 'http:'].includes(parsed.protocol) || parsed.origin !== value) throw new Error(`Trusted application origins must be bare origins: ${value}`);
+  }
   const secure = new URL(origin).protocol === 'https:';
   const loopback = value => ['localhost','127.0.0.1','::1','[::1]'].includes(String(value||'').toLowerCase());
   const hexclaveAuth = options.hexclaveAuth || (env.AUTH_PROVIDER==='local'&&!production
@@ -125,14 +134,13 @@ export function createApp(options = {}) {
   }
   const trips = createTripStore({ db, config: tripConfig, fetch: options.vaultFetch, vault: options.vault });
   log(`trip storage: ${trips.mode}`);
-  const provider=env.AI_PROVIDER||'claude';
-  const config = options.ai || { provider, apiKey:provider==='perplexity'?env.PERPLEXITY_API_KEY:env.ANTHROPIC_API_KEY, model:env.AI_MODEL, deepModel:env.AI_DEEP_MODEL, effort:env.AI_EFFORT, searchProvider:env.SEARCH_PROVIDER, searchApiKey:env.PERPLEXITY_API_KEY };
+  const config = options.ai || {provider:'openai',apiKey:env.OPENAI_API_KEY,model:env.OPENAI_RESEARCH_MODEL||env.OPENAI_MODEL||'gpt-5-mini',deepModel:env.OPENAI_DEEP_MODEL,fetch:options.fetch};
   store.failInterruptedJobs(db);
-  if ((env.ANTHROPIC_API_KEY || env.PERPLEXITY_API_KEY) && !env.AI_MODEL && !options.ai) console.warn('[friday] An AI provider key is set but AI_MODEL is not, so research stays unavailable. Set AI_MODEL to a model name your provider supports.');
   const researchFn=options.research||research;
   const researchLinkFn=options.researchLink||researchLink;
   const friday=createFridayWorkflow({db,store,env,fetch:options.fetch,tripFind:async(id,uid)=>trips.find(id,uid),aiConfig:config,email:emailService});
   const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,aiConfig:config,log});
+  const reelChat=createReelChat({db,reels,friday,email:emailService,env,config,interpret:options.reelInterpret});
   const parseAdminEmails = value => String(value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
   const generalAdminEmails = parseAdminEmails(env.ADMIN_EMAILS);
   const villaAdminEmails = parseAdminEmails(env.VILLA_ADMIN_EMAILS);
@@ -266,11 +274,11 @@ export function createApp(options = {}) {
       }
       rate('api:'+ip,240);
       if (!['GET','HEAD'].includes(method)) {
-        // Production accepts exactly APP_ORIGIN. Elsewhere (127.0.0.1, a LAN address, a dev proxy) an Origin that matches the
+        // Production accepts only explicitly configured origins. Elsewhere (127.0.0.1, a LAN address, a dev proxy) an Origin that matches the
         // Host the browser used is also fine.
         const from=req.headers.origin;
         const sameHost=()=>{try{const u=new URL(from);return ['http:','https:'].includes(u.protocol)&&u.host===req.headers.host;}catch{return false;}};
-        if (from !== origin && (production || !from || !sameHost())) fail(403,'Please submit from the Friday website.');
+        if (!trustedWriteOrigins.has(from) && (production || !from || !sameHost())) fail(403,'Please submit from the Friday website.');
         if (!/^application\/json(?:;|$)/i.test(req.headers['content-type']||'')) fail(415,'Send JSON data.');
       }
       let body={};
@@ -308,6 +316,32 @@ export function createApp(options = {}) {
       };
       if (p==='/api/health') {allow('GET','HEAD');return send(200,{ok:true,itineraryProvider:itineraries.name,knowledge:{sources:knowledge.sources,chars:knowledge.chars}});}
       if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportMetroCount:metros.length,chatgpt:publicChatgpt(chatgpt)});}
+      if (p==='/api/newsletter/unsubscribe') {
+        allow('GET','HEAD','POST');
+        const token=method==='POST'?(typeof body.token==='string'?body.token:''):url.searchParams.get('token')||'';
+        const secret=env.NEWSLETTER_UNSUBSCRIBE_SECRET||env.HEXCLAVE_SECRET_SERVER_KEY||'';
+        const invalid=()=>fail(400,'This unsubscribe link is invalid or expired.');
+        const [encodedEmail,encodedConsentAt,signature,...extra]=token.split('.');
+        if(!secret||!encodedEmail||!encodedConsentAt||!signature||extra.length)invalid();
+        let address;
+        try{address=Buffer.from(encodedEmail,'base64url').toString('utf8');}catch{invalid();}
+        if(!address||Buffer.from(address).toString('base64url')!==encodedEmail||address!==address.toLowerCase()||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address))invalid();
+        let consentAt;
+        try{consentAt=Buffer.from(encodedConsentAt,'base64url').toString('utf8');}catch{invalid();}
+        if(!consentAt||Buffer.from(consentAt).toString('base64url')!==encodedConsentAt||Number.isNaN(Date.parse(consentAt)))invalid();
+        const expected=createHmac('sha256',secret).update(`${address}\n${consentAt}`).digest('base64url');
+        const actualBytes=Buffer.from(signature,'base64url'),expectedBytes=Buffer.from(expected,'base64url');
+        if(actualBytes.length!==expectedBytes.length||!timingSafeEqual(actualBytes,expectedBytes))invalid();
+        const subscriber=store.getNewsletterSubscriber(db,address);
+        if(!subscriber||subscriber.consent_at!==consentAt||subscriber.status!=='subscribed')invalid();
+        if(method==='GET'||method==='HEAD'){
+          const escapedToken=token.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          const page=`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribe from Friday</title><body><main><h1>Unsubscribe from Friday emails?</h1><p>Confirm below to stop newsletter emails for ${address.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}.</p><button id="confirm" type="button">Unsubscribe</button><p id="status" role="status"></p></main><script>document.querySelector('#confirm').addEventListener('click',async()=>{const b=document.querySelector('#confirm'),s=document.querySelector('#status');b.disabled=true;try{const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${escapedToken}'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Please try again.');s.textContent='You are unsubscribed.';b.hidden=true;}catch(e){s.textContent=e.message;b.disabled=false;}})</script></body></html>`;
+          res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(method==='HEAD'?undefined:page);return;
+        }
+        store.unsubscribeNewsletterSubscriber(db,address,new Date().toISOString());
+        return send(200,{ok:true});
+      }
       if (p==='/api/airports' && method==='GET') {
         const q=(url.searchParams.get('q')||'').toLowerCase().trim();
         return send(200,{metros:metros.filter(m=>[m.city,...m.aliases].some(s=>s.toLowerCase().includes(q))).slice(0,10)});
@@ -560,6 +594,12 @@ export function createApp(options = {}) {
         const last=events[events.length-1];
         return send(200,{events,nextBefore:last?Buffer.from(JSON.stringify({created:last.created,ownerId:last.owner_id,conversationId:last.conversation_id,eventKey:last.event_key})).toString('base64url'):null});
       }
+      if(p==='/api/friday/reel-chat'){
+        allow('POST');if(!user)fail(401,'Please sign in.');rate('reel-chat:'+user.id,30);
+        const audit=startAiAudit(body.conversationId,'reel_chat',{request:body},undefined,body.ownerId);
+        try{const result=await reelChat.chat(user,body);finishAiAudit(audit,'completed',{request:body,response:result});return send(200,result);}
+        catch(error){finishAiAudit(audit,'failed',{request:body,error:error.message});throw error;}
+      }
       if(p==='/api/friday/reels'&&method==='POST'){
         allow('POST');if(!user)fail(401,'Please sign in.');rate('reels:'+user.id,5);
         const audit=startAiAudit(body.conversationId,'reel_itinerary',{request:body},undefined,user.id);
@@ -777,7 +817,7 @@ export function createApp(options = {}) {
         }
         const address=email(body.email);
         store.upsertNewsletterSubscriber(db,{email:address,consentAt:created,source:'website',created});
-        const confirmation=await emailService.subscriptionConfirmation({id,email:address});
+        const confirmation=await emailService.subscriptionConfirmation({id,email:address,consentAt:created});
         return send(201,{id,saved:true,delivery:confirmation?.status||'blocked'});
       }
       if(!user) fail(401,'Please sign in.');

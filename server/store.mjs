@@ -192,6 +192,7 @@ export const upsertNewsletterSubscriber = (db, { email, consentAt, source='websi
   VALUES(?,?,?,'subscribed',?,?) ON CONFLICT(email) DO UPDATE SET consent_at=excluded.consent_at,source=excluded.source,status='subscribed',updated=excluded.updated,unsubscribed_at=NULL`)
   .run(email,consentAt,source,created,consentAt);
 export const getNewsletterSubscriber = (db, email) => db.prepare('SELECT email,consent_at,source,status,created,updated,unsubscribed_at FROM newsletter_subscribers WHERE email=?').get(email);
+export const unsubscribeNewsletterSubscriber = (db, email, unsubscribedAt = new Date().toISOString()) => db.prepare("UPDATE newsletter_subscribers SET status='unsubscribed',updated=?,unsubscribed_at=? WHERE email=? AND status='subscribed'").run(unsubscribedAt, unsubscribedAt, email).changes;
 
 /* ---- Google connections (Gmail and Calendar read-only) ---- */
 export function ensureGoogleSchema(db) {

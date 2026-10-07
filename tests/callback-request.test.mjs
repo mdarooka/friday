@@ -96,5 +96,8 @@ test('generated contact page and planner include callback form and analytics scr
   assert.match(contact, /Call me back/);
   assert.match(contact, /callback-analytics\.js/);
   assert.match(planner, /callback-analytics\.js/);
-  assert.match(await readFile(new URL('../assets/js/trip-integrations.js', import.meta.url), 'utf8'), /label: 'Call me back'/);
+  const integrations = await readFile(new URL('../assets/js/trip-integrations.js', import.meta.url), 'utf8');
+  assert.match(integrations, /label: 'Call me back'/);
+  assert.match(integrations, /fx-planner-callback/);
+  assert.match(await readFile(new URL('../assets/css/trip.css', import.meta.url), 'utf8'), /\.fx-planner-callback\s*\{[\s\S]*position:\s*fixed/);
 });

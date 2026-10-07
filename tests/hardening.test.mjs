@@ -150,15 +150,13 @@ test('unexpected server errors are logged without leaking details to the client'
   assert.ok(logged.mock.calls.some((c) => String(c.arguments[0]).includes('boom from places')));
 });
 
-test('a provider key without AI_MODEL warns at startup', async (t) => {
-  const warn = t.mock.method(console, 'warn', () => {});
-  await startApp(t, { env: { ANTHROPIC_API_KEY: 'sk-ant-secret' } });
-  assert.equal(warn.mock.calls.length, 1);
-  assert.match(String(warn.mock.calls[0].arguments[0]), /AI_MODEL/);
-  assert.equal(String(warn.mock.calls[0].arguments[0]).includes('sk-ant-secret'), false);
-  await startApp(t, { env: { PERPLEXITY_API_KEY: 'pplx', AI_PROVIDER: 'perplexity' } });
-  assert.equal(warn.mock.calls.length, 2);
-  await startApp(t, { env: { ANTHROPIC_API_KEY: 'k', AI_MODEL: 'some-model' } });
-  await startApp(t);
-  assert.equal(warn.mock.calls.length, 2);
+test('production research configuration uses only OpenAI credentials', async (t) => {
+  for (const env of [{ANTHROPIC_API_KEY:'legacy',AI_PROVIDER:'claude'}, {PERPLEXITY_API_KEY:'legacy',AI_PROVIDER:'perplexity'}]) {
+    const {request}=await startApp(t,{env});
+    assert.equal((await request('/api/capabilities')).result.research,false);
+  }
+  const {request}=await startApp(t,{env:{OPENAI_API_KEY:'server-only',AI_PROVIDER:'claude'}});
+  const capabilities=(await request('/api/capabilities')).result;
+  assert.equal(capabilities.research,true);
+  assert.equal(JSON.stringify(capabilities).includes('server-only'),false);
 });

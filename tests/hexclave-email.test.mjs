@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import { createHexclaveEmailService } from '../server/hexclave/email.mjs';
 import * as store from '../server/store.mjs';
 import { openStore } from '../server/store.mjs';
@@ -72,12 +73,34 @@ test('newsletter storage records consent and never turns commission enquiries in
   assert.equal(store.getNewsletterSubscriber(db, 'reader@example.com').status, 'subscribed');
   assert.equal(store.getNewsletterSubscriber(db, 'reader@example.com').consent_at, consentAt);
   assert.equal(store.getNewsletterSubscriber(db, 'traveler@example.com'), undefined);
+  assert.equal(store.unsubscribeNewsletterSubscriber(db, 'reader@example.com'), 1);
+  assert.equal(store.getNewsletterSubscriber(db, 'reader@example.com').status, 'unsubscribed');
+  assert.equal(store.unsubscribeNewsletterSubscriber(db, 'reader@example.com'), 0);
+});
+
+test('newsletter signup confirmation includes a verifiable self-serve unsubscribe link', async t => {
+  const db = openStore(':memory:');
+  t.after(() => db.close());
+  let sent;
+  const email = createHexclaveEmailService({ db, store, env: { ...config, APP_ORIGIN: 'https://friday.example' }, fetch: async (_url, options) => { sent = JSON.parse(options.body); return new Response(null, { status: 202 }); } });
+  const consentAt = '2026-10-07T12:00:00.000Z';
+  await email.subscriptionConfirmation({ id: 'signup-1', email: 'Reader@Example.com', consentAt });
+  assert.match(sent.html, /https:\/\/friday\.example\/api\/newsletter\/unsubscribe\?token=/);
+  assert.match(sent.html, /Unsubscribe from Friday emails/);
+  const token = /newsletter\/unsubscribe\?token=([^"&]+)/.exec(sent.html)?.[1];
+  assert.ok(token);
+  const [encodedEmail, encodedConsent, signature] = token.split('.');
+  const address = Buffer.from(encodedEmail, 'base64url').toString();
+  const consent = Buffer.from(encodedConsent, 'base64url').toString();
+  assert.equal(address, 'reader@example.com');
+  assert.equal(consent, consentAt);
+  assert.equal(signature, createHmac('sha256', config.HEXCLAVE_SECRET_SERVER_KEY).update(`${address}\n${consent}`).digest('base64url'));
 });
 
 test('commission and newsletter routes call Hexclave only after saving valid submissions', async t => {
   const sends = [];
   const { request } = await startApp(t, {
-    env: { ...config, AUTH_PROVIDER: 'local', FRIDAY_ENQUIRY_EMAIL: 'studio@example.com' },
+    env: { ...config, APP_ORIGIN: 'http://localhost:4871', AUTH_PROVIDER: 'local', FRIDAY_ENQUIRY_EMAIL: 'studio@example.com' },
     hexclaveAuth: { configured: false, currentUser: async () => null },
     emailFetch: async (url, options) => {
       sends.push({ url, body: JSON.parse(options.body) });
@@ -97,4 +120,16 @@ test('commission and newsletter routes call Hexclave only after saving valid sub
   assert.equal(subscription.status, 201);
   assert.equal(subscription.result.delivery, 'provider_accepted');
   assert.equal(sends.length, 3);
+  const unsubscribeToken = /newsletter\/unsubscribe\?token=([^"&]+)/.exec(sends.find(x => x.body.emails[0] === 'reader@example.com').body.html)?.[1];
+  assert.ok(unsubscribeToken);
+  const landing = await request(`/api/newsletter/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`);
+  assert.equal(landing.status, 200);
+  assert.match(landing.result, /Unsubscribe from Friday emails\?/);
+  const unsubscribed = await request('/api/newsletter/unsubscribe', 'POST', { token: unsubscribeToken });
+  assert.equal(unsubscribed.status, 200);
+  assert.equal(unsubscribed.result.ok, true);
+  assert.equal((await request('/api/newsletter/unsubscribe', 'POST', { token: unsubscribeToken })).status, 400);
+  const resubscribed = await request('/api/subscriptions', 'POST', { email: 'reader@example.com', consent: true });
+  assert.equal(resubscribed.status, 201);
+  assert.equal((await request('/api/newsletter/unsubscribe', 'POST', { token: unsubscribeToken })).status, 400);
 });
