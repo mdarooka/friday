@@ -3,13 +3,18 @@
   'use strict';
   var FT=window.FridayTrip=window.FridayTrip||{};
   var state=null,user=null,capabilities={},authState={},hexclaveApp=null,hexclaveLoad=null,initializationError=null,records={trips:new Map(),places:new Map(),lists:new Map(),bookings:new Map(),memories:new Map(),alerts:new Map(),imports:new Map()},queue=Promise.resolve(),timer=null,ready=false,unsubscribe=null,pending=new Map(),syntheticCatalogKeys=new Set(),lastProfile='';
+  function authorizationHeader(){
+    /* getAuthorizationHeader() ignores restricted (unverified-email) users; resolve the user explicitly so they stay signed in for the verification screen. */
+    if(typeof hexclaveApp.getUser!=='function')return Promise.resolve(hexclaveApp.getAuthorizationHeader());
+    return Promise.resolve(hexclaveApp.getUser({includeRestricted:true})).then(function(u){return u&&typeof u.getAuthorizationHeader==='function'?u.getAuthorizationHeader():null;});
+  }
   function installAuthorizedFetch(){
     if(typeof window==='undefined'||typeof window.fetch!=='function'||window.fetch.__fridayHexclave)return;
     var original=window.fetch.bind(window);
     var wrapped=function(input,init){
       var url;try{url=new URL(typeof input==='string'?input:input.url,location.href);}catch(e){return original(input,init);}
       if(!hexclaveApp||url.origin!==location.origin)return original(input,init);
-      return Promise.resolve(hexclaveApp.getAuthorizationHeader()).then(function(value){
+      return authorizationHeader().then(function(value){
         if(!value)return original(input,init);
         var headers=new Headers(init&&init.headers||(typeof Request!=='undefined'&&input instanceof Request?input.headers:undefined));
         if(!headers.has('Authorization'))headers.set('Authorization',value);
