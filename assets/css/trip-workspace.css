@@ -751,3 +751,10 @@ body[data-route="trip"] .wsp-inlineadd {
 .fx-shared__day li { padding-left:.35rem; line-height:1.6; }
 .fx-shared__day li p,.fx-shared__day li span { display:block; margin:.25rem 0; color:var(--fg-mute); }
 .fx-shared__foot { margin-top:3rem; padding-top:1rem; border-top:1px solid var(--rule); color:var(--fg-mute); }
+
+.fx-new__memory { width: min(100%, 720px); margin: 1.5rem auto 0; text-align: left; }
+.fx-new__memory-row { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; padding: .25rem 0; }
+.fx-new__memory-row label { display: flex; align-items: flex-start; gap: .6rem; line-height: 1.45; }
+.fx-new__memory-row label input { margin-top: .25rem; }
+.fx-new__memory-row label span { font-size: .8rem; }
+.fx-new__memory > .fx-btn { margin-top: .5rem; }

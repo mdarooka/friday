@@ -1385,6 +1385,9 @@
       const requestedDestination = new URLSearchParams(location.search || '').get('destination');
       const presetDestination = requestedDestination && FT.dest(requestedDestination);
       const starterText = presetDestination ? (presetDestination.prompt || 'Plan a trip to ' + presetDestination.name) : '';
+      const remembered = FT.memoryContext ? FT.memoryContext.list(state) : [];
+      const showMemory = remembered.length > 0;
+      const renderMemory = () => showMemory ? '<section class="fx-new__memory fx-integration-list" aria-labelledby="fx-new-memory-title"><div><h2 class="fx-h2" id="fx-new-memory-title">What Friday remembers about you</h2><p class="fx-hint">Choose what to use for this trip. Selected details go to Friday’s planner and, if you request a quote, the travel designer.</p></div>' + remembered.map((item) => '<div class="fx-new__memory-row"><label><input type="checkbox" data-memory-pick="' + esc(item.key) + '" checked><span><strong>' + esc(item.label) + '</strong><br>' + esc(item.text) + '</span></label>' + (item.source === 'memory' ? '<div class="fx-integration-actions"><button class="fx-btn fx-btn--line" type="button" data-memory-edit="' + esc(item.id) + '">Edit</button><button class="fx-btn fx-btn--line" type="button" data-memory-remove="' + esc(item.id) + '">Remove</button></div>' : '') + '</div>').join('') + '<button class="fx-btn fx-btn--line" type="button" data-open-prefs>Edit travel preferences</button></section>' : '';
       el.innerHTML =
         '<div class="fx-new"><div class="fx-new__in">' +
         '<p class="fx-new__eyebrow">Your travel designer</p>' +
@@ -1403,14 +1406,28 @@
         '<p class="fx-new__helper">Start with a place, a feeling, or an idea.</p>' +
         '<div class="fx-new__suggestions" aria-label="Ideas to get started">' +
         ['A quiet weekend', 'Somewhere by the sea', 'Art, food & culture'].map((s) => '<button class="fx-new__suggestion" type="button" data-suggestion="' + esc(s) + '">' + esc(s) + '</button>').join('') +
-        '</div><button class="fx-btn fx-btn--line" type="button" data-act="plan-reel">Plan from a reel</button>' +
+        '</div>' + renderMemory() + '<button class="fx-btn fx-btn--line" type="button" data-act="plan-reel">Plan from a reel</button>' +
         '</div></div>';
-      wirePrompt(el);
+      if (showMemory) {
+        delegate(el, 'click', '[data-memory-edit]', async (e, button) => {
+          const item = (state.memory || []).find((memory) => memory.id === button.dataset.memoryEdit);
+          if (item && FT.integrations && FT.integrations.editMemory) { await FT.integrations.editMemory(item); pages.new.render(); }
+        });
+        delegate(el, 'click', '[data-memory-remove]', async (e, button) => {
+          const item = (state.memory || []).find((memory) => memory.id === button.dataset.memoryRemove);
+          if (item && await FT.ui.confirm('Remove this memory from Friday?', { title: 'Remove memory', okLabel: 'Remove', danger: true })) {
+            store.update((s) => { s.memory = s.memory.filter((memory) => memory.id !== item.id); });
+            pages.new.render();
+          }
+        });
+        delegate(el, 'click', '[data-open-prefs]', () => router.go('#/preferences'));
+      }
+      wirePrompt(el, remembered, showMemory);
       if (!isNarrow()) { const ta = $('.fx-prompt__ta', el); if (ta) safeFocus(ta); }
     },
   };
 
-  function wirePrompt(root) {
+  function wirePrompt(root, rememberedItems, memoryShown) {
     const form = $('[data-prompt]', root);
     const ta = $('.fx-prompt__ta', form);
     const send = $('.fx-send', form);
@@ -1477,10 +1494,16 @@
     function submit() {
       const text = ta.value.trim();
       if (!text) { ta.focus(); return; }
-      const payload = { text, attachments: atts.map((a) => ({ name: a.name })) };
+      const selected = Array.from(root.querySelectorAll('[data-memory-pick]:checked')).map((box) => rememberedItems.find((item) => item.key === box.dataset.memoryPick)).filter(Boolean);
+      const applied = selected.map((item) => ({ label: item.label, text: item.text }));
+      const planningText = FT.memoryContext ? FT.memoryContext.apply(text, applied) : text;
+      const payload = { text: planningText, attachments: atts.map((a) => ({ name: a.name })) };
+      const returning = state.trips.length > 0;
       const requestedDestination = new URLSearchParams(location.search || '').get('destination');
       const presetDestination = requestedDestination && FT.dest(requestedDestination);
       const trip = FT.trips.create(presetDestination ? { destId: presetDestination.id } : undefined);
+      store.update((s) => { const created = s.trips.find((item) => item.id === trip.id); if (created) created.rememberedPreferences = applied; });
+      if (FT.backend && FT.backend.user && FT.tripAnalytics && typeof FT.tripAnalytics.trackCreated === 'function') FT.tripAnalytics.trackCreated({ returning: returning, memory_shown: !!memoryShown, memory_applied_count: applied.length });
       router.go('#/trip/' + trip.id);
       if (FT.chat && typeof FT.chat.send === 'function') {
         try { FT.chat.send(payload); } catch (err) { console.error(err); toast('The assistant hit a snag.'); }
