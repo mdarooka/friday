@@ -98,3 +98,21 @@ test('generated contact page and planner include callback form and analytics scr
   assert.match(integrations, /fx-planner-callback/);
   assert.match(await readFile(new URL('../assets/css/trip.css', import.meta.url), 'utf8'), /\.fx-planner-callback\s*\{[\s\S]*position:\s*fixed/);
 });
+
+
+test('callback phone patterns use the same current-browser validation on contact and planner forms', async () => {
+  const contact = await readFile(new URL('../contact.html', import.meta.url), 'utf8');
+  const integrations = await readFile(new URL('../assets/js/trip-integrations.js', import.meta.url), 'utf8');
+  const contactPattern = contact.match(/id="callback-phone"[^>]*pattern="([^"]+)"/);
+  const plannerPattern = integrations.match(/pattern=\\?"([^"]+)\\?"/);
+  assert.ok(contactPattern, 'contact phone input has a pattern');
+  assert.ok(plannerPattern, 'planner phone input has a pattern');
+  const patterns = [contactPattern[1], JSON.parse('"' + plannerPattern[1] + '"')];
+  for (const p of patterns) {
+    const phone = new RegExp(`^(?:${p})$`, 'v');
+    assert.equal(phone.test('+91 98765 43210'), true);
+    assert.equal(phone.test('12345'), false);
+    assert.equal(phone.test('9876543210'), true);
+  }
+  assert.equal(patterns[0], patterns[1], 'contact and planner patterns stay consistent');
+});
