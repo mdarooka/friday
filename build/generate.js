@@ -168,7 +168,7 @@ const home = `
 
 page('index.html', { title: 'Your travel designer', description: 'Friday is an AI travel designer from Bombay. Explore villas and sample packages, or shape a trip with Friday.', body: home });
 
-/* ======================================================== Kerala guide */
+/* ======================================================== Destination guides */
 
 const KERALA = require('./trip-data/kerala');
 const guideAreaOrder = ['kochi', 'munnar', 'thekkady', 'alleppey', 'kumarakom', 'varkala', 'kovalam'];
@@ -285,6 +285,20 @@ page('kyoto-guide.html', {
   description: 'Plan a Kyoto trip from Bombay: three itinerary arcs, a stay shortlist by neighbourhood, and practical notes on flights, visas and seasons.',
   body: kyotoGuide({ PageHero, T, KYOTO: require('./trip-data/kyoto') }), canonical: 'kyoto-guide.html',
   social: guideSocial('kyoto', 'Friday’s Kyoto guide: Kyoto, one slow day at a time, beside a layered autumn landscape'),
+});
+
+const { DESTINATIONS } = require('./trip-data');
+const { GUIDES, guideFiles, renderDestinationGuide } = require('./destination-guides');
+GUIDES.filter((guide) => guide.id !== 'kerala').forEach((guide) => {
+  const catalog = DESTINATIONS[guide.id];
+  if (!catalog) throw new Error(`Missing destination catalogue for ${guide.id}`);
+  page(guide.file, {
+    title: guide.title,
+    description: guide.description,
+    body: renderDestinationGuide(guide, catalog, { PageHero, esc: T.esc }),
+    canonical: guide.file,
+    social: guideSocial(guide.id, `Friday’s ${guide.id} guide`),
+  });
 });
 
 page('partner.html', { title: 'List your villa', description: 'Introduce your villa to Friday for consideration in its collection of considered places to stay.', body: partnerBody(), active: 'partner.html', lightHead: true, extraStyles: ['assets/css/partner.css'], extraScripts: ['assets/js/partner.js'] });
@@ -1364,7 +1378,7 @@ D.compositions.forEach((item) => redirectPage(`composition-${item.slug}.html`, '
 D.departures.forEach((item) => redirectPage(`departure-${item.slug}.html`, 'departures.html', 'Packages'));
 
 /* Friday's public Vercel domain is the canonical fallback; deployments can override it. */
-const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'kerala-guide.html', 'kyoto-guide.html', 'field-notes.html', 'privacy.html', 'terms.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
+const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', ...guideFiles(), 'kyoto-guide.html', 'field-notes.html', 'privacy.html', 'terms.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
 write('sitemap.xml', sitemapXml(sitemapPages, PUBLIC_ORIGIN));
 write('robots.txt', robotsTxt(PUBLIC_ORIGIN));
 

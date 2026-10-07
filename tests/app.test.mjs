@@ -83,10 +83,18 @@ test('missing public pages are branded 404s, APIs stay JSON, and short page path
 });
 test('public guide, robots and sitemap files are served while backend source stays private',async t=>{
   const request=await fixture(t);
-  const guide=await request('/kerala-guide.html');
-  assert.equal(guide.status,200);assert.match(guide.headers.get('content-type'),/text\/html/);assert.match(guide.result,/Kerala Travel Guide/);
+  for (const [path, title] of [
+    ['/kerala-guide.html', /Kerala Travel Guide/],
+    ['/goa-guide.html', /Goa Travel Guide/],
+    ['/rajasthan-guide.html', /Rajasthan Travel Guide/],
+  ]) {
+    const guide = await request(path);
+    assert.equal(guide.status, 200);
+    assert.match(guide.headers.get('content-type'), /text\/html/);
+    assert.match(guide.result, title);
+  }
   const robots=await request('/robots.txt');
-  assert.equal(robots.status,200);assert.match(robots.headers.get('content-type'),/text\/plain/);assert.match(robots.result,/Disallow: \/api\//);assert.doesNotMatch(robots.result,/Disallow: \/kerala-guide/);
+  assert.equal(robots.status,200);assert.match(robots.headers.get('content-type'),/text\/plain/);assert.match(robots.result,/Disallow: \/api\//);assert.doesNotMatch(robots.result,/Disallow: \/kerala-guide/);assert.doesNotMatch(robots.result,/Disallow: \/goa-guide/);assert.doesNotMatch(robots.result,/Disallow: \/rajasthan-guide/);
   const sitemap=await request('/sitemap.xml');
   assert.equal(sitemap.status,200);assert.match(sitemap.headers.get('content-type'),/application\/xml/);assert.match(sitemap.result,/<urlset/);
 });

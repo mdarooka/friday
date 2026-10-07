@@ -141,7 +141,6 @@ function Footer() {
       <p class="foot__h">${h}</p>
       <ul class="foot__list">${items.map((i) => `<li><a href="${i.href}">${i.label}</a></li>`).join('')}</ul>
     </div>`;
-
   return `
 <footer class="foot inverse">
   <div class="wrap">
@@ -153,6 +152,8 @@ function Footer() {
         { label: 'Packages', href: 'departures.html' },
         { label: 'Kerala guide', href: 'kerala-guide.html' },
         { label: 'Kyoto guide', href: 'kyoto-guide.html' },
+        { label: 'Goa guide', href: 'goa-guide.html' },
+        { label: 'Rajasthan guide', href: 'rajasthan-guide.html' },
         { label: 'Field Notes', href: 'field-notes.html' },
         { label: 'Plan a trip', href: 'trip.html' },
       ])}

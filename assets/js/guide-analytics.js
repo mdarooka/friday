@@ -1,4 +1,4 @@
-/* Public page, Kerala guide, and guide-to-planner events. Sent through FridayAnalytics (friday-analytics.js). */
+/* Public page, destination guide, and guide-to-planner events. Sent through FridayAnalytics (friday-analytics.js). */
 (function () {
   'use strict';
   var A = window.FridayAnalytics;
@@ -14,6 +14,11 @@
     var id = A.uuid();
     return A.track(name, Object.assign({ event_id: id }, data), id);
   }
+  var GUIDES = ['kerala', 'kyoto', 'goa', 'rajasthan'];
+  function guideDestinationFromPath(pathname) {
+    var match = String(pathname || '').match(/^\/([a-z0-9-]+)-guide(?:\.html)?$/);
+    return match && GUIDES.indexOf(match[1]) !== -1 ? match[1] : null;
+  }
   function trackPublicPageView() {
     var path = A.pathname();
     if (/^\/(?:admin(?:-villas)?(?:\.html)?|chatgpt-callback\.html|app(?:\.html)?)$/.test(path)) return Promise.resolve();
@@ -24,10 +29,8 @@
       first_touch_landing_path: A.firstTouch().landing_path,
     });
   }
-  var GUIDES = ['kerala', 'kyoto'];
   function guideFromPath() {
-    var m = /^\/(kerala|kyoto)-guide(?:\.html)?$/.exec(A.pathname() || '');
-    return m ? m[1] : null;
+    return guideDestinationFromPath(A.pathname());
   }
   function trackGuideView() {
     var tags = A.currentTags();
@@ -69,13 +72,15 @@
     return promise;
   }
 
-  window.FridayGuideAnalytics = { trackPublicPageView: trackPublicPageView, trackGuideView: trackGuideView, trackCta: trackCta, tripStarted: tripStarted, flush: A.flush };
+  window.FridayGuideAnalytics = { trackPublicPageView: trackPublicPageView, trackGuideView: trackGuideView, trackCta: trackCta, tripStarted: tripStarted, flush: A.flush, guideDestinationFromPath: guideDestinationFromPath };
   trackPublicPageView();
   if (guideFromPath()) trackGuideView();
   if (document.addEventListener) document.addEventListener('click', function (event) {
     var link = event.target && event.target.closest ? event.target.closest('[data-guide-cta]') : null;
     if (!link) return;
     var target = link.getAttribute('data-guide-cta');
-    if (target === 'planner' || target === 'quote') trackCta(target, guideFromPath() || 'kerala');
+    if (target !== 'planner' && target !== 'quote') return;
+    var destination = link.getAttribute('data-guide-destination') || guideFromPath();
+    if (GUIDES.indexOf(destination) !== -1) trackCta(target, destination);
   });
 })();
