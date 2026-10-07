@@ -78,6 +78,20 @@ test('newsletter storage records consent and never turns commission enquiries in
   assert.equal(await store.unsubscribeNewsletterSubscriber(db, 'reader@example.com'), 0);
 });
 
+test('production newsletter links use fridaytravel.vercel.app when no origin is configured', async t => {
+  const db = openStore({ memory: true });
+  t.after(() => db.close());
+  let sent;
+  const email = createHexclaveEmailService({
+    db, store,
+    env: { ...config, NODE_ENV: 'production', VERCEL_URL: 'friday-travel-peach.vercel.app', VERCEL_PROJECT_PRODUCTION_URL: 'friday-travel-peach.vercel.app' },
+    fetch: async (_url, options) => { sent = JSON.parse(options.body); return new Response(null, { status: 202 }); },
+  });
+  await email.subscriptionConfirmation({ id: 'signup-canonical', email: 'reader@example.com', consentAt: '2026-10-07T12:00:00.000Z' });
+  assert.match(sent.html, /https:\/\/fridaytravel\.vercel\.app\/api\/newsletter\/unsubscribe\?token=/);
+  assert.equal(JSON.stringify(sent).includes('peach'), false);
+});
+
 test('newsletter signup confirmation includes a verifiable self-serve unsubscribe link', async t => {
   const db = openStore({ memory: true });
   t.after(() => db.close());

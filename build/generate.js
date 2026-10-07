@@ -9,7 +9,7 @@ const { partnerBody } = require('./partner');
 const Villas = require('./villas');
 const Admin = require('./admin');
 const { guideFeedback } = require('./guide-feedback');
-const { siteOrigin, sitemapXml, robotsTxt } = require('./site-metadata');
+const { siteOrigin, publicUrl, sitemapXml, robotsTxt } = require('./site-metadata');
 const PUBLIC_ORIGIN = siteOrigin();
 const { cardUrl } = require('./social-cards');
 /* Per-guide share card ({ image, alt }) for layout()'s `social` option: assets/images/og/<id>-guide.jpg, absolute and version-stamped. */
@@ -21,12 +21,14 @@ const write = (file, html) => {
   return file;
 };
 const written = [];
+const publicPages = [];
 const legacyPage = /^(?:ethos|method|designers|alliances|compositions|wild|drive|salon|commission)\.html$|^(?:composition-|departure-).+\.html$/;
 const page = (file, opts) => {
   if (legacyPage.test(file)) return;
   const privatePage = file === 'admin.html' || file === 'admin-villas.html';
+  if (!privatePage) publicPages.push(file);
   const extraScripts = [...(privatePage ? [] : ['assets/js/guide-analytics.js']), ...(opts.extraScripts || [])];
-  written.push(write(file, layout({ ...opts, extraScripts })));
+  written.push(write(file, layout({ ...opts, canonical: privatePage ? null : file, robots: privatePage ? 'noindex, nofollow' : null, extraScripts })));
 };
 
 /* ========================================================== 1. Home */
@@ -1477,7 +1479,8 @@ const scriptsWritten = Object.keys(tripScripts).map((file) => {
 /* Old studio essays and journey catalogues remain as small, useful route aliases. */
 const redirectPage = (file, target, label) => {
   const safeTarget = T.esc(target);
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="0;url=${safeTarget}"><link rel="canonical" href="${safeTarget}"><title>${label} · Friday</title><link rel="stylesheet" href="assets/css/friday.css"></head><body><main style="min-height:100vh;display:grid;place-items:center;padding:2rem;text-align:center"><div><a class="wordmark" href="index.html"><span class="wordmark__name">Friday</span></a><p style="margin-top:2rem">This page has moved.</p><p><a class="link" href="${safeTarget}">Continue to ${label} <span class="arrow">&rarr;</span></a></p></div></main><script>location.replace(${JSON.stringify(target)})</script></body></html>`;
+  const canonicalHref = T.esc(publicUrl(target, PUBLIC_ORIGIN));
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="0;url=${safeTarget}"><link rel="canonical" href="${canonicalHref}"><title>${label} · Friday</title><link rel="stylesheet" href="assets/css/friday.css"></head><body><main style="min-height:100vh;display:grid;place-items:center;padding:2rem;text-align:center"><div><a class="wordmark" href="index.html"><span class="wordmark__name">Friday</span></a><p style="margin-top:2rem">This page has moved.</p><p><a class="link" href="${safeTarget}">Continue to ${label} <span class="arrow">&rarr;</span></a></p></div></main><script>location.replace(${JSON.stringify(target)})</script></body></html>`;
   written.push(write(file, html));
 };
 [
@@ -1494,8 +1497,8 @@ const redirectPage = (file, target, label) => {
 D.compositions.forEach((item) => redirectPage(`composition-${item.slug}.html`, 'departures.html', 'Packages'));
 D.departures.forEach((item) => redirectPage(`departure-${item.slug}.html`, 'departures.html', 'Packages'));
 
-/* Friday's public Vercel domain is the canonical fallback; deployments can override it. */
-const sitemapPages = [...new Set(['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'guides.html', 'field-notes.html', 'privacy.html', 'terms.html', ...guideFiles(), 'kyoto-guide.html', 'mumbai-quiet-weekend.html', ...publicGuidePages().map((guide) => guide.file), ...D.fieldNotes.map((note) => `note-${note.slug}.html`)])].filter((file) => fs.existsSync(path.join(OUT, file)));
+/* Public pages share one origin. index.html canonicalizes to /. */
+const sitemapPages = publicPages.filter((file) => fs.existsSync(path.join(OUT, file)));
 write('sitemap.xml', sitemapXml(sitemapPages, PUBLIC_ORIGIN));
 write('robots.txt', robotsTxt(PUBLIC_ORIGIN));
 

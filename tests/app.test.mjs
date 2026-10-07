@@ -82,7 +82,7 @@ test('missing public pages are branded 404s, APIs stay JSON, and short page path
   const sitemap=await request('/sitemap.xml');assert.doesNotMatch(sitemap.result,/404\.html|not-found/i);
 });
 test('public guide, robots and sitemap files are served while backend source stays private',async t=>{
-  const request=await fixture(t);
+  const request=await fixture(t,{env:{SEARCH_INDEXING:'on'}});
   for (const [path, title] of [
     ['/kerala-guide.html', /Kerala Travel Guide/],
     ['/goa-guide.html', /Goa Travel Guide/],

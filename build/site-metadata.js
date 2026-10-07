@@ -1,22 +1,25 @@
 'use strict';
 
+const CANONICAL_SITE_ORIGIN = 'https://fridaytravel.vercel.app';
+
 function siteOrigin(env = process.env) {
-  const configured = env.PUBLIC_SITE_ORIGIN || env.APP_ORIGIN ||
-    (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` :
-      env.VERCEL_URL ? `https://${env.VERCEL_URL}` : 'https://fridaytravel.vercel.app');
-  if (!configured) return null;
+  const configured = String(env.PUBLIC_SITE_ORIGIN || env.APP_ORIGIN || '').trim();
+  if (!configured) return CANONICAL_SITE_ORIGIN;
   try {
     const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(configured) ? configured : `https://${configured}`);
-    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    if (!['http:', 'https:'].includes(url.protocol)) return CANONICAL_SITE_ORIGIN;
     return url.origin;
   } catch (_) {
-    return null;
+    return CANONICAL_SITE_ORIGIN;
   }
 }
 
 function publicUrl(path, origin = siteOrigin()) {
-  const cleanPath = String(path || '').replace(/^\/+/, '');
-  return origin ? `${origin}/${cleanPath}` : cleanPath;
+  const value = String(path || '').trim();
+  const pathname = !value || value === '/' || value.replace(/^\/+/, '') === 'index.html'
+    ? '/'
+    : `/${value.replace(/^\/+/, '')}`;
+  return origin ? `${origin}${pathname}` : pathname;
 }
 
 function sitemapXml(pages, origin = siteOrigin()) {
@@ -37,6 +40,7 @@ function robotsTxt(origin = siteOrigin()) {
     'Disallow: /admin',
     'Disallow: /admin-villas.html',
     'Disallow: /admin-villas',
+    'Disallow: /chatgpt-callback.html',
     'Disallow: /api/',
     'Disallow: /.data/',
     ...(origin ? [`Sitemap: ${publicUrl('sitemap.xml', origin)}`] : []),
@@ -44,4 +48,4 @@ function robotsTxt(origin = siteOrigin()) {
   ].join('\n');
 }
 
-module.exports = { siteOrigin, publicUrl, sitemapXml, robotsTxt };
+module.exports = { CANONICAL_SITE_ORIGIN, siteOrigin, publicUrl, sitemapXml, robotsTxt };

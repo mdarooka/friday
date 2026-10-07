@@ -186,11 +186,11 @@ function Footer() {
 
 /* ------------------------------------------------------------ the shell */
 
-function layout({ title, description, body, active, lightHead, canonical, social, extraStyles = [], extraScripts = [] }) {
+function layout({ title, description, body, active, lightHead, canonical, social, robots, extraStyles = [], extraScripts = [] }) {
   /* `social` = { image, alt } overrides the default share card (see build/social-cards.js). `image` must be absolute. */
   const socialImage = (social && social.image) || SOCIAL_IMAGE;
   const socialAlt = (social && social.alt) || 'A coastal travel scene with Friday’s thoughtful journeys message';
-  const canonicalHref = canonical ? publicUrl(canonical, SITE_ORIGIN) : null;
+  const canonicalHref = canonical && SITE_ORIGIN ? publicUrl(canonical, SITE_ORIGIN) : null;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -198,7 +198,7 @@ function layout({ title, description, body, active, lightHead, canonical, social
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} &middot; ${esc(D.brand.name)}</title>
 <meta name="description" content="${esc(description)}">
-<meta name="theme-color" content="#F4F1EA">
+${robots ? `<meta name="robots" content="${esc(robots)}">\n` : ''}<meta name="theme-color" content="#F4F1EA">
 <meta property="og:title" content="${esc(title)} · ${esc(D.brand.name)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:type" content="website">
@@ -210,7 +210,7 @@ function layout({ title, description, body, active, lightHead, canonical, social
 <meta name="twitter:title" content="${esc(title)} · ${esc(D.brand.name)}">
 <meta name="twitter:description" content="${esc(description)}">
 <meta name="twitter:image" content="${esc(socialImage)}">
-${canonicalHref ? `<link rel="canonical" href="${esc(canonicalHref)}">\n<meta property="og:url" content="${esc(canonicalHref)}">` : ''}
+${canonicalHref ? `<link rel="canonical" href="${esc(canonicalHref)}">\n<meta property="og:url" content="${esc(canonicalHref)}">\n<meta name="twitter:url" content="${esc(canonicalHref)}">` : ''}
 ${FONT_LINKS}
 <link rel="stylesheet" href="assets/css/friday.css">
 ${extraStyles.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')}

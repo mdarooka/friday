@@ -21,6 +21,8 @@ test('the public web service keeps its id, visibility, origin and proxy trust', 
   assert.equal(web.env.APP_ORIGIN, 'https://fridaytravel.vercel.app');
   assert.equal(web.env.TRUST_PROXY, '1');
   assert.equal(web.env.APP_ORIGIN_ALIASES, 'https://p-81-we-5b6199efcb56de4167-c098b2d7396b0066.deploy.built-with-hexclave.com', 'the direct Deploy origin stays trusted for writes');
+  assert.equal(web.env.APP_ORIGIN_ALIASES.includes('peach'), false);
+  assert.equal(web.env.APP_ORIGIN_ALIASES.includes('vercel.app'), false);
   assert.equal(web.env.AUTH_PROVIDER, 'hexclave');
   assert.equal(web.env.NODE_ENV, 'production');
   assert.equal(web.minInstances, 0);
