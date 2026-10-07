@@ -131,7 +131,7 @@
       { label: 'Send for a human quote', onClick: async function (c, button) {
         if (!state.draft || !state.draftFresh) { error('Review the latest version with Friday before sending it for a quote.'); return; }
         button.disabled = true;
-        try { var r = await request('/api/friday/handoffs', 'POST', { draftId: state.draft.id, version: state.draft.version, confirmed: true }); body.querySelector('[data-plan-result]').insertAdjacentHTML('beforeend', '<p role="status">Sent to Friday’s team for a quote. Status: ' + esc(r.handoff.status) + (r.handoff.customerEmail ? ' · Customer email: ' + esc(r.handoff.customerEmail) : '') + '</p>'); }
+        try { var r = await request('/api/friday/handoffs', 'POST', { draftId: state.draft.id, version: state.draft.version, confirmed: true }); if (window.FridayQuoteAnalytics) window.FridayQuoteAnalytics.track(window.FridayQuoteAnalytics.plannerPath(), r.handoff && r.handoff.id); body.querySelector('[data-plan-result]').insertAdjacentHTML('beforeend', '<p role="status">Sent to Friday’s team for a quote. Status: ' + esc(r.handoff.status) + (r.handoff.customerEmail ? ' · Customer email: ' + esc(r.handoff.customerEmail) : '') + '</p>'); }
         catch (e) { error(e.message || 'Could not send this draft.'); } finally { button.disabled = false; }
       } }
     ] });

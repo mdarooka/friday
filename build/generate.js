@@ -689,7 +689,7 @@ ${PageHero({
         <h2 class="h2" style="margin-top:.9rem" data-reveal>${d.title}</h2>
         <p class="lede" style="margin-top:1.2rem" data-reveal>${d.lede}</p>
         <p class="card__d" style="margin-top:1rem" data-reveal>${d.note}</p>
-        <p style="margin-top:1.4rem" data-reveal><a class="link" href="contact.html">Ask about this journey <span class="arrow">&rarr;</span></a></p>
+        <p style="margin-top:1.4rem" data-reveal><a class="link" href="contact.html?quote_path=package">Ask about this journey <span class="arrow">&rarr;</span></a></p>
       </div>
     </article>`).join('')}
   </div>
@@ -759,7 +759,7 @@ ${PageHero({
         ${eyebrow('Included')}
         <h2 class="h2" style="margin-top:1rem" data-reveal>What the price<br>actually carries.</h2>
         <p class="card__d" style="margin-top:1.2rem" data-reveal>${d.note}</p>
-        <p style="margin-top:2rem" data-reveal><a class="btn" href="commission.html">Ask about places <span class="arrow">&rarr;</span></a></p>
+        <p style="margin-top:2rem" data-reveal><a class="btn" href="contact.html?quote_path=package">Ask about places <span class="arrow">&rarr;</span></a></p>
       </div>
       <div class="c-6 s-7 c-md-12">
         <div class="places" data-reveal>
