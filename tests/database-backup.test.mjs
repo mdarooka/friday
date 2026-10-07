@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { backupDatabase } from '../server/tools/backup-database.mjs';
@@ -37,6 +37,24 @@ test('online backup includes committed rows in a live WAL database and creates p
     assert.equal((await stat(result)).mode & 0o777, 0o600);
     assert.equal((await stat(f.backups)).mode & 0o777, 0o700);
     live.close();
+  } finally { await f.close(); }
+});
+
+test('online backups keep only the configured number of dated snapshots', async () => {
+  const f = await fixture();
+  try {
+    const live = writeDb(f.database, 'keep-me');
+    live.close();
+    const snapshots = [];
+    for (let day = 1; day <= 3; day++) {
+      snapshots.push(await backupDatabase({
+        source: f.database,
+        directory: f.backups,
+        now: new Date(`2026-10-0${day}T00:00:00.000Z`),
+        retentionCount: 2,
+      }));
+    }
+    assert.deepEqual((await readdir(f.backups)).sort(), snapshots.slice(1).map(file => path.basename(file)).sort());
   } finally { await f.close(); }
 });
 
