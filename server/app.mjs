@@ -622,7 +622,8 @@ export function createApp(options = {}) {
         if(typeof google.revokeUserConnections==='function')await google.revokeUserConnections(ownerId);
         const ownedTrips=await trips.list(ownerId);
         await store.deleteFridayAccountData(db,ownerId,emailAddress);
-        for(const trip of ownedTrips)await trips.delete(trip.id,ownerId);
+        if(typeof trips.deleteOwner==='function')await trips.deleteOwner(ownerId);
+        else for(const trip of ownedTrips)await trips.delete(trip.id,ownerId);
         const identity=await store.getHexclaveUserId(db,ownerId);
         if(identity?.hexclave_user_id){
           try {

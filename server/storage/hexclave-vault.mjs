@@ -209,6 +209,19 @@ export function createVaultTripStore({ vault, concurrency = 8 }) {
         if (ids.includes(id)) await writeIndex(userId, ids.filter(x => x !== id));
         return 1;
       });
+    },
+    // The vault API has no physical-delete operation. During account erasure, clear each payload and unlink its tombstone
+    // from the owner so the retained anti-reuse marker no longer carries the deleted account id.
+    deleteOwner(userId) {
+      return serialized(userId, async () => {
+        const ids = await readIndex(userId);
+        for (const id of ids) {
+          const rec = await readRecord(id);
+          if (rec && rec.userId === userId) await writeRecord({ id, userId: 'deleted', data: null, version: rec.version + 1, updated: new Date().toISOString(), deleted: true });
+        }
+        await writeIndex(userId, []);
+        return ids.length;
+      });
     }
   };
 }
