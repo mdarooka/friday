@@ -1307,6 +1307,28 @@ ${PageHero({
 </div></section>`;
 page('terms.html', { title: 'Terms of use', description: 'Terms for using Friday’s AI travel planning and enquiry service.', body: terms, active: 'terms.html', lightHead: true });
 
+const notFoundBody = `
+<section class="section section--tight">
+  <div class="wrap grid" style="align-items:center;min-height:52vh">
+    <div class="c-7 c-md-12 prose" data-reveal>
+      <p class="eyebrow">A small detour</p>
+      <h1 class="h2">This page wandered off.</h1>
+      <p class="lede" style="margin-top:1rem">The address may have changed, or the page may not be here. Let’s get you back to Friday.</p>
+      <div class="grid" style="margin-top:2rem;align-items:start">
+        <p class="c-6 c-md-12"><a class="link" href="index.html">Go home <span class="arrow">&rarr;</span></a></p>
+        <p class="c-6 c-md-12"><a class="link" href="kerala-guide.html">Explore the Kerala guide <span class="arrow">&rarr;</span></a></p>
+        <p class="c-6 c-md-12"><a class="link" href="trip.html">Plan a trip <span class="arrow">&rarr;</span></a></p>
+        <p class="c-6 c-md-12"><a class="link" href="contact.html">Contact Friday <span class="arrow">&rarr;</span></a></p>
+      </div>
+    </div>
+    <div class="c-5 c-md-12" data-reveal style="--i:1">
+      ${Plate('not-found-detour', { ratio: 'l', scene: 'coast', tone: 'moss', svgRatio: 'landscape' })}
+    </div>
+  </div>
+</section>`;
+const notFoundHtml = layout({ title: 'Page not found', description: 'This page wandered off. Find your way back to Friday.', body: notFoundBody, lightHead: true });
+written.push(write('404.html', notFoundHtml.replace('</head>', '<base href="/">\n<meta name="robots" content="noindex, nofollow">\n</head>')));
+
 /* ======================================================= 13. The planner */
 
 const TRIP = require('./trip');

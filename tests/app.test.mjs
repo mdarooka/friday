@@ -68,6 +68,19 @@ test('cross-origin writes, private source paths, and missing provider fail safel
   assert.equal((await request('/api/capabilities')).result.research,false);
   assert.equal((await request('/api/research','POST',{prompt:'Kyoto',tripId:'bad'},a.cookie)).status,503);
 });
+test('missing public pages are branded 404s, APIs stay JSON, and short page paths redirect',async t=>{
+  const request=await fixture(t);
+  const missing=await request('/goa-guide.html');
+  assert.equal(missing.status,404);assert.match(missing.headers.get('content-type'),/text\/html/);assert.match(missing.headers.get('x-robots-tag'),/noindex/);
+  assert.match(missing.result,/This page wandered off/);assert.match(missing.result,/<header class="head"/);assert.match(missing.result,/<footer class="foot/);
+  assert.match(missing.result,/href="kerala-guide.html"/);assert.match(missing.result,/href="trip.html"/);assert.match(missing.result,/href="contact.html"/);assert.match(missing.result,/name="robots" content="noindex, nofollow"/);assert.match(missing.result,/<base href="\/">/);
+  const account=await signup(request,'MissingRoute');
+  const api=await request('/api/missing-route','GET',undefined,account.cookie);assert.equal(api.status,404);assert.deepEqual(api.result,{error:'Not found.'});
+  const json=await request('/missing-route','GET',undefined,'',{'Accept':'application/json'});assert.equal(json.status,404);assert.deepEqual(json.result,{error:'Not found.'});
+  const short=await request('/help?source=qa&next=contact','GET',undefined,'',{},'manual');
+  assert.equal(short.status,301);assert.equal(short.headers.get('location'),'/help.html?source=qa&next=contact');
+  const sitemap=await request('/sitemap.xml');assert.doesNotMatch(sitemap.result,/404\.html|not-found/i);
+});
 test('public guide, robots and sitemap files are served while backend source stays private',async t=>{
   const request=await fixture(t);
   const guide=await request('/kerala-guide.html');
