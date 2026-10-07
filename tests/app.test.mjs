@@ -129,7 +129,31 @@ test('trip sharing is explicit, read-only, sanitized, owner-controlled, revocabl
   const replacement=await request('/api/trips/'+trip.id+'/share','POST',{},a.cookie);const nextToken=new URL(replacement.result.share.url,'http://localhost').searchParams.get('share');
   assert.equal((await request('/api/trips/'+trip.id+'/share','DELETE',{},a.cookie)).status,200);
   assert.equal((await request('/api/shared/'+nextToken)).status,404);
+  assert.equal((await request('/api/shared/'+nextToken+'/whatsapp-click','POST',{},a.cookie)).status,404);
 });
+test('trip share previews are server-rendered and share use is counted in SQLite',async t=>{
+  const request=await fixture(t),owner=await signup(request,'ShareMetrics');
+  const trip=(await request('/api/trips','POST',{data:{title:'Kyoto <friends>',destination:'Japan',startDate:'2026-11-01',endDate:'2026-11-03',messages:[{role:'user',text:'PRIVATE conversation'}],days:[{title:'Temple',items:[{title:'Garden',photos:[{url:'https://images.example/garden.jpg'}]}]}]}},owner.cookie)).result.record;
+  const created=await request('/api/trips/'+trip.id+'/share','POST',{},owner.cookie);assert.equal(created.status,201);
+  const token=new URL(created.result.share.url,origin).searchParams.get('share');
+  const human=await request('/app.html?share='+token,'GET',undefined,'',{'User-Agent':'Friday trip visitor'});
+  assert.equal(human.status,200);assert.match(human.result,/property=\"og:title\" content=\"Kyoto &lt;friends&gt;\"/);
+  assert.match(human.result,/property=\"og:description\" content=\"Japan · 2026-11-01–2026-11-03 · 1 stop\./);
+  assert.match(human.result,/property=\"og:image\" content=\"https:\/\/images.example\/garden.jpg\"/);
+  assert.match(human.result,/property=\"og:url\" content=\"http:\/\/localhost:4871\/app.html\?share=/);
+  assert.match(human.result,/name=\"twitter:card\" content=\"summary_large_image\"/);
+  assert.equal(human.result.includes('PRIVATE conversation'),false);
+  const bot=await request('/app.html?share='+token,'GET',undefined,'',{'User-Agent':'WhatsApp/2.24.1'});assert.equal(bot.status,200);
+  assert.equal((await request('/api/shared/'+token+'/whatsapp-click','POST',{},'')).status,200);
+  const db=new DatabaseSync(request.dbPath);
+  const counts=Object.fromEntries(db.prepare('SELECT event_type,count(*) AS n FROM trip_share_events GROUP BY event_type').all().map(row=>[row.event_type,row.n]));db.close();
+  assert.equal(counts.trip_share_link_created,1);assert.equal(counts.trip_share_link_opened,1);assert.equal(counts.trip_share_preview_bot,1);assert.equal(counts.trip_share_whatsapp_clicked,1);
+  const plainTrip=(await request('/api/trips','POST',{data:{title:'No cover',destination:'India',days:[]}},owner.cookie)).result.record;
+  const plainShare=await request('/api/trips/'+plainTrip.id+'/share','POST',{},owner.cookie),plainToken=new URL(plainShare.result.share.url,origin).searchParams.get('share');
+  const fallback=await request('/app.html?share='+plainToken,'GET',undefined,'',{'User-Agent':'WhatsApp'});
+  assert.ok(fallback.result.includes('property="og:image" content="http://localhost:4871/assets/images/friday-coastal-banner.jpg"'));
+});
+
 test('Google OAuth routes receive only the signed-in owner and preserve redirects',async t=>{
   let seen;
   const request=await fixture(t,{google:async input=>{seen=input;return input.path.endsWith('/callback')?{status:303,redirect:'http://localhost:4871/app.html?google=connected'}:{status:200,data:{configured:true,connections:[]}};}});

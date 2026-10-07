@@ -16,6 +16,8 @@ export function openStore(file, { tripsInVault = false } = {}) {
     CREATE INDEX IF NOT EXISTS jobs_owner ON jobs(user_id,trip_id);
     CREATE TABLE IF NOT EXISTS shares(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),trip_id TEXT NOT NULL${tripsInVault ? '' : ' REFERENCES records(id) ON DELETE CASCADE'},expires INTEGER NOT NULL,created TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS shares_trip_owner ON shares(user_id,trip_id);
+    CREATE TABLE IF NOT EXISTS trip_share_events(id TEXT PRIMARY KEY,token_hash TEXT NOT NULL,event_type TEXT NOT NULL CHECK(event_type IN ('trip_share_link_created','trip_share_whatsapp_clicked','trip_share_link_opened','trip_share_preview_bot')),created TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS trip_share_events_type_created ON trip_share_events(event_type,created);
     CREATE TABLE IF NOT EXISTS enquiries(id TEXT PRIMARY KEY,kind TEXT NOT NULL,data TEXT NOT NULL,created TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS email_outbox(id TEXT PRIMARY KEY,dedupe_key TEXT NOT NULL UNIQUE,kind TEXT NOT NULL,recipient TEXT NOT NULL,subject TEXT NOT NULL,content TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN ('queued','sending','provider_accepted','delivery_unknown','blocked')),attempted_at TEXT,created TEXT NOT NULL,updated TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS email_outbox_status ON email_outbox(status,created);
@@ -165,6 +167,7 @@ export const findShare = (db, tokenHash) => db.prepare('SELECT shares.trip_id,sh
 export const findShareLink = (db, tokenHash) => db.prepare('SELECT token_hash,user_id,trip_id,expires FROM shares WHERE token_hash=?').get(tokenHash);   // no join: used when trips are not in SQLite
 export const deleteShares = (db, tripId, userId) => db.prepare('DELETE FROM shares WHERE trip_id=? AND user_id=?').run(tripId, userId);
 export const createShare = (db, { tokenHash, userId, tripId, expires, created }) => db.prepare('INSERT INTO shares(token_hash,user_id,trip_id,expires,created) VALUES(?,?,?,?,?)').run(tokenHash, userId, tripId, expires, created);
+export const recordTripShareEvent = (db, { id, tokenHash, eventType, created }) => db.prepare('INSERT INTO trip_share_events(id,token_hash,event_type,created) VALUES(?,?,?,?)').run(id,tokenHash,eventType,created);
 
 /* ---- commission and newsletter enquiries ---- */
 export const saveEnquiry = (db, { id, kind, data, created }) => db.prepare('INSERT INTO enquiries VALUES(?,?,?,?)').run(id, kind, data, created);
