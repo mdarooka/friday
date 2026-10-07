@@ -126,6 +126,54 @@ test('trip sharing is explicit, read-only, sanitized, owner-controlled, revocabl
   assert.equal((await request('/api/shared/'+nextToken)).status,404);
   assert.equal((await request('/api/shared/'+nextToken+'/whatsapp-click','POST',{},a.cookie)).status,404);
 });
+test('shared friends can vote, comment once per day, and the owner alone sees grouped tallies',async t=>{
+  const request=await fixture(t),owner=await signup(request,'GroupOwner'),other=await signup(request,'GroupOther');
+  const trip=(await request('/api/trips','POST',{data:{title:'Coast weekend',destination:'Goa',days:[{title:'South Goa',items:[{title:'Palolem beach'},{title:'Spice farm'}]},{title:'Old Goa',items:[{title:'Churches'}]}]}},owner.cookie)).result.record;
+  const created=await request('/api/trips/'+trip.id+'/share','POST',{},owner.cookie),token=new URL(created.result.share.url,origin).searchParams.get('share');
+  const ada='10000000-0000-4000-8000-000000000001',ben='10000000-0000-4000-8000-000000000002',endpoint='/api/shared/'+token+'/responses';
+  assert.equal((await request(endpoint,'POST',{participantId:ada,name:'<b>Ada</b>',canMakeDates:'yes',profileOnly:true})).status,200);
+  assert.equal((await request(endpoint,'POST',{participantId:ada,name:'Ada',canMakeDates:'yes',dayIndex:0,stopIndex:-1,reaction:'in'})).status,200);
+  assert.equal((await request(endpoint,'POST',{participantId:ada,name:'Ada',canMakeDates:'yes',dayIndex:0,stopIndex:0,reaction:'not-for-me'})).status,200);
+  const note='Near <i>the water</i>';assert.equal((await request(endpoint,'POST',{participantId:ada,name:'Ada',canMakeDates:'yes',dayIndex:0,stopIndex:-1,note})).status,200);
+  assert.equal((await request(endpoint,'POST',{participantId:ben,name:'Ben',canMakeDates:'unsure',dayIndex:0,stopIndex:0,reaction:'in'})).status,200);
+  const longNote='Start <b>'+('x'.repeat(200))+'</b>';
+  assert.equal((await request(endpoint,'POST',{participantId:ben,name:'Ben',canMakeDates:'unsure',dayIndex:1,stopIndex:-1,note:longNote})).status,200);
+  assert.equal((await request('/api/shared/'+token)).result.responses,undefined);
+  assert.equal((await request('/api/trips/'+trip.id+'/share/responses')).status,401);
+  assert.equal((await request('/api/trips/'+trip.id+'/share/responses','GET',undefined,other.cookie)).status,404);
+  const summary=await request('/api/trips/'+trip.id+'/share/responses','GET',undefined,owner.cookie);
+  assert.equal(summary.status,200);assert.equal(summary.result.count,2);assert.equal(summary.result.days.length,2);
+  assert.equal(summary.result.days[1].entries[0].note.length,180);
+  assert.doesNotMatch(summary.result.days[1].entries[0].note,/<[^>]*>/);
+  assert.deepEqual(summary.result.days[0].entries.map(row=>({name:row.name,stop:row.stopIndex,reaction:row.reaction,note:row.note})),[
+    {name:'Ada',stop:-1,reaction:'in',note:'Near the water'},
+    {name:'Ada',stop:0,reaction:'not-for-me',note:''},
+    {name:'Ben',stop:0,reaction:'in',note:''}
+  ]);
+  const events=await request.db.all("SELECT count(*) AS n FROM trip_share_events WHERE event_type='trip_share_friend_response'");
+  assert.equal(Number(events[0].n),5);
+  const responsiveLinks=await request.db.one("SELECT count(DISTINCT token_hash) AS n FROM trip_share_events WHERE event_type='trip_share_friend_response'");
+  assert.equal(Number(responsiveLinks.n),1);
+  assert.equal((await request('/api/trips/'+trip.id+'/share/responses','DELETE',{},owner.cookie)).status,200);
+  assert.equal((await request('/api/trips/'+trip.id+'/share/responses','GET',undefined,owner.cookie)).result.count,0);
+  const honeypot=await request(endpoint,'POST',{websiteTrap:'bot',participantId:ada,name:'Bot',dayIndex:0,reaction:'in'});
+  assert.equal(honeypot.status,202);
+  await request.db.query('UPDATE shares SET expires=0 WHERE token_hash=$1',[createHash('sha256').update(token).digest('hex')]);
+  assert.equal((await request(endpoint,'POST',{participantId:ada,name:'Ada',dayIndex:0,reaction:'in'})).status,404);
+  const liveAgain=await request('/api/trips/'+trip.id+'/share','POST',{},owner.cookie),revokedToken=new URL(liveAgain.result.share.url,origin).searchParams.get('share');
+  await request('/api/trips/'+trip.id+'/share','DELETE',{},owner.cookie);
+  assert.equal((await request('/api/shared/'+revokedToken+'/responses','POST',{participantId:ada,name:'Ada',dayIndex:0,reaction:'in'})).status,404);
+});
+test('shared trip input is rate-limited and rejects invalid scopes and reactions',async t=>{
+  const request=await fixture(t),owner=await signup(request,'RateOwner'),trip=(await request('/api/trips','POST',{data:{title:'Kyoto',days:[{title:'Day',items:[{title:'Garden'}]}]}},owner.cookie)).result.record;
+  const created=await request('/api/trips/'+trip.id+'/share','POST',{},owner.cookie),token=new URL(created.result.share.url,origin).searchParams.get('share'),endpoint='/api/shared/'+token+'/responses';
+  const person='20000000-0000-4000-8000-000000000001',base={participantId:person,name:'Friend',dayIndex:0,stopIndex:0,reaction:'in'};
+  assert.equal((await request(endpoint,'POST',{...base,dayIndex:4})).status,422);
+  assert.equal((await request(endpoint,'POST',{...base,reaction:'maybe'})).status,422);
+  assert.equal((await request(endpoint,'POST',{...base,stopIndex:2})).status,422);
+  for(let i=0;i<17;i++)assert.equal((await request(endpoint,'POST',base)).status,200);
+  assert.equal((await request(endpoint,'POST',base)).status,429);
+});
 test('trip share previews are server-rendered and share use is counted in SQLite',async t=>{
   const request=await fixture(t),owner=await signup(request,'ShareMetrics');
   const trip=(await request('/api/trips','POST',{data:{title:'Kyoto <friends>',destination:'Japan',startDate:'2026-11-01',endDate:'2026-11-03',messages:[{role:'user',text:'PRIVATE conversation'}],days:[{title:'Temple',items:[{title:'Garden',photos:[{url:'https://images.example/garden.jpg'}]}]}]}},owner.cookie)).result.record;

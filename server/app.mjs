@@ -479,6 +479,38 @@ export function createApp(options = {}) {
         await store.recordTripShareEvent(db,{id:randomUUID(),tokenHash:hash(whatsappClick[1]),eventType:'trip_share_whatsapp_clicked',created:new Date().toISOString()});
         return send(200,{ok:true});
       }
+      const shareResponse=p.match(/^\/api\/shared\/([a-f0-9]{64})\/responses$/);
+      if(shareResponse&&method==='POST') {
+        rate('share-response:'+ip,20);
+        const tokenHash=hash(shareResponse[1]),share=await trips.findShare(tokenHash);
+        if(!share||share.expires<=Date.now())fail(404,'This shared journey is unavailable.');
+        // A quiet honeypot response keeps simple form bots from creating stored responses or analytics counts.
+        if(typeof body.websiteTrap==='string'&&body.websiteTrap.trim())return send(202,{ok:true});
+        const participantId=str(body.participantId,'participant id',36,true).toLowerCase();
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(participantId))fail(422,'Please refresh and try again.');
+        const plain=value=>Array.from(String(value||'').replace(/<[^>]*>/g,' '),ch=>ch.charCodeAt(0)<32||ch.charCodeAt(0)===127?' ':ch).join('').split(' ').filter(Boolean).join(' ').trim();
+        const name=plain(str(body.name,'first name',120,true)).slice(0,60);
+        if(!name)fail(422,'Please enter your first name.');
+        const canMakeDates=body.canMakeDates===undefined?'unsure':body.canMakeDates;
+        if(!['yes','no','unsure'].includes(canMakeDates))fail(422,'Choose whether you can make the trip dates.');
+        const now=new Date().toISOString();
+        await store.saveTripShareParticipant(db,{tokenHash,participantId,name,canMakeDates,created:now,updated:now});
+        if(body.profileOnly===true)return send(200,{ok:true});
+        rate('share-response-link:'+tokenHash,100);
+        const data=JSON.parse(share.data),days=Array.isArray(data.days)?data.days:[];
+        const dayIndex=body.dayIndex;
+        if(!Number.isInteger(dayIndex)||dayIndex<0||dayIndex>=days.length)fail(422,'Choose a day from this itinerary.');
+        const stopIndex=body.stopIndex===undefined?-1:body.stopIndex;
+        if(!Number.isInteger(stopIndex)||stopIndex < -1 || (stopIndex>=0&&stopIndex>=(Array.isArray(days[dayIndex]?.items)?days[dayIndex].items.length:0)))fail(422,'Choose a stop from this itinerary.');
+        const hasReaction=Object.hasOwn(body,'reaction'),hasNote=Object.hasOwn(body,'note');
+        if(!hasReaction&&!hasNote)fail(422,'Choose a reaction or leave a note.');
+        let reaction=null,note='';
+        if(hasReaction){reaction=body.reaction===null?null:str(body.reaction,'reaction',20,true);if(reaction!==null&&!['in','not-for-me'].includes(reaction))fail(422,'Choose one of the available reactions.');}
+        if(hasNote){if(stopIndex!==-1)fail(422,'Notes belong to a day.');note=plain(str(body.note,'note',500)).slice(0,180);}
+        await store.saveTripShareResponse(db,{tokenHash,participantId,dayIndex,stopIndex,reaction,note,hasReaction,hasNote,updated:now});
+        await store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_friend_response',created:now});
+        return send(200,{ok:true});
+      }
       if(sharedPhoto&&method==='GET') {
         // Anonymous viewers load a shared trip's photos through the share token, and only photos that trip references.
         rate('sharedphoto:'+ip,120);
@@ -850,8 +882,24 @@ export function createApp(options = {}) {
         try{if(!config.apiKey||!config.model)throw Object.assign(new Error('Travel research is not connected yet. You can still save this link and add your own note.'),{status:503});const result=await researchLinkFn(request,config);await finishAiAudit(audit,'completed',{request,response:result});return send(200,{result});}
         catch(error){await finishAiAudit(audit,'failed',{request,error:error.message||'Link research failed.'});throw error;}
       }
+      const shareResponsesMatch=p.match(/^\/api\/trips\/([a-f0-9-]+)\/share\/responses$/);
+      if(shareResponsesMatch&&(method==='GET'||method==='DELETE')) {
+        if(!user)fail(401,'Please sign in to see friends’ input.');
+        await getRecord(shareResponsesMatch[1],user.id,'trips');
+        const share=await store.findLatestShareForTrip(db,shareResponsesMatch[1],user.id);
+        if(!share||share.expires<=Date.now())fail(404,'Create a live share link to collect friends’ input.');
+        if(method==='DELETE'){
+          await store.clearTripShareResponses(db,share.token_hash);
+          return send(200,{ok:true,count:0,days:[]});
+        }
+        const rows=await store.listTripShareResponses(db,share.token_hash),groups=new Map();
+        for(const row of rows){if(!groups.has(row.day_index))groups.set(row.day_index,[]);groups.get(row.day_index).push({name:row.name,canMakeDates:row.can_make_dates,stopIndex:row.stop_index,reaction:row.reaction,note:row.note,updated:row.updated});}
+        const days=[...groups.entries()].map(([dayIndex,entries])=>({dayIndex,entries}));
+        return send(200,{count:new Set(rows.map(row=>row.participant_id)).size,days});
+      }
       const shareMatch=p.match(/^\/api\/trips\/([a-f0-9-]+)\/share$/);
       if(shareMatch&&method==='POST') {
+        if(!user)fail(401,'Please sign in to share a trip.');
         await getRecord(shareMatch[1],user.id,'trips');
         const token=randomBytes(32).toString('hex'),expires=Date.now()+30*86400000;
         await store.deleteShares(db,shareMatch[1],user.id);
@@ -861,6 +909,7 @@ export function createApp(options = {}) {
         return send(201,{share:{url:`/app.html?share=${token}`,expires:new Date(expires).toISOString()}});
       }
       if(shareMatch&&method==='DELETE') {
+        if(!user)fail(401,'Please sign in to revoke a trip link.');
         await getRecord(shareMatch[1],user.id,'trips');
         await store.deleteShares(db,shareMatch[1],user.id);
         return send(200,{ok:true});
