@@ -3,7 +3,7 @@
 function siteOrigin(env = process.env) {
   const configured = env.PUBLIC_SITE_ORIGIN || env.APP_ORIGIN ||
     (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` :
-      env.VERCEL_URL ? `https://${env.VERCEL_URL}` : '');
+      env.VERCEL_URL ? `https://${env.VERCEL_URL}` : 'https://fridaytravel.vercel.app');
   if (!configured) return null;
   try {
     const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(configured) ? configured : `https://${configured}`);

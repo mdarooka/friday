@@ -1,16 +1,15 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
+import { openStore } from '../server/store.mjs';
 import { createGoogleIntegration } from '../server/google.mjs';
 import { extractBooking } from '../server/booking-extraction.mjs';
 
 const origin='https://friday.example',key='a'.repeat(64);
+const opened=[];after(()=>Promise.all(opened.map(db=>db.close())));   // PGlite instances keep the process alive until closed
 function setup(fetch=async()=>{throw new Error('unexpected fetch')},options={}) {
-  const db=new DatabaseSync(':memory:');
-  db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY);
-    CREATE TABLE records(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,kind TEXT NOT NULL,data TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,updated TEXT NOT NULL);`);
-  db.prepare('INSERT INTO users(id) VALUES(?),(?)').run('alice','bob');
+  const db=openStore({memory:true});opened.push(db);   // the full schema; the seed queries run first because every call waits for the same connection
+  db.query("INSERT INTO users(id,email,name,password) VALUES('alice','alice@example.com','Alice','x'),('bob','bob@example.com','Bob','x')").catch(()=>{});
   const handle=createGoogleIntegration({db,origin,clientId:'client.apps.googleusercontent.com',clientSecret:'secret-server-side',encryptionKey:key,fetch,now:()=>new Date('2026-10-05T12:00:00.000Z'),...options});
   const call=(path,method='GET',body={},user='alice',url)=>handle({path,method,body,user:{id:user},url});
   return {db,call};
@@ -30,7 +29,7 @@ test('OAuth state is owner-bound, one-use, PKCE protected, and stores encrypted 
   const seen=[];const {db,call}=setup(async(url,options)=>{seen.push({url:String(url),options});return json({access_token:'short-token',refresh_token:'long-refresh-secret',scope:'https://www.googleapis.com/auth/gmail.readonly'});});
   const {state,auth}=await connect(call);
   assert.equal(auth.searchParams.get('state').length>30,true);
-  const encryptedVerifier=db.prepare('SELECT state_hash,verifier FROM google_oauth_states').get().verifier;
+  const encryptedVerifier=(await db.one('SELECT state_hash,verifier FROM google_oauth_states')).verifier;
   assert.ok(encryptedVerifier.startsWith('v1.'));assert.notEqual(encryptedVerifier,auth.searchParams.get('code_challenge'));
   assert.equal(auth.searchParams.has('include_granted_scopes'),false);
   const wrongOwner=await call('/api/integrations/google/callback','GET',{},'bob',`${origin}/api/integrations/google/callback?state=${state}&code=good`);
@@ -40,7 +39,7 @@ test('OAuth state is owner-bound, one-use, PKCE protected, and stores encrypted 
   assert.equal(seen[0].url,'https://oauth2.googleapis.com/token');
   const verifier=new URLSearchParams(seen[0].options.body).get('code_verifier');
   assert.equal(createHash('sha256').update(verifier).digest('base64url'),auth.searchParams.get('code_challenge'));
-  const stored=db.prepare('SELECT refresh_token FROM google_connections WHERE user_id=?').get('alice').refresh_token;
+  const stored=(await db.one('SELECT refresh_token FROM google_connections WHERE user_id=$1',['alice'])).refresh_token;
   assert.ok(stored.startsWith('v1.'));assert.equal(stored.includes('long-refresh-secret'),false);
   const replay=await call('/api/integrations/google/callback','GET',{},'alice',`${origin}/api/integrations/google/callback?state=${state}&code=good`);
   assert.equal(replay.status,400);assert.equal(seen.length,3);
@@ -64,13 +63,13 @@ test('Gmail OAuth performs initial sync using actual travel dates and preserves 
     if(found)return json({id:found.id,snippet:found.body.slice(0,100),payload:{headers:[{name:'Subject',value:found.subject},{name:'From',value:'travel@example.com'},{name:'Date',value:found.date}],mimeType:'text/html',body:{data:Buffer.from(`<html><body>${found.body}</body></html>`).toString('base64url')}}});
     throw new Error(`unexpected ${url}`);
   });
-  await db.prepare("INSERT INTO records(id,user_id,kind,data,updated) VALUES('trip-a','alice','trips','{\"title\":\"Japan\"}',?)").run(new Date().toISOString());
+  await db.query("INSERT INTO records(id,user_id,kind,data,updated) VALUES('trip-a','alice','trips','{\"title\":\"Japan\"}',$1)",[new Date().toISOString()]);
   const {state}=await connect(call);const callback=await call('/api/integrations/google/callback','GET',{},'alice',`${origin}/api/integrations/google/callback?state=${state}&code=ok`);
   assert.equal(callback.status,303);assert.match(callback.redirect,/google=connected/);
-  const oldEncryptedRefresh=db.prepare('SELECT refresh_token FROM google_connections WHERE user_id=?').get('alice').refresh_token;
+  const oldEncryptedRefresh=(await db.one('SELECT refresh_token FROM google_connections WHERE user_id=$1',['alice'])).refresh_token;
   const query=requests.find(x=>x.url.includes('/messages?')).url;
   assert.doesNotMatch(query,/newer_than|after:|before:/);
-  const rows=db.prepare("SELECT data FROM records WHERE user_id='alice' AND kind='bookings' ORDER BY id").all().map(x=>JSON.parse(x.data));
+  const rows=(await db.all("SELECT data FROM records WHERE user_id='alice' AND kind='bookings' ORDER BY id")).map(x=>JSON.parse(x.data));
   assert.equal(rows.length,3); // Past flights, cancelled, and promotional messages are excluded by default.
   const future=rows.find(r=>r.externalId==='future');
   assert.equal(future.start,'2027-02-12');assert.equal(future.end,'2027-02-20');assert.equal(future.dateStatus,'confirmed');
@@ -81,9 +80,9 @@ test('Gmail OAuth performs initial sync using actual travel dates and preserves 
   assert.equal(requests.at(-1).options.headers.Authorization,'Bearer temporary-access');
   const past=await call('/api/integrations/google/sync','POST',{kind:'gmail',includePast:true});
   assert.equal(past.status,200);assert.equal(past.data.imported,1);
-  assert.ok(db.prepare("SELECT id FROM records WHERE user_id='alice' AND kind='bookings' AND data LIKE '%past%'").get());
-  assert.equal(JSON.parse(db.prepare('SELECT scopes FROM google_connections WHERE user_id=?').get('alice').scopes).length,1);
-  const rotated=db.prepare('SELECT refresh_token FROM google_connections WHERE user_id=?').get('alice').refresh_token;
+  assert.ok(await db.one("SELECT id FROM records WHERE user_id='alice' AND kind='bookings' AND data LIKE '%past%'"));
+  assert.equal(JSON.parse((await db.one('SELECT scopes FROM google_connections WHERE user_id=$1',['alice'])).scopes).length,1);
+  const rotated=(await db.one('SELECT refresh_token FROM google_connections WHERE user_id=$1',['alice'])).refresh_token;
   assert.ok(rotated.startsWith('v1.'));assert.notEqual(rotated,oldEncryptedRefresh);
   const other=await call('/api/integrations/google/sync','POST',{kind:'gmail'},'bob');assert.equal(other.status,409);
   const foreignTrip=await call('/api/integrations/google/sync','POST',{kind:'gmail',tripId:'trip-a'},'bob');assert.equal(foreignTrip.status,404);
@@ -135,7 +134,7 @@ test('Calendar sync imports read-only events and status/disconnect remain per ac
   const {state}=await connect(call,'calendar');await call('/api/integrations/google/callback','GET',{},'alice',`${origin}/api/integrations/google/callback?state=${state}&code=ok`);
   const status=await call('/api/integrations/google/status');assert.equal(status.data.connections[0].kind,'calendar');
   const result=await call('/api/integrations/google/sync','POST',{kind:'calendar'});assert.equal(result.data.imported,1);
-  const record=JSON.parse(db.prepare("SELECT data FROM records WHERE user_id='alice' AND kind='bookings'").get().data);
+  const record=JSON.parse((await db.one("SELECT data FROM records WHERE user_id='alice' AND kind='bookings'")).data);
   assert.equal(record.source,'google-calendar');assert.equal(record.location,'SFO');
   await call('/api/integrations/google/disconnect','POST',{kind:'calendar'});
   assert.deepEqual((await call('/api/integrations/google/status')).data.connections,[]);
@@ -147,7 +146,7 @@ test('unconfigured app, expired state, denied consent, and missing refresh token
   assert.equal((await call('/api/integrations/google/start','POST',{kind:'gmail'})).status,503);
   const enabled=setup(async()=>json({access_token:'a',scope:'https://www.googleapis.com/auth/gmail.readonly'}));
   const {state}=await connect(enabled.call);
-  enabled.db.prepare('UPDATE google_oauth_states SET expires=0').run();
+  await enabled.db.query('UPDATE google_oauth_states SET expires=0');
   assert.equal((await enabled.call('/api/integrations/google/callback','GET',{},'alice',`${origin}/api/integrations/google/callback?state=${state}&code=stale`)).status,400);
   const {state:deniedState}=await connect(enabled.call);
   const denied=await enabled.call('/api/integrations/google/callback','GET',{},'alice',`${origin}/api/integrations/google/callback?state=${deniedState}&error=access_denied`);

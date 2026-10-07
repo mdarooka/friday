@@ -64,13 +64,13 @@ test('villa admin requires an allowlisted session and keeps each admin scoped to
 
 test('local no-login mode uses an isolated stable development owner for private APIs and villa admin', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'friday-local-auth-'));
-  const regularDb = store.openStore(path.join(root, '.data', 'friday.sqlite'));
+  const regularDb = store.openStore({ dataDir: path.join(root, '.data', 'pglite') });
   const oldUser = { id: 'existing-real-owner', email: 'existing@example.com', name: 'Existing account', password: 'unusable' };
-  store.createUser(regularDb, oldUser);
+  await store.createUser(regularDb, oldUser);
   const now = new Date().toISOString();
-  store.insertVilla(regularDb, { id: '11111111-1111-4111-8111-111111111111', ownerId: oldUser.id, status: 'draft', data: JSON.stringify(villaInput({ name: 'Private existing villa' })), created: now, updated: now });
-  store.insertVillaSubmission(regularDb, { id: '22222222-2222-4222-8222-222222222222', data: JSON.stringify({ contactName: 'Private lead', email: 'private@example.com' }), created: now, updated: now });
-  store.closeStore(regularDb);
+  await store.insertVilla(regularDb, { id: '11111111-1111-4111-8111-111111111111', ownerId: oldUser.id, status: 'draft', data: JSON.stringify(villaInput({ name: 'Private existing villa' })), created: now, updated: now });
+  await store.insertVillaSubmission(regularDb, { id: '22222222-2222-4222-8222-222222222222', data: JSON.stringify({ contactName: 'Private lead', email: 'private@example.com' }), created: now, updated: now });
+  await store.closeStore(regularDb);
 
   const server = createApp({ root, origin: 'http://localhost:4871', env: { ITINERARY_PROVIDER: 'local', AUTH_REQUIRED: 'false' } });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

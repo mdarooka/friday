@@ -10,31 +10,37 @@ Use Node.js 24 or newer. Copy `.env.example` to `.env`, optionally configure an 
 npm run dev
 ```
 
-Open <http://localhost:4871>. `npm start` starts the same application for deployment. Keep `.data/` on persistent storage: it contains the SQLite database and must not be served publicly. Set `DATABASE_PATH` to a durable file path when deploying. Serve the app behind HTTPS and set `APP_ORIGIN` to its exact public origin. Set `HOST` and `PORT` for the hosting environment.
+Open <http://localhost:4871>. `npm start` starts the same application for deployment. Locally the app uses PGlite, an in-process PostgreSQL, stored under `.data/pglite` (never served publicly; delete it to reset). In production the app needs a real PostgreSQL server: set `DATABASE_URL`, or `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_USER`, `DATABASE_PASSWORD` and `DATABASE_NAME`. With `NODE_ENV=production` and none of these set, the server refuses to start rather than falling back to PGlite. The first connection retries with a bounded backoff (about 60 s) because a scaled-to-zero database may be waking up. Serve the app behind HTTPS and set `APP_ORIGIN` to its exact public origin. Set `HOST` and `PORT` for the hosting environment.
 
 ## Production deployment
 
-Hexclave provides Friday's sign-in and transactional email. Friday can run on Hexclave Deploy as a Node server, with SQLite on a persistent disk; this is separate from the Hexclave project configuration in `hexclave.config.ts`.
+Hexclave provides Friday's sign-in and transactional email. Friday can run on Hexclave Deploy as a Node server, with all application data in a PostgreSQL server that runs as a separate private service; this is separate from the Hexclave project configuration in `hexclave.config.ts`.
 
 ### Hexclave Deploy
 
-`hexclave.deploy.ts` defines one public server built from the repository's Dockerfile. It listens on port 3000 and mounts one 1 GB persistent disk at `/data` (disks can be grown later but never shrunk); SQLite lives at `/data/app/friday.sqlite`. The container runs as the non-root `node` user, creates the database and backup subdirectories under that mount, and runs the daily SQLite backup loop in the same process. Seven verified snapshots are retained at `/data/backups` on the same disk. These snapshots are a recovery aid, not an off-site backup: the disk is not replicated and can be lost with its host.
+`hexclave.deploy.ts` defines two services. `web` is the public server built from the repository's Dockerfile; it listens on port 3000, runs as the non-root `node` user and keeps **no data on its own disk**. `database` is a private PostgreSQL 17 server built from `database/Dockerfile`, reachable only from services in the same project over TCP port 5432 (`minInstances: 0`, so it scales to zero and wakes on the first connection). Its data directory is `/data/postgres` on a 1 GB persistent volume (`pgdata`; disks can be grown later but never shrunk). `web` finds it through `DATABASE_HOST` (the `database` service hostname), `DATABASE_PORT`, `DATABASE_USER`, `DATABASE_NAME` and `DATABASE_PASSWORD`.
+
+**The database disk is a single volume on a single machine. It is not replicated and it is not a backup; a host failure can lose it.** Friday no longer ships backup or restore tooling. Take your own `pg_dump` exports to an encrypted, access-controlled off-site location, on a schedule you choose, before storing important data.
+
+**One-time secret:** set the `POSTGRES_PASSWORD` project secret in the Hexclave dashboard (Project Settings → Secrets) before the first deploy. Both services read it; the deploy has no default for it.
+
+**Migration note:** this change removes the persistent volume `friday_data` from `web`. Removing a volume detaches the disk without deleting it, so the old disk (and its SQLite file) is kept and **keeps billing until you delete it in the dashboard**. Nothing is migrated automatically: the new PostgreSQL database starts empty.
 
 Before the first deploy:
 
-1. Turn on the Deploy app in the Hexclave dashboard. The service uses `minInstances: 0`, so it suspends when idle (keeping its disk) and resumes on the next request; an always-running server (`minInstances: 1`) needs a paid plan. Do not push `hexclave.config.ts` as part of this step.
-2. `APP_ORIGIN`, `FRIDAY_ENQUIRY_EMAIL`, and `QUOTE_ADMIN_EMAILS` are set directly in `hexclave.deploy.ts`; update them there when the domain or inbox changes. Set the `PUBLIC_SITE_ORIGIN` project secret only when Friday has its own public domain: while it is empty, all hosts are marked noindex and robots disallows crawling; when set, other hosts redirect to that origin. Under Project Settings → Secrets, the optional `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY`, `GOOGLE_PLACES_API_KEY`, and `OPENAI_API_KEY` default to empty and keep those integrations off until configured. For Gmail/Calendar, set the Google client ID, client secret, and a 64-character hexadecimal `GOOGLE_TOKEN_KEY` together. Deploy supplies `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY` itself; without a valid enquiry inbox, enquiries are saved but the team notification is not sent.
-Vercel (`vercel.json`, project `friday-travel`) is only a reverse proxy: it serves `https://fridaytravel.vercel.app` by rewriting every path to the Hexclave Deploy origin, so all data stays on the persistent server. `APP_ORIGIN` is the public proxy origin, because browsers send `Origin: https://fridaytravel.vercel.app` on API writes.
+1. Turn on the Deploy app in the Hexclave dashboard and set the `POSTGRES_PASSWORD` secret (see above). Both services use `minInstances: 0`, so they suspend when idle (the database keeps its disk) and resume on the next request; an always-running server (`minInstances: 1`) needs a paid plan. Do not push `hexclave.config.ts` as part of this step.
+2. `APP_ORIGIN`, `FRIDAY_ENQUIRY_EMAIL`, and `QUOTE_ADMIN_EMAILS` are set directly in `hexclave.deploy.ts`; update them there when the domain or inbox changes. Under Project Settings → Secrets, the optional `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY`, `GOOGLE_PLACES_API_KEY`, and `OPENAI_API_KEY` default to empty and keep those integrations off until configured. For Gmail/Calendar, set the Google client ID, client secret, and a 64-character hexadecimal `GOOGLE_TOKEN_KEY` together. Deploy supplies `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY` itself; without a valid enquiry inbox, enquiries are saved but the team notification is not sent.
+Vercel (`vercel.json`, project `friday-travel`) is only a reverse proxy: it serves `https://fridaytravel.vercel.app` by rewriting every path to the Hexclave Deploy origin, so all data stays in the project's PostgreSQL service. `APP_ORIGIN` is the public proxy origin, because browsers send `Origin: https://fridaytravel.vercel.app` on API writes. `APP_ORIGIN_ALIASES` explicitly lists the direct Deploy origin for browser sessions opened on that host; the server accepts only those exact configured origins for writes and never trusts arbitrary request hosts. Until Friday has its own domain, the Vercel hostname intentionally stays noindex and its `robots.txt` disallows crawling. Other Vercel aliases redirect to the canonical path on `fridaytravel.vercel.app`; preview deployments are not redirected. `PUBLIC_SITE_ORIGIN` is optional and falls back to `APP_ORIGIN`, so no new secret is needed.
 3. To move to your own domain, attach and verify it on the public `web` service and set its exact HTTPS origin as `APP_ORIGIN` in `hexclave.deploy.ts`.
 4. From the repository root, run `npx @hexclave/cli@latest deploy --cloud-project-id 38c9a741-73e3-4e6a-9c1b-6438f1239457`.
 
-The Deploy app is in alpha, and its service region is not confirmed here (it may not be in India). Pick an encrypted, access-controlled off-site backup destination and retention period before treating snapshots as a durable backup; Friday does not choose or upload to a storage provider. Disk size can only be grown, not reduced.
+The Deploy app is in alpha, and its service region is not confirmed here (it may not be in India). Pick an encrypted, access-controlled off-site backup destination and retention period for your `pg_dump` exports; Friday does not choose or upload to a storage provider. Disk size can only be grown, not reduced.
 
-After the first deployment, write a test record, restart and redeploy the service, and confirm that the record remains. Create a snapshot, preview it with `server/tools/restore-database.mjs`, and test an actual restore before storing important data. The public `/api/health` endpoint is available, and the Dockerfile includes a health check for it.
+After the first deployment, write a test record, restart and redeploy the service, and confirm that the record remains. Take a `pg_dump` and test restoring it into a scratch database before storing important data. The public `/api/health` endpoint is available, and the Dockerfile includes a health check for it.
 
 ### Self-managed Docker deployment
 
-For a separate Linux Docker host, copy `.env.example` to `.env`, choose `APP_DOMAIN`, set `APP_ORIGIN` to its exact HTTPS origin, and configure the required secrets. The Compose file runs Caddy for HTTPS, mounts persistent Docker volumes for the database and backups, and runs a separate daily backup service. On a public host, point DNS at the host and allow inbound ports 80 and 443. Keep `.env`, the database, and backup files out of public storage.
+For a separate Linux Docker host, copy `.env.example` to `.env`, choose `APP_DOMAIN`, set `APP_ORIGIN` to its exact HTTPS origin, and configure the required secrets. The Compose file runs Caddy for HTTPS, runs a `postgres` service with a named Docker volume (`friday-postgres`) and points the app at it. Set `POSTGRES_PASSWORD` in `.env` first; Compose refuses to start without it. On a public host, point DNS at the host and allow inbound ports 80 and 443. Keep `.env` and database dumps out of public storage.
 
 Start the Compose deployment from the repository root:
 
@@ -44,35 +50,25 @@ docker compose -f deploy/compose.yml up -d --build
 
 `npm run dev` runs the Hexclave CLI wrapper, which supplies local project keys to the development server. Hexclave's shared mail server is for development; configure a production email sender in the project before launch.
 
-Create a consistent online database snapshot while Friday is running:
+Create a database dump while Friday is running (the Docker volume alone is not an off-site backup; encrypt the dump and move it to a separate, access-controlled destination with a retention schedule):
 
 ```sh
-docker compose -f deploy/compose.yml exec -T friday node server/tools/backup-database.mjs
+docker compose -f deploy/compose.yml exec -T postgres pg_dump -U friday -d friday --format=custom > friday-$(date +%F).dump
 ```
 
-This uses Node's SQLite online backup API and checks the resulting file. Scheduled snapshots are stored as plaintext SQLite files on the same Docker host. Protect that host's backup volume with disk encryption, and transfer snapshots to a separate encrypted, access-controlled destination with a retention schedule. The local Docker volume alone is not an off-site backup. Hexclave Data Vault is designed for encrypted key-value records and does not provide managed SQLite backups.
-
-To inspect a candidate backup first, pass its path in the backup volume; the preview checks integrity and changes nothing:
+Restore a dump into the running database with `pg_restore` (stop `friday` first, and restore into an empty database or use `--clean --if-exists`):
 
 ```sh
-docker compose -f deploy/compose.yml exec -T friday node server/tools/restore-database.mjs /app/backups/PUT-BACKUP-FILENAME-HERE.sqlite
+docker compose -f deploy/compose.yml stop friday
+docker compose -f deploy/compose.yml exec -T postgres pg_restore -U friday -d friday --clean --if-exists < friday-DATE.dump
+docker compose -f deploy/compose.yml up -d friday
 ```
-
-For an actual restore, stop both services cleanly and run the restore in a one-off container against the same persistent volumes:
-
-```sh
-docker compose -f deploy/compose.yml stop friday friday-backup
-docker compose -f deploy/compose.yml run --rm --no-deps friday node server/tools/restore-database.mjs /app/backups/PUT-BACKUP-FILENAME-HERE.sqlite --apply
-docker compose -f deploy/compose.yml up -d friday friday-backup
-```
-
-The script refuses to proceed while SQLite `-wal` or `-shm` sidecars remain. It stages and validates the restored database, saves a SQLite-consistent `.pre-restore-*` copy of the current database, and atomically replaces the live file. Keep the safety copy until the restored service has been checked.
 
 The production host and DNS name still need to be selected before a live deployment can be completed. Team notification recipients are configured only through server environment variables and are never shown on the site.
 
 ## AI research configuration
 
-Deep is the default research mode. Set `AI_PROVIDER=claude` with `ANTHROPIC_API_KEY` to use Claude and its web search. The default example configuration uses `AI_MODEL=claude-sonnet-5-5` and `AI_EFFORT=medium`; set `AI_DEEP_MODEL` to override the model for Deep research, or leave it empty to inherit `AI_MODEL`. Effort may be `low`, `medium`, `high`, `xhigh`, or `max`; leave it empty for the provider default. Effort is sent only when configured. `AI_PROVIDER=perplexity` uses `PERPLEXITY_API_KEY` for research generation. To use Perplexity Search for retrieval alongside Claude, set `SEARCH_PROVIDER=perplexity` and `PERPLEXITY_API_KEY`; all provider keys remain on the server. Without a supported key and model, Friday still supports accounts and saved itineraries, while research stays unavailable.
+Deep is the default research mode. All user-facing research and reel itinerary generation uses OpenAI's Responses API with web search. Set server-only `OPENAI_API_KEY`; `OPENAI_RESEARCH_MODEL` defaults to `OPENAI_MODEL` or `gpt-5-mini`. Optionally set `OPENAI_DEEP_MODEL`. Legacy Claude and Perplexity environment variables do not select the production research provider. Without the OpenAI key, research is unavailable and existing saved itineraries remain accessible.
 
 ## Feature status
 
@@ -85,7 +81,7 @@ Deep is the default research mode. Set `AI_PROVIDER=claude` with `ANTHROPIC_API_
 | Curated nearby-airport suggestions | Implemented for 34 metro areas; users can remove suggested airports |
 | Archive and restore journeys | Implemented as an account-owned journey setting |
 | Read-only journey links | Implemented on explicit request; links expire after 30 days and can be revoked |
-| Commission enquiries and newsletter signup | Stored in SQLite; confirmation/notification emails use Hexclave when configured; newsletter campaigns are not implemented |
+| Commission enquiries and newsletter signup | Stored in PostgreSQL; confirmation/notification emails use Hexclave when configured; newsletter campaigns are not implemented |
 | Gmail and Calendar read-only imports | Implemented when Google OAuth credentials are configured; user initiates each connection and sync |
 | Booking-aware Friday drafts and human quote queue | Implemented; owner-scoped booking context, published catalog listings, versioned handoffs and allowlisted team quotes (`docs/friday-workflow.md`) |
 | Live fare polling | Not implemented |
@@ -107,7 +103,7 @@ Public owner intake is `POST /api/villa-submissions` with `{ contactName, email,
 
 ## Itinerary generation
 
-The planner asks the server for its plan. That is separate from the AI research above: `AI_PROVIDER` (Claude or Perplexity) powers research chat and Deep research jobs, while `ITINERARY_PROVIDER` chooses how the planner's first plan is generated.
+The planner asks the server for its plan. That is separate from the AI research above: OpenAI Responses with web search powers research chat and Deep research jobs, while `ITINERARY_PROVIDER` chooses how the planner's first plan is generated.
 
 | Route | |
 | --- | --- |
@@ -163,10 +159,10 @@ Visitors can sign in with ChatGPT (OpenAI's "Sign in with ChatGPT", OAuth 2.0 Au
 
 ## Deployment settings
 
-- `NODE_ENV=production` requires `APP_ORIGIN` (the exact public origin) and the server refuses to start without it. In development, `APP_ORIGIN` is not required and a request whose `Origin` matches its `Host` (127.0.0.1, a LAN address, a dev proxy) is accepted as well; production accepts only `APP_ORIGIN`.
+- `NODE_ENV=production` requires `APP_ORIGIN` (the exact public origin) and the server refuses to start without it. Set optional `APP_ORIGIN_ALIASES` to a comma-separated list of exact additional origins when a direct deployment host also serves the app. In development, `APP_ORIGIN` is not required and a request whose `Origin` matches its `Host` (127.0.0.1, a LAN address, a dev proxy) is accepted as well; production accepts only configured origins.
 - `TRUST_PROXY=1` makes rate limits use the right-most `X-Forwarded-For` hop. Set it only behind a reverse proxy that appends the client address, never when the app is reachable directly. Sign-in is also throttled per email.
 - Saved Google photo links are re-signed each time a record is read, so they do not expire in storage; a shared trip's photos load through `/api/shared/:token/photo/...`.
-- Errors the server did not expect are written to stderr (`console.error`), without request bodies or keys. A provider key set without `AI_MODEL` prints a startup warning.
+- Errors the server did not expect are written to stderr (`console.error`), without request bodies or keys.
 - `npm test` runs `node --test tests/*.test.mjs`; `npm run test:hexclave` runs the same suite with trips on a fake Hexclave vault.
 
 ## Rebuild the public pages
@@ -177,33 +173,33 @@ Edit `build/` sources and regenerate root HTML files with:
 npm run build
 ```
 
-`build/data.js` contains public copy and content, `build/templates.js` contains page structures, and `build/generate.js` writes generated HTML. Avoid editing root HTML pages directly. The sitemap and canonical/social URLs use `PUBLIC_SITE_ORIGIN` when set, then `APP_ORIGIN`, then Vercel's `VERCEL_PROJECT_PRODUCTION_URL` or `VERCEL_URL`; set `PUBLIC_SITE_ORIGIN` to Friday's stable public HTTPS origin for production builds. Without a configured origin, canonical and image references stay relative and the sitemap has no URL entries rather than inventing a domain.
+`build/data.js` contains public copy and content, `build/templates.js` contains page structures, and `build/generate.js` writes generated HTML. Avoid editing root HTML pages directly. The sitemap and canonical/social URLs use `PUBLIC_SITE_ORIGIN` when set, then `APP_ORIGIN`, then Vercel's `VERCEL_PROJECT_PRODUCTION_URL` or `VERCEL_URL`; the build falls back to Friday's canonical `https://fridaytravel.vercel.app` origin when none is configured. `PUBLIC_SITE_ORIGIN` is optional; set it only when the public site origin intentionally differs from `APP_ORIGIN`.
 
 ## Trip storage in Hexclave
 
 Optional, off by default. Planner trips (the `records` rows of kind `trips`, i.e. what `/api/trips` reads and writes) can be
-kept in a [Hexclave](https://hexclave.com) Data Vault instead of SQLite. This setting only chooses the trip-data store;
-Hexclave authentication and email integrations work independently of whether trips use SQLite or the Data Vault.
+kept in a [Hexclave](https://hexclave.com) Data Vault instead of PostgreSQL. This setting only chooses the trip-data store;
+Hexclave authentication and email integrations work independently of whether trips use PostgreSQL or the Data Vault.
 
 **What is stored where**
 
 | Data | Where |
 | --- | --- |
-| Users, sessions, profiles, password hashes | SQLite |
-| Places, lists, bookings, memories, alerts, imports | SQLite |
-| Research jobs, share links (token hash, owner, trip id, expiry), itineraries, Google tokens | SQLite |
-| AI chat messages, research requests, provider responses and failures | SQLite, scoped to the signed-in owner and conversation id |
-| Planner trips, with `TRIP_STORAGE=hexclave` | Hexclave Data Vault (nothing in the SQLite `records` table) |
+| Users, sessions, profiles, password hashes | PostgreSQL |
+| Places, lists, bookings, memories, alerts, imports | PostgreSQL |
+| Research jobs, share links (token hash, owner, trip id, expiry), itineraries, Google tokens | PostgreSQL |
+| AI chat messages, research requests, provider responses and failures | PostgreSQL, scoped to the signed-in owner and conversation id |
+| Planner trips, with `TRIP_STORAGE=hexclave` | Hexclave Data Vault (nothing in the PostgreSQL `records` table) |
 
 In the vault each trip is `trip:<id>` holding JSON `{id,userId,data,version,updated,deleted?}` (`data` is the trip JSON as a
 string), and each owner has `user:<userId>:trips`, a JSON array of trip ids. Deleting a trip writes a tombstone
 (`deleted:true`, `data:null`) and removes the id from the index. Keys are hashed and values are AES-GCM encrypted in the Friday
 server with `HEXCLAVE_VAULT_SECRET` before they leave it, so Hexclave never sees trip contents or key names. Every read checks
-that the stored `userId` is the signed-in owner. Routes, responses, versions and 409 conflicts behave exactly as with SQLite.
+that the stored `userId` is the signed-in owner. Routes, responses, versions and 409 conflicts behave exactly as with PostgreSQL.
 
 **Settings** (see `.env.example`)
 
-- `TRIP_STORAGE=sqlite|hexclave`, default `sqlite`. With `hexclave` the server refuses to start unless the three keys below are set.
+- `TRIP_STORAGE=sqlite|hexclave`, default `sqlite` (the legacy name for "trips stay in the application database", which is now PostgreSQL). With `hexclave` the server refuses to start unless the three keys below are set.
 - `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY`: Hexclave dashboard, Project Keys. The secret server key is server-only.
 - `HEXCLAVE_VAULT_SECRET`: the value-encryption secret, any long random string you generate (for example `openssl rand -base64 32`).
   Keep a copy somewhere safe: losing it makes every stored trip unreadable, and changing it hides the existing ones.
@@ -216,7 +212,7 @@ that the stored `userId` is the signed-in owner. Routes, responses, versions and
 
 - The vault is a key-value store: no listing, searching, deleting or compare-and-set. Listing a user's trips reads the index and then each trip (a few requests per page load); a trip can only be found by id. Deleted trips remain as tombstones.
 - Write safety is per server process: writes for one user run one at a time and the record is re-read before each write, so version checks and 409s work. **Run a single server instance.** Several instances sharing one vault can lose concurrent edits (last write wins), because the vault cannot make "check version then write" atomic. An interrupted write between a trip record and its index entry leaves a trip that is not listed (and not visible anywhere) until it is written again.
-- Share links stay in SQLite and look the trip up in the vault. Deleting a trip also deletes its share rows. Trips that only exist in SQLite are not shared or listed in vault mode, so copy them first (below).
+- Share links stay in PostgreSQL and look the trip up in the vault. Deleting a trip also deletes its share rows. Trips that only exist in PostgreSQL are not shared or listed in vault mode, so copy them first (below).
 - If Hexclave is unreachable, trip routes answer `503 Trip storage is temporarily unavailable`; everything else keeps working. Timeouts are 10 seconds and a 5xx is retried once.
 - Secrets are never logged or included in error messages.
 
@@ -232,18 +228,18 @@ npm run dev
 ```
 
 **Copy existing trips (optional, once)**: `node --env-file-if-exists=.env server/tools/copy-trips-to-hexclave.mjs` is a dry run that
-reports how many SQLite trips are missing from the vault; add `--apply` to write them. Stop the server first. It keeps ids,
-owners, versions and times, skips trips already in the vault, never overwrites, and never deletes from or changes SQLite.
-To go back to SQLite, unset `TRIP_STORAGE`: trips created while on the vault are not copied back.
+reports how many PostgreSQL trips are missing from the vault; add `--apply` to write them. Stop the server first. It keeps ids,
+owners, versions and times, skips trips already in the vault, never overwrites, and never deletes from or changes PostgreSQL.
+To go back to the database, unset `TRIP_STORAGE`: trips created while on the vault are not copied back.
 
-**Tests**: `npm test` runs everything against SQLite plus `tests/hexclave-vault.test.mjs` (REST client, SDK crypto
+**Tests**: `npm test` runs everything against PostgreSQL plus `tests/hexclave-vault.test.mjs` (REST client, SDK crypto
 compatibility, index and tombstones, isolation, conflicts, startup checks, copy tool) using an in-memory fake of the vault API
 (`tests/fake-vault.mjs`). `npm run test:hexclave` runs the whole suite with `TRIP_STORAGE=hexclave` against that fake.
 Nothing in the tests calls Hexclave.
 
 ## Storage and account notes
 
-Application records and AI conversation reviews remain in SQLite and are scoped to the verified Hexclave user. Set `AI_REVIEW_ADMIN_EMAILS` to a comma-separated list of team account emails to enable the authenticated `GET /api/admin/ai-conversations` review endpoint; it supports `ownerId`, `conversationId`, `limit`, and the returned `nextBefore` cursor. New chat entries are saved before an answer starts, then updated with the answer or failure. Existing browser drafts are never backfilled. Keep the database private, persistent, and backed up. Hexclave handles sign-in, email verification, password recovery, and account sessions.
+Application records and AI conversation reviews remain in PostgreSQL and are scoped to the verified Hexclave user. Set `AI_REVIEW_ADMIN_EMAILS` to a comma-separated list of team account emails to enable the authenticated `GET /api/admin/ai-conversations` review endpoint; it supports `ownerId`, `conversationId`, `limit`, and the returned `nextBefore` cursor. New chat entries are saved before an answer starts, then updated with the answer or failure. Existing browser drafts are never backfilled. Keep the database private, persistent, and backed up. Hexclave handles sign-in, email verification, password recovery, and account sessions.
 
 Email delivery uses the Hexclave Emails app and needs `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY`. Set `FRIDAY_ENQUIRY_EMAIL` for owner notifications. After a deployment, use `npm run emails:drain` to inspect the queued/blocked count; it does not send. Add `-- --send-pending` to explicitly send pending/blocked messages. Accepted or delivery-unknown messages are never retried. `EMAIL_OUTBOX_DATABASE_PATH` may point the operator command at the same database file used by the running service; by default it follows `DATABASE_PATH` (or `.data/friday.sqlite`).
 
@@ -251,4 +247,4 @@ Email delivery uses the Hexclave Emails app and needs `HEXCLAVE_PROJECT_ID` and 
 
 Set `AUTH_REQUIRED=false` in `.env` and restart to open the local app without sign-in, including the villa admin workspace. The bypass is active only outside production when `HOST` and `APP_ORIGIN` (if set) resolve to loopback; otherwise sign-in remains required. Local mode uses a stable development owner in `.data/friday-local-dev.sqlite`, isolated from `.data/friday.sqlite` and any existing private records or owner submissions. Trips continue to use this browser's `friday.planner.guest.v1` storage; existing browser drafts are untouched and never migrated. Set `AUTH_REQUIRED=true` and restart to restore normal authenticated, owner-scoped access. Production always requires sign-in.
 
-Trip chat requires the Friday server so each new question and answer can be committed to SQLite before the response starts. Opening the planner as a static `file://` preview keeps the screens available, but chat will report that review storage is unavailable and will not send an unrecorded request.
+Trip chat requires the Friday server so each new question and answer can be committed to PostgreSQL before the response starts. Opening the planner as a static `file://` preview keeps the screens available, but chat will report that review storage is unavailable and will not send an unrecorded request.

@@ -43,6 +43,11 @@
     if (A.getFullYear() === B.getFullYear() && A.getMonth() === B.getMonth()) return s + ' – ' + B.getDate() + ', ' + B.getFullYear();
     return s + (A.getFullYear() !== B.getFullYear() ? ', ' + A.getFullYear() : '') + ' – ' + MON3[B.getMonth()] + ' ' + B.getDate() + ', ' + B.getFullYear();
   }
+  function fmtStayDays(a, b) {
+    if (a !== b) return fmtRange(a, b);
+    var day = parseIso(a);
+    return MON3[day.getMonth()] + ' ' + day.getDate() + ', ' + day.getFullYear();
+  }
   function money(n, sym) {
     var v = Number(n) || 0;
     var loc = sym === '₹' ? 'en-IN' : 'en-US';
@@ -574,8 +579,7 @@
   function stayClarifier(d, prefs) {
     var c = d.clarify || {};
     var len = clamp(Math.min(prefs.days || 4, 14), 1, 14);
-    var dq = (c.dates && c.dates.q) || ('Select your ' + (NUMW[len] || String(len)) + ' travel dates for ' + d.name + ' so I can verify boutique stays and seasonal availability.');
-    dq = dq.replace(/\bfour\b/, NUMW[len] || String(len));
+    var dq = 'Select your travel dates for ' + d.name + ' so I can place stay ideas alongside your route.';
     var base = c.base || { q: 'For this {type} journey, which sanctuary or quarter should anchor your stay?', options: [] };
     return {
       t: 'clarify', kind: 'stay', qi: 0, submitted: false, superseded: false, len: len,
@@ -708,7 +712,11 @@
     var lines = [], counts = distribute(nl, steps.length), k = 0;
     if (opts.short) pool = pool.slice(opts.offset || 0).concat(pool.slice(0, opts.offset || 0));
     counts.forEach(function (c, si) { for (var j = 0; j < c; j++) lines.push({ text: pool[k++] || '', step: si }); });
-    return { t: 'research', sub: opts.sub || '', steps: steps, lines: lines, sources: srcs, stepIdx: 0, lineN: 0, srcShown: 0, elapsed: 0, done: false, stopped: false, collapsed: false, short: !!opts.short, totalMs: opts.short ? 6000 : 14000 };
+    return { t: 'research', sub: opts.sub || '', brief: opts.brief || { destination: d.name }, curated: true, steps: steps, lines: lines, sources: srcs, stepIdx: 0, lineN: 0, srcShown: 0, elapsed: 0, done: false, stopped: false, collapsed: false, short: !!opts.short, totalMs: opts.short ? 900 : 1500 };
+  }
+  function tripBrief(trip, request) {
+    var prefs = trip && trip.prefs || {}, types = Array.isArray(prefs.types) ? prefs.types.slice(0, 2) : [];
+    return { destination: trip && (trip.destName || trip.title) || '', days: Number(prefs.days) || (trip && trip.plan && trip.plan.days && trip.plan.days.length) || 0, style: types.join(' · '), request: String(request || '').slice(0, 110) };
   }
   function webUrl(value) { if (typeof value !== 'string' || !value.trim()) return ''; try { var u = new URL(value, location.href); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch (e) { return ''; } }
   function slug(value) { return String(value || 'place').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'place'; }
@@ -755,7 +763,7 @@
     var trip = getTrip(turn.tripId), backend = FT.backend;
     if (!backend || !backend.user || !backend.capabilities || !backend.capabilities.research) return reply(turn, 'Deep research is not available right now. Your question and plan are still here; try again when research is ready.');
     var originalPlan = trip && trip.plan ? clone(trip.plan) : null;
-    var rb = { t: 'research', sub: trip && (trip.destName || trip.title) || 'Travel research', steps: [], lines: [], sources: [], stepIdx: -1, lineN: 0, srcShown: 0, elapsed: 0, done: false, stopped: false, collapsed: false, totalMs: 90000 };
+    var rb = { t: 'research', sub: trip && (trip.destName || trip.title) || 'Travel research', brief: tripBrief(trip, text), steps: [], lines: [], sources: [], stepIdx: -1, lineN: 0, srcShown: 0, elapsed: 0, done: false, stopped: false, collapsed: false, totalMs: 90000 };
     addBlock(turn, rb);
     var started = Date.now();
     turn.ticker = setInterval(function () { rb.elapsed = (Date.now() - started) / 1000; touch(rb); sync(turn); }, 900);
@@ -780,6 +788,10 @@
           }) };
         });
         addBlock(turn, { t: 'draft', draftId: installed.draftId, destId: installed.destId, days: draftDays });
+        var proposedExperiences = experienceIdeasBlock(installed.catalog, installed.plan, true);
+        if (proposedExperiences) addBlock(turn, proposedExperiences);
+        var guide = DEST(installed.destId), stayIdeas = guide && stayIdeasBlock(guide, installed.plan, true);
+        if (stayIdeas) addBlock(turn, stayIdeas);
       }
       var questions = (result.questions || []).map(function (q) { return typeof q === 'string' ? q.trim() : String(q && (q.question || q.text || q.prompt) || '').trim(); }).filter(Boolean).map(function (label) { return { label: label }; });
       if (questions.length) suggest(turn, questions);
@@ -788,44 +800,23 @@
   }
   function fmtClock(sec) { sec = Math.max(0, Math.floor(sec)); return Math.floor(sec / 60) + ':' + pad(sec % 60); }
 
-  function runResearch(turn, b) {
-    var steps = b.steps.length, counts = [], i;
-    for (i = 0; i < steps; i++) counts.push(b.lines.filter(function (l) { return l.step === i; }).length);
-    var units = counts.reduce(function (a, c) { return a + 1 + c; }, 0);
-    var start = Date.now(), total = b.totalMs, sp = speed();
+  function runResearch(turn, b, until) {
+    /* The route drawing is a waiting state, not a percentage. Keep it visible until the real plan request settles. */
+    var start = Date.now();
     var timer = setInterval(function () {
-      var el = (Date.now() - start) * sp / 1000; b.elapsed = el;
+      var el = (Date.now() - start) / 1000; b.elapsed = el;
       var msg = M(turn); if (!msg || turn.stopped) { clearInterval(timer); return; }
       var node = root && root.querySelector('[data-bid="' + b.id + '"]');
       if (node) {
-        var t = node.querySelector('.ch-r__time'); if (t) t.textContent = fmtClock(el);
-        var bar = node.querySelector('.ch-r__bar i');
-        if (bar) bar.style.width = Math.min(97, (el * 1000 / total) * 100) + '%';
+        var t = node.querySelector('.ch-r__time, .ch-making__time'); if (t) t.textContent = fmtClock(el);
       }
     }, 200);
     turn.ticker = timer;
-    var lineTotal = b.lines.length, shown = 0;
-    var chain = Promise.resolve();
-    function later(fn) { chain = chain.then(function () { if (turn.stopped) throw STOP; return fn(); }); }
-    b.stepIdx = 0; touch(b); sync(turn);
-    var li = 0;
-    for (var s = 0; s < steps; s++) (function (s) {
-      var dur = total * (1 + counts[s]) / units;
-      later(function () { b.stepIdx = s; touch(b); sync(turn); });
-      for (var j = 0; j < counts[s]; j++) (function (j) {
-        later(function () { return tick(turn, dur / (counts[s] + 1)); });
-        later(function () {
-          b.lineN = ++shown;
-          b.srcShown = Math.min(b.sources.length, Math.ceil(shown / Math.max(1, lineTotal) * b.sources.length));
-          touch(b); sync(turn);
-        });
-      })(j);
-      later(function () { return tick(turn, dur / (counts[s] + 1)); });
-    })(s);
-    return chain.then(function () {
+    return Promise.all([tick(turn, b.totalMs), until || Promise.resolve()]).then(function () {
+      if (turn.stopped) throw STOP;
       clearInterval(timer);
-      b.stepIdx = steps; b.srcShown = b.sources.length; b.lineN = lineTotal;
-      b.elapsed = (Date.now() - start) * sp / 1000; b.done = true; b.collapsed = true;
+      b.stepIdx = b.steps.length; b.srcShown = b.sources.length; b.lineN = b.lines.length;
+      b.elapsed = (Date.now() - start) / 1000; b.done = true; b.collapsed = true;
       touch(b); sync(turn); save(turn);
     }, function (e) { clearInterval(timer); throw e; });
   }
@@ -864,7 +855,54 @@
   function todo(items, doneN) { return { kind: 'todo', items: items.map(function (t, i) { return { t: t, done: i < doneN }; }) }; }
   function stayDetail(d) {
     var ids = ((d.stays && d.stays.ids) || []).filter(function (id) { return P(d, id); });
-    return { kind: 'list', items: ids.map(function (id) { var p = d.places[id]; return { t: p.name, m: (p.price ? money(p.price, d.currency) + '/night' : p.label || '') + (p.rating ? ' · ★ ' + p.rating : '') }; }) };
+    return { kind: 'list', items: ids.map(function (id) { var p = d.places[id]; return { t: p.name, m: areaLabel(d, p.area) || p.label || '' }; }) };
+  }
+  function stayIdeasBlock(d, plan, generalFallback) {
+    var ids = (d.stays && d.stays.ids) || [], days = plan && plan.days || [];
+    if (!ids.length || !days.length) return null;
+    var groups = [];
+    days.forEach(function (day, i) {
+      var area = day.area;
+      if (!area) return;
+      var group = groups[groups.length - 1];
+      if (!group || group.area !== area) { group = { area: area, from: i + 1, to: i + 1, dateStart: day.date || '', dateEnd: day.date || '', ids: [] }; groups.push(group); }
+      else { group.to = i + 1; group.dateEnd = day.date || ''; }
+    });
+    groups.forEach(function (group) {
+      group.ids = ids.filter(function (id) { var p = P(d, id); return p && p.kind === 'stay' && p.area === group.area; }).slice(0, 3);
+    });
+    groups = groups.filter(function (group) { return group.ids.length; });
+    if (!groups.length && generalFallback) {
+      (d.areas || []).forEach(function (area) {
+        var matches = ids.filter(function (id) { var p = P(d, id); return p && p.kind === 'stay' && p.area === area.id; }).slice(0, 3);
+        if (matches.length) groups.push({ area: area.id, from: 0, to: 0, dateStart: '', dateEnd: '', ids: matches });
+      });
+    }
+    return groups.length ? { t: 'stay-ideas', destId: d.id, groups: groups, general: !!(generalFallback && groups[0].from === 0) } : null;
+  }
+  function experienceIdeasBlock(d, plan, proposal, excluded) {
+    var days = plan && plan.days || [], places = d && d.places || {}, usedInPlan = {}, shown = Object.assign({}, excluded || {}), groups = [];
+    if (!d || !days.length) return null;
+    function isExperience(p) { return p && p.name && !/stay|hotel|lodging|accommodation|resort|villa|room|flight|transport|transfer/i.test(String(p.kind || '')); }
+    days.forEach(function (day) { (day.items || []).forEach(function (item) { if (item.place) usedInPlan[item.place] = true; }); });
+    days.forEach(function (day, dayIndex) {
+      var planned = (day.items || []).map(function (item) { return item.place; }).filter(function (id) { return id && isExperience(places[id]); });
+      var picks = [];
+      if (!proposal) {
+        var kinds = planned.map(function (id) { return places[id].kind; });
+        Object.keys(places).filter(function (id) { var p = places[id]; return isExperience(p) && p.area === day.area && !usedInPlan[id] && !shown[id]; })
+          .sort(function (a, b) { return (kinds.indexOf(places[b].kind) >= 0 ? 1 : 0) - (kinds.indexOf(places[a].kind) >= 0 ? 1 : 0); })
+          .slice(0, 3).forEach(function (id) { picks.push(id); shown[id] = true; });
+      }
+      planned.forEach(function (id) { if (picks.length < 3 && !shown[id]) { picks.push(id); shown[id] = true; } });
+      if (!picks.length) return;
+      var town = day.town && !/^day\s*\d/i.test(day.town) ? day.town : areaLabel(d, day.area) || d.name;
+      groups.push({ dayIndex: dayIndex, area: day.area || '', town: town, date: day.date || '', items: picks.map(function (id) {
+        var p = places[id], photo = (p.photos || []).filter(function (x) { return x && webUrl(x.url) && webUrl(x.sourceUrl) && String(x.attribution || '').trim(); })[0];
+        return { id: id, name: p.name, kind: p.kind, label: p.label || p.kind || 'Experience', blurb: p.blurb || p.description || '', seed: p.seed || d.id + '-' + id, scene: p.scene || d.scene || 'city', tone: p.tone || d.tone || 'sand', at: p.at || null, photo: photo ? { url: webUrl(photo.url), attribution: photo.attribution, sourceUrl: webUrl(photo.sourceUrl) } : null, sourceUrl: webUrl(p.sourceUrl || p.url), sourceLabel: p.sourceUrl ? 'Source' : 'Visit site', rating: p.ratingSource && Number.isFinite(Number(p.rating)) ? Number(p.rating) : null, ratingSource: p.ratingSource || '' };
+      }) });
+    });
+    return groups.length ? { t: 'experience-ideas', destId: d.id, proposal: !!proposal, groups: groups } : null;
   }
   function areasDetail(d) {
     var counts = {};
@@ -1009,6 +1047,17 @@
     return order().map(function (id) { var dd = DEST(id); return dd ? { label: dd.prompt || ('Plan a trip to ' + dd.name), action: 'newtrip', dest: id } : null; }).filter(Boolean);
   }
   function respond(turn, text) {
+    var reelThread = threadById(getTrip(turn.tripId), turn.threadId);
+    if (reelThread && (reelThread.reelChat || /https:\/\/(?:www\.)?(?:instagram\.com|tiktok\.com|youtube\.com|youtu\.be|pinterest\.com|x\.com|twitter\.com)\//i.test(text) || /^(?:plan from a reel|plan a reel)$/i.test(text))) {
+      reelThread.reelChat = true;
+      if(!FT.backend || FT.backend.auditOwnerId!==turn.ownerId) return reply(turn,'Your account changed. Reopen this conversation before continuing.');
+      return FT.backend.request('/api/friday/reel-chat', 'POST', {conversationId:turn.threadId,message:text,ownerId:turn.ownerId}).then(function(result){
+        if(turn.stopped || !FT.backend || FT.backend.auditOwnerId!==turn.ownerId) throw STOP;
+        reelThread.reelChat=!result.closed;
+        return reply(turn,result.text,(result.suggestions||[]).map(function(s){return {label:s};}));
+      }).catch(function(error){if(error===STOP)throw error;return reply(turn,error.message||'Friday could not complete that request. Your previous itinerary is still saved.');});
+    }
+
     /* Signed in with a research provider: Deep research answers. Without one, fall through to the planner below, whose
        plan comes from POST /api/itineraries (see requestPlan) instead of a dead end. */
     if (FT.backend && FT.backend.user && FT.backend.capabilities && FT.backend.capabilities.research) return respondWithBackend(turn, text);
@@ -1042,6 +1091,7 @@
       relax: /relax|slower|\bless\b|leisurely|unhurried|pace|wander|rest|linger|lighten|acclimatise/i,
       night: /nightlife|\bbars?\b|\bclubs?\b|part(y|ies)\b|sundowner|sunset drinks?|dusk|twilight|evening|cocktail|lantern/i,
       food: /local food|food spots?|\beat\b|eating|restaurants?|where to eat|food near|dinner|lunch|curate.*table|dining|tables?|thali|kaiseki|baker|bistro|seafood|counter/i,
+      experience: /experiences?|activities|things to do|what to do|attractions?|sightseeing|places to visit/i,
       hotel: /hotel|\bstay|restaurant|where to sleep|accommodation|resort|sanctuary|haveli|retreat|boutique/i,
       day: /\bday\s*(\d+)/i,
       dayVerb: /remove|swap|delete|drop|replace/i,
@@ -1054,6 +1104,7 @@
     else if (R.relax.test(q)) intent = 'relax';
     else if (R.night.test(q)) intent = 'night';
     else if (R.food.test(q)) intent = 'food';
+    else if (R.experience.test(q)) intent = 'experience';
     else if (R.hotel.test(q)) intent = 'stay';
     else if (R.plan.test(q)) intent = 'plan';
     else intent = 'fallback';
@@ -1079,7 +1130,7 @@
     }
     var followSteps = function (label) {
       var rb = researchBlock(d, { short: true, sub: d.name + (label ? ', ' + label : ''), offset: Math.floor(Math.random() * 4) });
-      rb.totalMs = 6000;
+      rb.totalMs = 900;
       addBlock(turn, rb);
       return runResearch(turn, rb);
     };
@@ -1118,6 +1169,16 @@
               if (r.changes) applyPlan(turn, r.plan, 'Added evening sundowners and walks', r.changes);
               return say(turn, fill(replies.nightlife || 'I added twilight stops for unhurried evenings.', c2));
             }).then(function () { suggest(turn, chipsFor(d, text)); });
+        });
+      case 'experience':
+        if (!hasPlan) return reply(turn, 'I can suggest experiences around each day once we have a route. How many days would you like to spend in ' + d.name + '?', [{ label: d.prompt || ('Plan a trip to ' + d.name) }]);
+        return tick(turn, 250).then(function () {
+          var seenIdeas = {}, th = threadById(getTrip(turn.tripId), turn.threadId);
+          (th && th.messages || []).forEach(function (m) { (m.blocks || []).forEach(function (block) { if (block.t === 'experience-ideas') (block.groups || []).forEach(function (group) { (group.items || []).forEach(function (item) { seenIdeas[item.id] = true; }); }); }); });
+          var experiences = experienceIdeasBlock(d, trip.plan, false, seenIdeas);
+          if (!experiences) return reply(turn, 'I have shown the experience ideas in Friday’s guide for this route. We can change a day or area to explore different places.', chipsFor(d, text));
+          addBlock(turn, { t: 'text', text: 'Here are more places to consider around your days. Open any card for details or add it to the plan.' });
+          addBlock(turn, experiences); save(turn); suggest(turn, chipsFor(d, text));
         });
       case 'dayedit':
         return dayEdit(turn, d, trip, q, replies, text);
@@ -1255,8 +1316,8 @@
     var planP = requestPlan(d, planOpts, turn, trip), plan = null;
     var c = ctxFor(d, trip, { days: clamp(Math.round(days), 1, 21) });
     var sub = d.name + (month ? ', ' + MONTHS[month.m - MB] + ' ' + month.y : '');
-    var rb = researchBlock(d, { sub: sub });
-    return tick(turn, 500).then(function () { addBlock(turn, rb); return runResearch(turn, rb); })
+    var rb = researchBlock(d, { sub: sub, brief: { destination: d.name, days: days, style: types.slice(0, 2).join(' · ') } });
+    return tick(turn, 500).then(function () { addBlock(turn, rb); return runResearch(turn, rb, planP); })
       .then(function () { return tick(turn, 300); })
       .then(function () { var rp = reportBlock(d); addBlock(turn, rp); return runReport(turn, rp); })
       .then(function () { return tick(turn, 400); })
@@ -1267,8 +1328,10 @@
       .then(function () {
         c.stay = plan.stay && P(d, plan.stay) ? P(d, plan.stay).name : '';
         var first = String((d.replies && d.replies.planDone) || 'Your plan is ready.').split(/\n{2,}/)[0];
-        return say(turn, fill(first, c) + '\n\nI built it from those sources' + (c.stay ? ' and based you at **' + c.stay + '**' : '') + '. Tell me your exact dates and I will date every day and check live availability.');
+        return say(turn, fill(first, c) + '\n\nI built it from those sources' + (c.stay ? ' and based you at **' + c.stay + '**' : '') + '. Tell me your exact dates and I can place stay ideas alongside the route. Friday can confirm prices and availability separately.');
       })
+      .then(function () { var ideas = stayIdeasBlock(d, plan); if (ideas) { addBlock(turn, ideas); save(turn); } })
+      .then(function () { var experiences = experienceIdeasBlock(d, plan, false); if (experiences) { addBlock(turn, experiences); save(turn); } })
       .then(function () { suggest(turn, chipsFor(d)); });
   }
   function stayFlow(turn, b, trip, d) {
@@ -1284,17 +1347,19 @@
     var dated = r.plan.days.filter(function (x) { return x.date; });
     c.range = dated.length ? fmtRange(dated[0].date, dated[dated.length - 1].date) : '';
     var st = d.stays || {};
-    var rb = researchBlock(d, { short: true, sub: d.name + ' stays', offset: 2 }); rb.totalMs = 6000;
+    var rb = researchBlock(d, { short: true, sub: d.name + ' stays', offset: 2, brief: tripBrief(trip) });
     var steps = tick(turn, 0).then(function () { addBlock(turn, rb); return runResearch(turn, rb); });
     return steps
       .then(function () { return say(turn, fill(replies.staysIntro || 'I will pick a well-placed base and add a few dining stops.', c)); })
       .then(function () { return tick(turn, 150); })
       .then(function () { return tool(turn, 'Updated todo list', todo(['Confirm the dates', 'Shortlist hotels', 'Choose a base', 'Add dining stops'], 1)); })
-      .then(function () { return tool(turn, 'Found ' + (st.found || (st.ids || []).length) + ' hotels in ' + (st.query || d.name), stayDetail(d)); })
+      .then(function () { return tool(turn, 'Shortlisted ' + (st.ids || []).length + ' stay ideas from Friday’s guide', stayDetail(d)); })
       .then(function () { return tool(turn, 'Updated plan with ' + r.changes + ' change' + (r.changes === 1 ? '' : 's')); })
       .then(function () { return tool(turn, 'Updated todo list', todo(['Confirm the dates', 'Shortlist hotels', 'Choose a base', 'Add dining stops'], 4), 300); })
       .then(function () { applyPlan(turn, r.plan, 'Set dates and added a stay', r.changes); return tick(turn, 300); })
       .then(function () { return say(turn, fill(replies.staysDone || 'Your plan now has dates and a base.', c)); })
+      .then(function () { var ideas = stayIdeasBlock(d, r.plan); if (ideas) { addBlock(turn, ideas); save(turn); } })
+      .then(function () { var experiences = experienceIdeasBlock(d, r.plan, false); if (experiences) { addBlock(turn, experiences); save(turn); } })
       .then(function () { suggest(turn, chipsFor(d)); });
   }
 
@@ -1348,7 +1413,7 @@
       auditStandalone(tripId,th.id,refusalId,'user',{text:text},'completed',null,refusalOwner).then(function(){return auditStandalone(tripId,th.id,refusalId+'_reply','assistant',{text:'Friday focuses on planning trips, bookings, stays, and travel packages.'},'completed',null,refusalOwner);}).then(function(){toast('Friday focuses on planning trips, bookings, stays, and travel packages.');}).catch(function(e){toast(e.message||'Friday could not save this conversation for review.',true);});
       return;
     }
-    if (text && FT.integrations && FT.integrations.shouldUseFridayPlan && FT.integrations.shouldUseFridayPlan(text) && FT.backend && FT.backend.user) {
+    if (!th.reelChat && !/https:\/\/(?:www\.)?(?:instagram\.com|tiktok\.com|youtube\.com|youtu\.be|pinterest\.com|x\.com|twitter\.com)\//i.test(text) && text && FT.integrations && FT.integrations.shouldUseFridayPlan && FT.integrations.shouldUseFridayPlan(text) && FT.backend && FT.backend.user) {
       var planEventId=uid('m_');
       var planOwner=FT.backend&&FT.backend.auditOwnerId;
       auditStandalone(tripId,th.id,planEventId,'user',{text:text},'completed',null,planOwner).then(function(){FT.integrations.openFridayPlan({ tripId: opts.tripId||tripId, message: text, conversationId: th.id, ownerId:planOwner });}).catch(function(e){toast(e.message||'Friday could not save this conversation for review.',true);});
@@ -1485,7 +1550,7 @@
   }
   function footHTML(msg) {
     var h = '';
-    if (msg.thinking) h += '<div class="ch-think"><span>Thinking…</span></div>';
+    if (msg.thinking) h += '<div class="ch-think"><span>Friday is opening the notebook…</span></div>';
     if (msg.stopped) h += '<div class="ch-stopped"><i></i>Stopped</div>';
     if (msg.done && !msg.stopped && (msg.blocks || []).some(function (b) { return b.t === 'text' || b.t === 'report'; })) {
       h += '<div class="ch-fb">' +
@@ -1567,6 +1632,10 @@
         el.className = 'ch-rep'; el.innerHTML = reportHTML(b); break;
       case 'places':
         el.className = 'ch-placecards'; el.innerHTML = placeCardsHTML(b); break;
+      case 'stay-ideas':
+        el.className = 'ch-stayideas'; el.innerHTML = stayIdeasHTML(b); break;
+      case 'experience-ideas':
+        el.className = 'ch-experiences'; el.innerHTML = experienceIdeasHTML(b); break;
       case 'friday-listings':
         el.className = 'ch-friday-listings'; el.innerHTML = '<p class="ch-friday-listings__lead">Choose a Friday listing to shape the package. Published itineraries are samples; the team confirms price and availability.</p><div class="ch-friday-listings__grid">' + (b.listings || []).map(function (l, i) { return '<article class="ch-friday-listing"><span>' + esc((l.type || 'Friday listing') + (l.city ? ' · ' + l.city : '')) + '</span><strong>' + esc(l.title || 'Travel option') + '</strong>' + (l.summary ? '<p>' + esc(l.summary) + '</p>' : '') + (webUrl(l.url) ? '<a href="' + esc(webUrl(l.url)) + '" target="_blank" rel="noopener noreferrer">View listing</a>' : '') + '<button type="button" class="ch-pill ch-pill--ink" data-act="friday-listing" data-listing-index="' + i + '">Choose for package</button></article>'; }).join('') + '</div>'; break;
       case 'draft':
@@ -1577,6 +1646,54 @@
         el.className = 'ch-unk';
     }
     return el;
+  }
+  function stayIdeasHTML(b) {
+    var d = DEST(b.destId);
+    if (!d) return '';
+    var ctx = mountedCtx(), trip = ctx && ctx.trip;
+    var inPlan = {};
+    if (trip && trip.plan) (trip.plan.days || []).forEach(function (day) { (day.items || []).forEach(function (item) { if (item.place) inPlan[item.place] = true; }); });
+    var groups = (b.groups || []).map(function (group, groupIndex) {
+      var days = group.from ? 'Day ' + group.from + (group.to > group.from ? '–' + group.to : '') : 'Friday’s guide';
+      var when = group.dateStart && group.dateEnd ? ' · ' + fmtStayDays(group.dateStart, group.dateEnd) : '';
+      var cards = (group.ids || []).map(function (id) {
+        var p = P(d, id); if (!p || p.kind !== 'stay') return '';
+        var saved = !!(FT.saved && FT.saved.has && FT.saved.has(d.id, id));
+        var art = '';
+        if (FT.plate) { try { art = FT.plate(p.seed || d.id + '-' + id, { scene: p.scene || 'city', tone: p.tone || 'sand', ratio: 'square' }); } catch (e) { /* keep the paper placeholder */ } }
+        return '<article class="ch-stayidea"><div class="ch-stayidea__art" aria-hidden="true">' + art + '</div>' +
+          '<div class="ch-stayidea__body"><span class="ch-stayidea__type">' + esc(p.label || 'Stay') + '</span><h4>' + esc(p.name) + '</h4>' +
+          (p.blurb ? '<p>' + esc(p.blurb) + '</p>' : '') + '<div class="ch-stayidea__actions">' +
+          (group.from ? '<button type="button" class="ch-pill ch-pill--ink" data-act="stay-add" data-stay-id="' + esc(id) + '" data-stay-group="' + groupIndex + '"' + (inPlan[id] ? ' disabled' : '') + '>' + (inPlan[id] ? 'In plan' : 'Add to plan') + '</button>' : '') +
+          '<button type="button" class="ch-stayidea__map" data-act="stay-save" data-stay-id="' + esc(id) + '" aria-pressed="' + saved + '">' + (saved ? 'Saved' : 'Save idea') + '</button>' +
+          (Array.isArray(p.at) && p.at.length === 2 ? '<button type="button" class="ch-stayidea__map" data-act="stay-map" data-stay-id="' + esc(id) + '">View on map</button>' : '') +
+          '</div></div></article>';
+      }).join('');
+      return cards ? '<section class="ch-stayideas__group"><div class="ch-stayideas__heading"><span>' + esc(days + when) + '</span><h3>Stay ideas near ' + esc(areaLabel(d, group.area) || group.area) + '</h3></div><div class="ch-stayideas__grid">' + cards + '</div></section>' : '';
+    }).join('');
+    return groups ? '<p class="ch-stayideas__intro">' + (b.general ? 'Stay ideas from Friday’s destination guide. Save the ones you like while you review the proposed itinerary. ' : 'Places to consider along this route. Add a stay to your working plan or save it for later. ') + 'Prices and availability need confirmation before booking.</p>' + groups : '';
+  }
+  function experienceIdeasHTML(b) {
+    var ctx = mountedCtx(), trip = ctx && ctx.trip, inPlan = {};
+    if (trip && trip.plan) (trip.plan.days || []).forEach(function (day) { (day.items || []).forEach(function (item) { if (item.place) inPlan[item.place] = true; }); });
+    var groups = (b.groups || []).map(function (group, groupIndex) {
+      var dayLabel = 'Day ' + (group.dayIndex + 1) + (group.date ? ' · ' + fmtStayDays(group.date, group.date) : '');
+      var cards = (group.items || []).map(function (p) {
+        var saved = !!(FT.saved && FT.saved.has && FT.saved.has(b.destId, p.id));
+        var art = '';
+        if (p.photo && webUrl(p.photo.url) && webUrl(p.photo.sourceUrl) && p.photo.attribution) art = '<img src="' + esc(webUrl(p.photo.url)) + '" alt="" loading="lazy" referrerpolicy="no-referrer"><span class="ch-exp-card__credit">' + esc(p.photo.attribution) + '</span>';
+        else if (FT.plate) { try { art = FT.plate(p.seed, { scene: p.scene, tone: p.tone, ratio: 'landscape' }); } catch (e) { /* keep the paper placeholder */ } }
+        return '<article class="ch-exp-card"><div class="ch-exp-card__art">' + art + '</div><div class="ch-exp-card__body"><span class="ch-exp-card__type">' + esc(p.label) + '</span>' +
+          '<h4>' + (b.proposal ? esc(p.name) : '<button type="button" data-act="experience-detail" data-exp-group="' + groupIndex + '" data-exp-id="' + esc(p.id) + '">' + esc(p.name) + '</button>') + '</h4>' +
+          (p.rating != null && p.ratingSource && Number.isFinite(Number(p.rating)) ? '<span class="ch-exp-card__rating">★ ' + esc(Number(p.rating).toFixed(1)) + ' · ' + esc(p.ratingSource) + '</span>' : '') +
+          (p.blurb ? '<p>' + esc(p.blurb) + '</p>' : '') + '<div class="ch-exp-card__actions">' +
+          (b.proposal ? '<span class="ch-exp-card__state">In proposed itinerary</span>' : '<button type="button" class="ch-pill ch-pill--ink" data-act="experience-add" data-exp-group="' + groupIndex + '" data-exp-id="' + esc(p.id) + '"' + (inPlan[p.id] ? ' disabled' : '') + '>' + (inPlan[p.id] ? 'In plan' : 'Add to day ' + (group.dayIndex + 1)) + '</button><button type="button" class="ch-exp-card__link" data-act="experience-save" data-exp-group="' + groupIndex + '" data-exp-id="' + esc(p.id) + '" aria-pressed="' + saved + '">' + (saved ? 'Saved' : 'Save') + '</button>') +
+          (webUrl(p.sourceUrl) ? '<a class="ch-exp-card__link" href="' + esc(webUrl(p.sourceUrl)) + '" target="_blank" rel="noopener noreferrer">' + esc(p.sourceLabel || 'Source') + '</a>' : '') +
+          '</div></div></article>';
+      }).join('');
+      return '<section class="ch-experiences__group" data-exp-group="' + groupIndex + '"><div class="ch-experiences__head"><div><span>' + esc(dayLabel) + ' · Things to do</span><h3>Experiences in ' + esc(group.town) + '</h3></div><div class="ch-experiences__nav"><button type="button" data-act="experience-scroll" data-exp-group="' + groupIndex + '" data-dir="-1" aria-label="Previous experiences for day ' + (group.dayIndex + 1) + '">' + icon('chevron-left', 17) + '</button><button type="button" data-act="experience-scroll" data-exp-group="' + groupIndex + '" data-dir="1" aria-label="Next experiences for day ' + (group.dayIndex + 1) + '">' + icon('chevron-right', 17) + '</button></div></div><div class="ch-experiences__track" role="region" tabindex="0" aria-label="Experience ideas for day ' + (group.dayIndex + 1) + '">' + cards + '</div></section>';
+    }).join('');
+    return '<p class="ch-experiences__intro">' + (b.proposal ? 'Experiences included in this proposed route. Review the itinerary before adding it to your trip.' : 'More to explore along your route. Add an idea to the day, save it, or open its details. ') + 'Check opening details and ticket availability for your dates.</p>' + groups;
   }
   function placeCardsHTML(b) {
     return '<div class="ch-placecards__grid">' + (b.places || []).map(function (p, i) {
@@ -1673,10 +1790,33 @@
 
   /* --- research --- */
   function favColor(i) { try { if (U().dayColor) return U().dayColor(i); } catch (e) { /* ignore */ } return ['#D97757', '#0A87A8', '#5B3FD6', '#178044', '#B721C9', '#2563EB', '#B45309'][i % 7]; }
+  function makingHTML(b) {
+    var brief = b.brief || {}, destination = brief.destination || b.sub || 'your journey';
+    var activity = b.curated ? 'Working through Friday’s destination guide' : (b.steps[b.stepIdx] || 'Reading your request');
+    var notes = b.curated ? [
+      { name: 'Destination', value: destination },
+      { name: 'Length', value: brief.days ? brief.days + ' ' + (brief.days === 1 ? 'day' : 'days') : 'To be shaped' },
+      { name: 'Style', value: brief.style || 'Your pace, your way' }
+    ] : [
+      { name: 'Your request', value: brief.request || 'Travel research' },
+      { name: 'Journey', value: destination },
+      { name: 'Approach', value: 'Source-led research' }
+    ];
+    return '<div class="ch-making"><div class="ch-making__top"><span>Friday · At the design desk</span><span class="ch-making__time" aria-hidden="true">' + fmtClock(b.elapsed) + '</span><button type="button" data-act="rtoggle" aria-label="Minimise working view">' + icon('chevron-up', 14) + '</button></div>' +
+      '<h2>' + (b.curated ? 'A journey is<br><em>taking shape.</em>' : 'Considering<br><em>the details.</em>') + '</h2><p class="ch-making__lead">' + (b.curated ? 'A considered route begins with the details you shared. Keep exploring your plan while Friday works.' : 'Your request stays in view while Friday checks the details and prepares a useful answer.') + '</p>' +
+      '<div class="ch-making__route" aria-hidden="true"><svg viewBox="0 0 420 78" preserveAspectRatio="none"><path class="ch-making__path-base" d="M12 52 C78 52 78 16 152 16 S252 60 326 50 S383 22 408 22"/><path class="ch-making__path" d="M12 52 C78 52 78 16 152 16 S252 60 326 50 S383 22 408 22"/><circle cx="12" cy="52" r="5"/><circle cx="152" cy="16" r="5"/><circle cx="326" cy="50" r="5"/><circle cx="408" cy="22" r="5"/></svg>' + (b.curated ? '<span>THE BRIEF</span><span>THE ROUTE</span><span>THE STAYS</span><span>THE DETAILS</span>' : '<span>YOUR ASK</span><span>RESEARCH</span><span>CONTEXT</span><span>THE ANSWER</span>') + '</div>' +
+      '<dl class="ch-making__brief">' + notes.map(function (n) { return '<div><dt>' + esc(n.name) + '</dt><dd>' + esc(n.value) + '</dd></div>'; }).join('') + '</dl>' +
+      '<div class="ch-making__activity"><span class="ch-making__mark" aria-hidden="true"></span><div><span>Current activity</span><strong aria-live="polite">' + esc(activity) + '</strong></div></div>' +
+      '<p class="ch-making__note">Friday will bring the research and itinerary back into this conversation.</p></div>';
+  }
   function researchHTML(b) {
     var n = b.steps.length, srcN = b.sources.length;
+    if (b.error) return '<div class="ch-r__end" role="alert"><span>Friday could not finish this research.</span><p>Your request is still here. Please try again when you are ready.</p></div>';
+    if (b.stopped) return '<div class="ch-r__end"><span>Work stopped.</span><p>Your existing plan is still here.</p></div>';
+    if (!b.done && b.collapsed) return '<button type="button" class="ch-making__compact" data-act="rtoggle"><span class="ch-making__mark" aria-hidden="true"></span><span>Friday is working on your request</span><span class="ch-making__time" aria-hidden="true">' + fmtClock(b.elapsed) + '</span><span class="ch-tool__chev">' + icon('chevron-down', 14) + '</span></button>';
+    if (!b.done) return makingHTML(b);
     if (b.done && b.collapsed) {
-      return '<button type="button" class="ch-r__sum" data-act="rtoggle"><span class="ch-r__ok">' + icon(b.stopped ? 'x' : 'check', 13) + '</span><span>' + (b.stopped ? 'Research stopped' : 'Researched ' + srcN + ' sources · ' + n + ' steps · ' + fmtClock(b.elapsed)) + '</span><span class="ch-tool__chev">' + icon('chevron-right', 13) + '</span></button>';
+      return '<button type="button" class="ch-r__sum" data-act="rtoggle"><span class="ch-r__ok">' + icon(b.stopped ? 'x' : 'check', 13) + '</span><span>' + (b.stopped ? 'Work stopped' : b.curated ? 'Route shaped with Friday’s guide · ' + fmtClock(b.elapsed) : 'Research complete · ' + srcN + ' source' + (srcN === 1 ? '' : 's') + ' · ' + fmtClock(b.elapsed)) + '</span><span class="ch-tool__chev">' + icon('chevron-right', 13) + '</span></button>';
     }
     var h = '<div class="ch-r__head"><span class="ch-r__spark">' + icon('sparkle', 16) + '</span><span class="ch-r__title">Research</span>' + (b.sub ? '<span class="ch-r__sub">· ' + esc(b.sub) + '</span>' : '') +
       '<span class="ch-r__time">' + fmtClock(b.elapsed) + '</span><button type="button" class="ch-r__tog" data-act="rtoggle" aria-label="' + (b.collapsed ? 'Expand' : 'Collapse') + '">' + icon(b.collapsed ? 'chevron-down' : 'chevron-up', 15) + '</button></div>' +
@@ -1760,6 +1900,13 @@
     touch(r.b);
     var col = root.querySelector('.ch-col'), el = col && col.querySelector('[data-mid="' + r.msg.id + '"]');
     if (el) syncMessage(el, r.msg);
+  }
+  function resyncExperiences(r) {
+    var node = root && root.querySelector('[data-bid="' + r.b.id + '"]');
+    var offsets = node ? Array.prototype.map.call(node.querySelectorAll('.ch-experiences__track'), function (track) { return track.scrollLeft; }) : [];
+    resync(r);
+    node = root && root.querySelector('[data-bid="' + r.b.id + '"]');
+    if (node) Array.prototype.forEach.call(node.querySelectorAll('.ch-experiences__track'), function (track, i) { track.scrollLeft = offsets[i] || 0; });
   }
   function paint(r, cardEl) {
     /* light repaint on option clicks / typing: no rebuild, so focus and caret survive */
@@ -1868,6 +2015,58 @@
         break;
       }
       case 'copyrep': if (b) copyText(reportText(b), 'Report copied'); break;
+      case 'stay-add': if (b && b.t === 'stay-ideas' && r.ctx && r.ctx.trip && r.ctx.trip.destId === b.destId && FT.plan && FT.plan.addItem) {
+        var addId = el.dataset.stayId, addGroup = (b.groups || [])[+el.dataset.stayGroup], addCatalog = DEST(b.destId);
+        var already = r.ctx.trip.plan && r.ctx.trip.plan.days.some(function (day) { return day.items.some(function (item) { return item.place === addId; }); });
+        if (addGroup && addGroup.from > 0 && (addGroup.ids || []).indexOf(addId) >= 0 && addCatalog && P(addCatalog, addId) && !already) {
+          FT.plan.addItem(r.ctx.trip.id, addGroup.from - 1, addId, 'Stay idea to confirm');
+          persist(r.ctx.trip.id); resync(r);
+        }
+        break;
+      }
+      case 'stay-save': if (b && b.t === 'stay-ideas' && r.ctx && r.ctx.trip && r.ctx.trip.destId === b.destId && FT.saved && FT.saved.toggle) {
+        var stayId = el.dataset.stayId, catalog = DEST(b.destId);
+        if (catalog && P(catalog, stayId) && (b.groups || []).some(function (g) { return (g.ids || []).indexOf(stayId) >= 0; })) {
+          FT.saved.toggle(b.destId, stayId); persist(r.ctx.trip.id); resync(r);
+        }
+        break;
+      }
+      case 'stay-map': if (b && b.t === 'stay-ideas' && r.ctx && r.ctx.trip && r.ctx.trip.destId === b.destId) {
+        var mapId = el.dataset.stayId, mapCatalog = DEST(b.destId);
+        if (mapCatalog && P(mapCatalog, mapId) && (b.groups || []).some(function (g) { return (g.ids || []).indexOf(mapId) >= 0; }) && FT.map && FT.map.focus) FT.map.focus(mapId);
+        break;
+      }
+      case 'experience-scroll': if (b && b.t === 'experience-ideas') {
+        var expSection = el.closest('.ch-experiences__group'), expTrack = expSection && expSection.querySelector('.ch-experiences__track');
+        if (expSection && +expSection.dataset.expGroup === +el.dataset.expGroup && expTrack) {
+          var expCard = expTrack.querySelector('.ch-exp-card'), distance = expCard ? expCard.getBoundingClientRect().width + 12 : expTrack.clientWidth * .8;
+          expTrack.scrollBy({ left: distance * (+el.dataset.dir < 0 ? -1 : 1), behavior: reduced() ? 'auto' : 'smooth' });
+        }
+        break;
+      }
+      case 'experience-add': if (b && b.t === 'experience-ideas' && !b.proposal && r.ctx && r.ctx.trip && r.ctx.trip.destId === b.destId && FT.plan && FT.plan.addItem) {
+        var expGroup = (b.groups || [])[+el.dataset.expGroup], expId = el.dataset.expId;
+        var expPlace = expGroup && (expGroup.items || []).filter(function (x) { return x.id === expId; })[0];
+        var expDay = expGroup && r.ctx.trip.plan && r.ctx.trip.plan.days[expGroup.dayIndex];
+        var expExists = r.ctx.trip.plan && r.ctx.trip.plan.days.some(function (day) { return day.items.some(function (item) { return item.place === expId; }); });
+        if (expPlace && expDay && expDay.area === expGroup.area && P(DEST(b.destId), expId) && !expExists) {
+          FT.plan.addItem(r.ctx.trip.id, expGroup.dayIndex, expId);
+          persist(r.ctx.trip.id); resyncExperiences(r);
+        }
+        break;
+      }
+      case 'experience-save': if (b && b.t === 'experience-ideas' && !b.proposal && r.ctx && r.ctx.trip && r.ctx.trip.destId === b.destId && FT.saved && FT.saved.toggle) {
+        var saveGroup = (b.groups || [])[+el.dataset.expGroup], saveId = el.dataset.expId;
+        if (saveGroup && (saveGroup.items || []).some(function (x) { return x.id === saveId; }) && P(DEST(b.destId), saveId)) {
+          FT.saved.toggle(b.destId, saveId); persist(r.ctx.trip.id); resyncExperiences(r);
+        }
+        break;
+      }
+      case 'experience-detail': if (b && b.t === 'experience-ideas' && !b.proposal && r.ctx && r.ctx.trip && r.ctx.trip.destId === b.destId && FT.placeModal) {
+        var detailGroup = (b.groups || [])[+el.dataset.expGroup], detailId = el.dataset.expId;
+        if (detailGroup && (detailGroup.items || []).some(function (x) { return x.id === detailId; }) && P(DEST(b.destId), detailId)) FT.placeModal(b.destId, detailId, { tripId: r.ctx.trip.id });
+        break;
+      }
       case 'place-card': if (b && b.places && b.places[+el.dataset.placeIndex]) { showResearchPlace(b.places[+el.dataset.placeIndex], r.ctx.trip.id); } break;
       case 'friday-listing': if (b && b.listings && b.listings[+el.dataset.listingIndex] && FT.integrations) { var chosen = b.listings[+el.dataset.listingIndex], prior = (b.answers && b.answers.listingIds || []).concat(b.draft && b.draft.listingIds || []); FT.integrations.openFridayPlan({ tripId: r.ctx.trip.id, workflowId: b.workflowId, message: b.message || 'Plan around my bookings and prepare a package', listingIds: Array.from(new Set(prior.concat(chosen.id))), draft: b.draft || null, answers: b.answers || {}, scope: b.scope || 'upcoming' }); } break;
       case 'research-review': if (r.ctx && r.ctx.trip) reviewResearchDraft(r.ctx.trip, b, msg); break;
@@ -2005,6 +2204,6 @@
     chat.render(getTrip(tripId));
   };
 
-  chat._x = { extractPlace: extractPlace };   /* exposed for tests */
+  chat._x = { extractPlace: extractPlace, experienceIdeasBlock: experienceIdeasBlock, experienceIdeasHTML: experienceIdeasHTML };   /* exposed for tests */
   FT.chat = chat;
 })();

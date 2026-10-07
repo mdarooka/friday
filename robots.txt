@@ -10,3 +10,4 @@ Disallow: /admin-villas.html
 Disallow: /admin-villas
 Disallow: /api/
 Disallow: /.data/
+Sitemap: https://fridaytravel.vercel.app/sitemap.xml

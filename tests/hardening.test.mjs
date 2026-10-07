@@ -4,7 +4,6 @@ import http from 'node:http';
 import { mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { startApp, signUp, origin } from './helpers.mjs';
 import { createApp } from '../server/app.mjs';
@@ -56,9 +55,9 @@ test('CSRF: development accepts an Origin that matches the Host; production acce
   assert.match(ok.headers.get('set-cookie'), /; Secure/);
 });
 
-test('production refuses to start without APP_ORIGIN', () => {
-  assert.throws(() => createApp({ dbPath: ':memory:', env: { NODE_ENV: 'production' } }), /APP_ORIGIN must be set/);
-  createApp({ dbPath: ':memory:', env: { NODE_ENV: 'production', APP_ORIGIN: 'https://friday.example' } }).close();
+test('production refuses to start without APP_ORIGIN', async () => {
+  assert.throws(() => createApp({ memory: true, env: { NODE_ENV: 'production' } }), /APP_ORIGIN must be set/);
+  await createApp({ memory: true, env: { NODE_ENV: 'production', APP_ORIGIN: 'https://friday.example' } }).db.close();
 });
 
 test('rate limits key on the socket address unless TRUST_PROXY=1, then on the right-most forwarded hop', async (t) => {
@@ -132,9 +131,7 @@ test('shared trips carry their photos through a share-scoped route and nothing e
   assert.equal((await request(`/api/shared/${token}/photo/Zzzzzz/zzzzzzzz`)).status, 404, 'a photo the trip does not reference');
   assert.equal((await request(`/api/shared/${'0'.repeat(64)}/photo/Abcdef/abcdefgh`)).status, 404, 'an unknown share');
   assert.equal((await request('/api/place-photo/Abcdef/abcdefgh')).status, 401, 'the plain route still needs sign-in');
-  const db = new DatabaseSync(app.dbPath);
-  db.prepare('UPDATE shares SET expires=0 WHERE token_hash=?').run(createHash('sha256').update(token).digest('hex'));
-  db.close();
+  await app.db.query('UPDATE shares SET expires=0 WHERE token_hash=$1', [createHash('sha256').update(token).digest('hex')]);
   assert.equal((await request(urls[0])).status, 404, 'an expired share');
 });
 
@@ -150,15 +147,13 @@ test('unexpected server errors are logged without leaking details to the client'
   assert.ok(logged.mock.calls.some((c) => String(c.arguments[0]).includes('boom from places')));
 });
 
-test('a provider key without AI_MODEL warns at startup', async (t) => {
-  const warn = t.mock.method(console, 'warn', () => {});
-  await startApp(t, { env: { ANTHROPIC_API_KEY: 'sk-ant-secret' } });
-  assert.equal(warn.mock.calls.length, 1);
-  assert.match(String(warn.mock.calls[0].arguments[0]), /AI_MODEL/);
-  assert.equal(String(warn.mock.calls[0].arguments[0]).includes('sk-ant-secret'), false);
-  await startApp(t, { env: { PERPLEXITY_API_KEY: 'pplx', AI_PROVIDER: 'perplexity' } });
-  assert.equal(warn.mock.calls.length, 2);
-  await startApp(t, { env: { ANTHROPIC_API_KEY: 'k', AI_MODEL: 'some-model' } });
-  await startApp(t);
-  assert.equal(warn.mock.calls.length, 2);
+test('production research configuration uses only OpenAI credentials', async (t) => {
+  for (const env of [{ANTHROPIC_API_KEY:'legacy',AI_PROVIDER:'claude'}, {PERPLEXITY_API_KEY:'legacy',AI_PROVIDER:'perplexity'}]) {
+    const {request}=await startApp(t,{env});
+    assert.equal((await request('/api/capabilities')).result.research,false);
+  }
+  const {request}=await startApp(t,{env:{OPENAI_API_KEY:'server-only',AI_PROVIDER:'claude'}});
+  const capabilities=(await request('/api/capabilities')).result;
+  assert.equal(capabilities.research,true);
+  assert.equal(JSON.stringify(capabilities).includes('server-only'),false);
 });

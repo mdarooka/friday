@@ -1,5 +1,6 @@
+import { createReelChat } from './reel-chat.mjs';
 import { createServer } from 'node:http';
-import { randomBytes, randomUUID, createHash, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomUUID, createHash, createHmac, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -22,7 +23,6 @@ import { createFridayWorkflow } from './friday-workflow.mjs';
 import { createReelWorkflow } from './reel-workflow.mjs';
 import { createHexclaveAuth } from './hexclave/auth.mjs';
 import { createHexclaveEmailService } from './hexclave/email.mjs';
-import { runBackupLoop } from './tools/backup-loop.mjs';
 import { briefingEmail, prepareBriefing } from './briefing.mjs';
 const scrypt = promisify(scryptCallback);
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -87,14 +87,23 @@ export function createApp(options = {}) {
   const root = options.root || defaultRoot;
   const env = options.env || process.env;
   const production = env.NODE_ENV === 'production';
-  const configuredOrigin = options.origin || env.APP_ORIGIN || (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined));
+  const configuredOrigin = options.origin || env.APP_ORIGIN || (env.PUBLIC_SITE_ORIGIN ? env.PUBLIC_SITE_ORIGIN.replace(/\/$/, '') : (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined)));
   if (production && !configuredOrigin) throw new Error('APP_ORIGIN must be set to the exact public origin (for example https://friday.example) when NODE_ENV=production.');
   const origin = configuredOrigin || 'http://localhost:4871';
-  const configuredPublicOrigin = env.PUBLIC_SITE_ORIGIN?.trim();
-  const publicSiteUrl = configuredPublicOrigin ? new URL(configuredPublicOrigin) : null;
-  if (publicSiteUrl && (!['http:', 'https:'].includes(publicSiteUrl.protocol) || publicSiteUrl.pathname !== '/' || publicSiteUrl.search || publicSiteUrl.hash)) throw new Error('PUBLIC_SITE_ORIGIN must be an http or https origin without a path.');
-  const publicSiteOrigin = publicSiteUrl?.origin || null;
-  const officialHost = publicSiteUrl?.host.toLowerCase() || null;
+  const configuredPublicOrigin = String(env.PUBLIC_SITE_ORIGIN || '').trim();
+  const publicSiteUrl = new URL(configuredPublicOrigin || env.APP_ORIGIN || origin);
+  if (!['http:', 'https:'].includes(publicSiteUrl.protocol) || publicSiteUrl.pathname !== '/' || publicSiteUrl.search || publicSiteUrl.hash) throw new Error('PUBLIC_SITE_ORIGIN must be an http or https origin without a path.');
+  // Use APP_ORIGIN when no separate public origin is set, so aliases can still redirect without a new secret.
+  const publicSiteOrigin = publicSiteUrl.origin;
+  const officialHost = publicSiteUrl.host.toLowerCase();
+  // Exact, explicitly configured aliases support a direct deployment URL alongside the canonical public site.
+  // Never infer production trust from Host, X-Forwarded-Host, or VERCEL_URL request data.
+  const trustedWriteOrigins = new Set([origin, ...String(env.APP_ORIGIN_ALIASES || '').split(',').map(value => value.trim()).filter(Boolean)]);
+  for (const value of trustedWriteOrigins) {
+    let parsed;
+    try { parsed = new URL(value); } catch { throw new Error(`Invalid trusted application origin: ${value}`); }
+    if (!['https:', 'http:'].includes(parsed.protocol) || parsed.origin !== value) throw new Error(`Trusted application origins must be bare origins: ${value}`);
+  }
   const secure = new URL(origin).protocol === 'https:';
   const loopback = value => ['localhost','127.0.0.1','::1','[::1]'].includes(String(value||'').toLowerCase());
   const hexclaveAuth = options.hexclaveAuth || (env.AUTH_PROVIDER==='local'&&!production
@@ -115,29 +124,35 @@ export function createApp(options = {}) {
   // Planner trips may live in Hexclave's Data Vault (TRIP_STORAGE=hexclave); a missing key fails here, before anything opens.
   const tripConfig = resolveTripStorage(env);
   // Keep the no-login development identity and its admin inbox isolated from the normal account database.
-  const dbPath = options.dbPath || (localAuthBypass ? path.join(root,'.data/friday-local-dev.sqlite') : env.DATABASE_PATH || path.join(root,'.data/friday.sqlite'));
-  const db = openStore(dbPath, { tripsInVault: tripConfig.mode === 'hexclave' });
-  store.markInterruptedEmailSendsUnknown(db);
+  /* PostgreSQL (DATABASE_URL, or DATABASE_HOST/PORT/USER/PASSWORD/NAME), or PGlite under .data/ when none is set and not in
+     production. Production without Postgres settings throws here. `options.memory` (tests) uses in-memory PGlite. */
+  const db = openStore({ env, memory: !!options.memory, dataDir: options.dataDir || (localAuthBypass ? path.join(root,'.data/friday-local-dev-pglite') : path.join(root,'.data/pglite')), tripsInVault: tripConfig.mode === 'hexclave', connect: options.dbConnect, retry: options.dbRetry, sleep: options.dbSleep });
   const emailService = options.emailService || createHexclaveEmailService({ db, store, env, fetch: options.emailFetch || options.fetch });
   let localDevUser = null;
-  if (localAuthBypass) {
-    const localEmail = 'local-development@friday.invalid';
-    localDevUser = store.findUserByEmail(db, localEmail);
-    if (!localDevUser) {
-      store.createUser(db, { id: 'friday-local-development-owner', email: localEmail, name: 'Local development', password: `disabled:${randomBytes(32).toString('hex')}` });
-      localDevUser = store.findUserByEmail(db, localEmail);
+  const config = options.ai || {provider:'openai',apiKey:env.OPENAI_API_KEY,model:env.OPENAI_RESEARCH_MODEL||env.OPENAI_MODEL||'gpt-5-mini',deepModel:env.OPENAI_DEEP_MODEL,fetch:options.fetch};
+  /* Startup work that needs the database. Requests wait for it (see `startup` in the request handler). */
+  const startup = (async () => {
+    await store.markInterruptedEmailSendsUnknown(db);
+    if (localAuthBypass) {
+      const localEmail = 'local-development@friday.invalid';
+      localDevUser = await store.findUserByEmail(db, localEmail);
+      if (!localDevUser) {
+        await store.createUser(db, { id: 'friday-local-development-owner', email: localEmail, name: 'Local development', password: `disabled:${randomBytes(32).toString('hex')}` });
+        localDevUser = await store.findUserByEmail(db, localEmail);
+      }
     }
-  }
-  const trips = createTripStore({ db, config: tripConfig, fetch: options.vaultFetch, vault: options.vault });
+    await store.failInterruptedJobs(db);
+  })();
+  startup.catch(error => { if (!/database is closed/.test(error.message)) console.error(`[friday] database startup failed: ${error.message}`); });
+  let trips;
+  try { trips = createTripStore({ db, config: tripConfig, fetch: options.vaultFetch, vault: options.vault }); }
+  catch (error) { db.close().catch(() => {}); throw error; }   // a bad vault setting must not leave the database open
   log(`trip storage: ${trips.mode}`);
-  const provider=env.AI_PROVIDER||'claude';
-  const config = options.ai || { provider, apiKey:provider==='perplexity'?env.PERPLEXITY_API_KEY:env.ANTHROPIC_API_KEY, model:env.AI_MODEL, deepModel:env.AI_DEEP_MODEL, effort:env.AI_EFFORT, searchProvider:env.SEARCH_PROVIDER, searchApiKey:env.PERPLEXITY_API_KEY };
-  store.failInterruptedJobs(db);
-  if ((env.ANTHROPIC_API_KEY || env.PERPLEXITY_API_KEY) && !env.AI_MODEL && !options.ai) console.warn('[friday] An AI provider key is set but AI_MODEL is not, so research stays unavailable. Set AI_MODEL to a model name your provider supports.');
   const researchFn=options.research||research;
   const researchLinkFn=options.researchLink||researchLink;
   const friday=createFridayWorkflow({db,store,env,fetch:options.fetch,tripFind:async(id,uid)=>trips.find(id,uid),aiConfig:config,email:emailService});
   const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,aiConfig:config,log});
+  const reelChat=createReelChat({db,reels,friday,email:emailService,env,config,interpret:options.reelInterpret});
   const parseAdminEmails = value => String(value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
   const generalAdminEmails = parseAdminEmails(env.ADMIN_EMAILS);
   const villaAdminEmails = parseAdminEmails(env.VILLA_ADMIN_EMAILS);
@@ -175,26 +190,26 @@ export function createApp(options = {}) {
   const publicUser = u => ({id:u.id,email:u.hexclave_email||u.email,name:u.hexclave_name||u.name,emailVerified:u.hexclave_email_verified===undefined?true:Boolean(u.hexclave_email_verified),profile:JSON.parse(u.profile)});
   const externalIdentity = async principal => {
     if (!principal || principal.restricted || !principal.emailVerified) return null;
-    let mapped = store.findUserByHexclaveId(db, principal.id);
+    let mapped = await store.findUserByHexclaveId(db, principal.id);
     if (mapped) {
       if (mapped.hexclave_email !== principal.email || mapped.hexclave_name !== principal.name || !mapped.hexclave_email_verified || mapped.hexclave_restricted) {
-        store.updateHexclaveIdentity(db,{hexclaveUserId:principal.id,email:principal.email,name:principal.name,emailVerified:principal.emailVerified,restricted:principal.restricted,updated:new Date().toISOString()});
-        mapped = store.findUserByHexclaveId(db, principal.id);
+        await store.updateHexclaveIdentity(db,{hexclaveUserId:principal.id,email:principal.email,name:principal.name,emailVerified:principal.emailVerified,restricted:principal.restricted,updated:new Date().toISOString()});
+        mapped = await store.findUserByHexclaveId(db, principal.id);
       }
       return { user:{...mapped,email:mapped.hexclave_email,name:mapped.hexclave_name}, legacyAccountAvailable:false };
     }
-    const legacy = principal.email ? store.findUnlinkedLegacyUserByEmail(db, principal.email) : null;
+    const legacy = principal.email ? await store.findUnlinkedLegacyUserByEmail(db, principal.email) : null;
     if (legacy) return { user:null, legacyAccountAvailable:true };
     try {
       const syntheticEmail = `hexclave-${hash(principal.id).slice(0,40)}@identity.friday.invalid`;
-      mapped = store.createHexclaveIdentity(db,{
+      mapped = await store.createHexclaveIdentity(db,{
         hexclaveUserId:principal.id,userId:randomUUID(),syntheticEmail,email:principal.email,
         name:principal.name,password:`hexclave:${randomBytes(32).toString('hex')}`,
         emailVerified:principal.emailVerified,restricted:principal.restricted,updated:new Date().toISOString()
       });
     } catch (error) {
       // A concurrent request may have created the owner mapping first.
-      mapped = store.findUserByHexclaveId(db, principal.id);
+      mapped = await store.findUserByHexclaveId(db, principal.id);
       if (!mapped) throw error;
     }
     return {user:{...mapped,email:mapped.hexclave_email,name:mapped.hexclave_name},legacyAccountAvailable:false};
@@ -202,20 +217,20 @@ export function createApp(options = {}) {
   const refreshPhotos = data => typeof places.signPhoto === 'function' ? mapPhotoLinks(data, places.signPhoto) : data;
   const parseRecord = r => ({id:r.id,kind:r.kind,data:refreshPhotos(JSON.parse(r.data)),version:r.version,updated:r.updated});
   const getRecord = async (id,uid,kind) => {
-    const r = kind==='trips' ? await trips.find(id,uid) : store.findRecord(db,id,uid,kind);
+    const r = kind==='trips' ? await trips.find(id,uid) : await store.findRecord(db,id,uid,kind);
     if (!r) fail(404,'This item was not found.'); return r;
   };
   const newRecord = async (uid,kind,data) => {
     validate(kind,data); const id=randomUUID(), updated=new Date().toISOString();
     if (kind==='trips') await trips.insert({id,userId:uid,data:JSON.stringify(data),updated});
-    else store.insertRecord(db,{id,userId:uid,kind,data:JSON.stringify(data),updated});
+    else await store.insertRecord(db,{id,userId:uid,kind,data:JSON.stringify(data),updated});
     return parseRecord(await getRecord(id,uid,kind));
   };
   const cookie = (token, age) => `friday_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${secure?'; Secure':''}`;
-  const session = (user,res) => {
+  const session = async (user,res) => {
     const token=randomBytes(32).toString('hex');
-    store.deleteExpiredSessions(db,Date.now());
-    store.createSession(db,hash(token),user.id,Date.now()+7*86400000);
+    await store.deleteExpiredSessions(db,Date.now());
+    await store.createSession(db,hash(token),user.id,Date.now()+7*86400000);
     res.setHeader('Set-Cookie',cookie(token,604800));
   };
   const server=createServer(async(req,res)=>{
@@ -224,7 +239,12 @@ export function createApp(options = {}) {
     res.setHeader('X-Frame-Options','DENY');
     const forwardedHost = trustProxy ? String(req.headers['x-forwarded-host'] || '').split(',')[0].trim() : '';
     const requestHost = (forwardedHost || String(req.headers.host || '').split(',')[0].trim()).toLowerCase();
-    const indexableHost = Boolean(officialHost && requestHost === officialHost);
+    const isVercelHost = requestHost.endsWith('.vercel.app');
+    const deploymentHost = String(req.headers['x-vercel-deployment-url'] || '').trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
+    const isPreviewDeployment = isVercelHost && (requestHost.startsWith('friday-travel-git-') || (deploymentHost && requestHost === deploymentHost));
+    const isCanonicalHost = requestHost === officialHost;
+    // Vercel's temporary production hostname stays noindex until Friday has its own domain.
+    const indexableHost = isCanonicalHost && !isVercelHost;
     if (!indexableHost) res.setHeader('X-Robots-Tag','noindex, nofollow');
     const ip=clientIp(req);
     const send=(status,data,extra)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...extra});res.end(JSON.stringify(data));};
@@ -235,12 +255,12 @@ export function createApp(options = {}) {
         res.end('User-agent: *\nDisallow: /\n');
         return;
       }
-      if (publicSiteOrigin && !indexableHost && url.pathname !== '/api/health') {
+      if (isVercelHost && !isCanonicalHost && !isPreviewDeployment && url.pathname !== '/robots.txt') {
         res.writeHead(301, { Location: `${publicSiteOrigin}${url.pathname}${url.search}`, 'Cache-Control': 'no-store' });
         res.end();
         return;
       }
-      if (!publicSiteOrigin && url.pathname === '/sitemap.xml') fail(404,'Not found.');
+      if (!indexableHost && url.pathname === '/sitemap.xml') fail(404,'Not found.');
       if (!url.pathname.startsWith('/api/')) {
         if (!['GET','HEAD'].includes(method)) fail(405,'Method not allowed.');
         // Decode first, then refuse anything that could climb out of the root: dot segments (including ones hidden as %2e or
@@ -256,8 +276,8 @@ export function createApp(options = {}) {
         if (!full.startsWith(realRoot+path.sep) || !(await stat(full)).isFile()) fail(404,'Not found.');
         const types={'.html':'text/html','.txt':'text/plain','.xml':'application/xml','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2'};
         let content=await readFile(full);
-        if (relative==='sitemap.xml' && publicSiteOrigin) content=Buffer.from(content.toString('utf8').replace(/(<loc>)https?:\/\/[^/]+/g, `$1${publicSiteOrigin}`));
-        if (relative==='robots.txt' && publicSiteOrigin) {
+        if (relative==='sitemap.xml') content=Buffer.from(content.toString('utf8').replace(/(<loc>)https?:\/\/[^/]+/g, `$1${publicSiteOrigin}`));
+        if (relative==='robots.txt') {
           const directive=`Sitemap: ${publicSiteOrigin}/sitemap.xml`;
           let robots=content.toString('utf8').replace(/^Sitemap:\s+\S+$/m,directive);
           if (!/^Sitemap:/m.test(robots)) robots=robots.trimEnd()+'\n'+directive+'\n';
@@ -283,8 +303,8 @@ export function createApp(options = {}) {
               const pageUrl=new URL(`/app.html?share=${sharedToken}`,origin).href;
               const attr=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
               const meta=`<meta property="og:title" content="${attr(title)}"><meta property="og:description" content="${attr(description)}"><meta property="og:type" content="website"><meta property="og:url" content="${attr(pageUrl)}"><meta property="og:image" content="${attr(imageUrl)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${attr(title)}"><meta name="twitter:description" content="${attr(description)}"><meta name="twitter:image" content="${attr(imageUrl)}">`;
-              if(method==='GET'&&!req.headers['user-agent']?.match(/WhatsApp|facebookexternalhit|Facebot|Twitterbot|Slackbot|Discordbot|TelegramBot|LinkedInBot|Googlebot/i)) store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_link_opened',created:new Date().toISOString()});
-              else if(method==='GET') store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_preview_bot',created:new Date().toISOString()});
+              if(method==='GET'&&!req.headers['user-agent']?.match(/WhatsApp|facebookexternalhit|Facebot|Twitterbot|Slackbot|Discordbot|TelegramBot|LinkedInBot|Googlebot/i)) await store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_link_opened',created:new Date().toISOString()});
+              else if(method==='GET') await store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_preview_bot',created:new Date().toISOString()});
               content=Buffer.from(content.toString('utf8').replace('</head>',`${meta}</head>`));
             }
           }
@@ -292,12 +312,15 @@ export function createApp(options = {}) {
         res.writeHead(200,{'Content-Type':types[path.extname(full)]+'; charset=utf-8'}); res.end(method==='HEAD'?undefined:content);return;
       }
       rate('api:'+ip,240);
+      /* Liveness does not touch the database, so the container stays healthy while a scaled-to-zero database service wakes up. */
+      if (url.pathname==='/api/health' && ['GET','HEAD'].includes(method)) return send(200,{ok:true,itineraryProvider:itineraries.name,knowledge:{sources:knowledge.sources,chars:knowledge.chars}});
+      await startup;
       if (!['GET','HEAD'].includes(method)) {
-        // Production accepts exactly APP_ORIGIN. Elsewhere (127.0.0.1, a LAN address, a dev proxy) an Origin that matches the
+        // Production accepts only explicitly configured origins. Elsewhere (127.0.0.1, a LAN address, a dev proxy) an Origin that matches the
         // Host the browser used is also fine.
         const from=req.headers.origin;
         const sameHost=()=>{try{const u=new URL(from);return ['http:','https:'].includes(u.protocol)&&u.host===req.headers.host;}catch{return false;}};
-        if (from !== origin && (production || !from || !sameHost())) fail(403,'Please submit from the Friday website.');
+        if (!trustedWriteOrigins.has(from) && (production || !from || !sameHost())) fail(403,'Please submit from the Friday website.');
         if (!/^application\/json(?:;|$)/i.test(req.headers['content-type']||'')) fail(415,'Send JSON data.');
       }
       let body={};
@@ -314,27 +337,53 @@ export function createApp(options = {}) {
       const p=url.pathname;
       const allow=(...m)=>{if(!m.includes(method))fail(405,'Method not allowed.');};
       const token=(req.headers.cookie||'').split(';').map(s=>s.trim()).find(s=>s.startsWith('friday_session='))?.slice(15)||'';
-      const sessionUser=hexclaveSelected?null:store.findUserBySession(db,hash(token),Date.now());
+      const sessionUser=hexclaveSelected?null:await store.findUserBySession(db,hash(token),Date.now());
       const hasHexclaveToken=Boolean(req.headers.authorization||req.headers['x-stack-access-token']||req.headers['x-hexclave-access-token']);
       const hexPrincipal=hexclaveAuth.configured&&hasHexclaveToken?await hexclaveAuth.currentUser(req):null;
       const hexResolution=hexclaveAuth.configured?await externalIdentity(hexPrincipal):null;
       const user=hexclaveSelected?(hexResolution?.user||null):(sessionUser || (localAuthBypass ? localDevUser : null));
       const auditConversationId=value=>typeof value==='string'&&/^[A-Za-z0-9_-]{1,120}$/.test(value)?value:'request_'+randomUUID();
       const auditContent=value=>{const text=JSON.stringify(value===undefined?null:value);if(Buffer.byteLength(text)>1000000)fail(413,'This conversation entry is too large to record.');return text;};
-      const startAiAudit=(conversationId,eventType,content,tripId=null,expectedOwnerId=null)=>{
+      const startAiAudit=async(conversationId,eventType,content,tripId=null,expectedOwnerId=null)=>{
         if(expectedOwnerId&&!user)fail(401,'Please sign in to save this AI request.');
         if(!user)return null;
         if(expectedOwnerId&&expectedOwnerId!==user.id)fail(409,'Your account changed before this AI request could be recorded.');
         const now=new Date().toISOString(),eventKey='ai_'+randomUUID(),thread=auditConversationId(conversationId);
-        store.upsertAiConversationEvent(db,{eventKey,ownerId:user.id,conversationId:thread,tripId:typeof tripId==='string'?tripId.slice(0,100):null,eventType,role:null,content:auditContent(content),status:'started',created:now,updated:now});
+        await store.upsertAiConversationEvent(db,{eventKey,ownerId:user.id,conversationId:thread,tripId:typeof tripId==='string'?tripId.slice(0,100):null,eventType,role:null,content:auditContent(content),status:'started',created:now,updated:now});
         return {eventKey,conversationId:thread};
       };
-      const finishAiAudit=(audit,status,content)=>{
+      const finishAiAudit=async(audit,status,content)=>{
         if(!audit)return;
-        store.updateAiConversationEvent(db,{eventKey:audit.eventKey,ownerId:user.id,conversationId:audit.conversationId,content:auditContent(content),status,updated:new Date().toISOString()});
+        await store.updateAiConversationEvent(db,{eventKey:audit.eventKey,ownerId:user.id,conversationId:audit.conversationId,content:auditContent(content),status,updated:new Date().toISOString()});
       };
       if (p==='/api/health') {allow('GET','HEAD');return send(200,{ok:true,itineraryProvider:itineraries.name,knowledge:{sources:knowledge.sources,chars:knowledge.chars}});}
       if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportMetroCount:metros.length,chatgpt:publicChatgpt(chatgpt)});}
+      if (p==='/api/newsletter/unsubscribe') {
+        allow('GET','HEAD','POST');
+        const token=method==='POST'?(typeof body.token==='string'?body.token:''):url.searchParams.get('token')||'';
+        const secret=env.NEWSLETTER_UNSUBSCRIBE_SECRET||env.HEXCLAVE_SECRET_SERVER_KEY||'';
+        const invalid=()=>fail(400,'This unsubscribe link is invalid or expired.');
+        const [encodedEmail,encodedConsentAt,signature,...extra]=token.split('.');
+        if(!secret||!encodedEmail||!encodedConsentAt||!signature||extra.length)invalid();
+        let address;
+        try{address=Buffer.from(encodedEmail,'base64url').toString('utf8');}catch{invalid();}
+        if(!address||Buffer.from(address).toString('base64url')!==encodedEmail||address!==address.toLowerCase()||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address))invalid();
+        let consentAt;
+        try{consentAt=Buffer.from(encodedConsentAt,'base64url').toString('utf8');}catch{invalid();}
+        if(!consentAt||Buffer.from(consentAt).toString('base64url')!==encodedConsentAt||Number.isNaN(Date.parse(consentAt)))invalid();
+        const expected=createHmac('sha256',secret).update(`${address}\n${consentAt}`).digest('base64url');
+        const actualBytes=Buffer.from(signature,'base64url'),expectedBytes=Buffer.from(expected,'base64url');
+        if(actualBytes.length!==expectedBytes.length||!timingSafeEqual(actualBytes,expectedBytes))invalid();
+        const subscriber=await store.getNewsletterSubscriber(db,address);
+        if(!subscriber||subscriber.consent_at!==consentAt||subscriber.status!=='subscribed')invalid();
+        if(method==='GET'||method==='HEAD'){
+          const escapedToken=token.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          const page=`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribe from Friday</title><body><main><h1>Unsubscribe from Friday emails?</h1><p>Confirm below to stop newsletter emails for ${address.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}.</p><button id="confirm" type="button">Unsubscribe</button><p id="status" role="status"></p></main><script>document.querySelector('#confirm').addEventListener('click',async()=>{const b=document.querySelector('#confirm'),s=document.querySelector('#status');b.disabled=true;try{const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${escapedToken}'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Please try again.');s.textContent='You are unsubscribed.';b.hidden=true;}catch(e){s.textContent=e.message;b.disabled=false;}})</script></body></html>`;
+          res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(method==='HEAD'?undefined:page);return;
+        }
+        await store.unsubscribeNewsletterSubscriber(db,address,new Date().toISOString());
+        return send(200,{ok:true});
+      }
       if (p==='/api/airports' && method==='GET') {
         const q=(url.searchParams.get('q')||'').toLowerCase().trim();
         return send(200,{metros:metros.filter(m=>[m.city,...m.aliases].some(s=>s.toLowerCase().includes(q))).slice(0,10)});
@@ -344,19 +393,19 @@ export function createApp(options = {}) {
         const q=(url.searchParams.get('q')||'').trim().toLowerCase();
         const city=(url.searchParams.get('city')||'').trim().toLowerCase();
         if(q.length>120||city.length>120)fail(422,'Search text is too long.');
-        const villas=store.listPublishedVillas(db).map(publicVilla).filter(v=>(!q||`${v.name} ${v.description} ${v.city}`.toLowerCase().includes(q))&&(!city||v.city.toLowerCase()===city)).slice(0,100);
+        const villas=(await store.listPublishedVillas(db)).map(publicVilla).filter(v=>(!q||`${v.name} ${v.description} ${v.city}`.toLowerCase().includes(q))&&(!city||v.city.toLowerCase()===city)).slice(0,100);
         return send(200,{villas});
       }
       const publicVillaMatch=p.match(/^\/api\/villas\/([0-9a-f-]{36})$/i);
       if(publicVillaMatch){
         allow('GET','HEAD');
-        const row=store.getPublishedVilla(db,publicVillaMatch[1]);if(!row)fail(404,'This villa was not found.');
+        const row=await store.getPublishedVilla(db,publicVillaMatch[1]);if(!row)fail(404,'This villa was not found.');
         return send(200,{villa:publicVilla(row)});
       }
       const villaNearbyMatch=p.match(/^\/api\/villas\/([0-9a-f-]{36})\/nearby$/i);
       if(villaNearbyMatch){
         allow('GET','HEAD');rate('villa-nearby:'+ip,30);
-        const row=store.getPublishedVilla(db,villaNearbyMatch[1]);if(!row)fail(404,'This villa was not found.');
+        const row=await store.getPublishedVilla(db,villaNearbyMatch[1]);if(!row)fail(404,'This villa was not found.');
         const data=JSON.parse(row.data),rawRadius=url.searchParams.get('radius'),radius=rawRadius===null?5000:Number(rawRadius);
         const category=url.searchParams.get('category')||'things-to-do';
         if(!Number.isFinite(radius)||radius<100||radius>50000||!['things-to-do','restaurants','cafes'].includes(category))fail(422,'Choose a valid radius and nearby category.');
@@ -377,7 +426,7 @@ export function createApp(options = {}) {
       const villaPlaceMatch=p.match(/^\/api\/villas\/([0-9a-f-]{36})\/places\/([A-Za-z0-9_-]{5,160})$/i);
       if(villaPlaceMatch){
         allow('GET','HEAD');rate('villa-place:'+ip,60);
-        const row=store.getPublishedVilla(db,villaPlaceMatch[1]);if(!row)fail(404,'This villa was not found.');
+        const row=await store.getPublishedVilla(db,villaPlaceMatch[1]);if(!row)fail(404,'This villa was not found.');
         if(!placesConfigured||typeof places.getDetails!=='function')fail(503,'Google Places is not configured yet.');
         const villa=JSON.parse(row.data);if(villa.lat===null||villa.lng===null)fail(404,'This place is outside the villa search area.');
         const result=await places.getDetails(villaPlaceMatch[2]);if(result.status!==200)fail(result.status,result.data?.error||'Place details are temporarily unavailable.');
@@ -390,13 +439,13 @@ export function createApp(options = {}) {
         allow('POST');rate('villa-submit:'+ip,5);
         if(typeof body.websiteTrap==='string'&&body.websiteTrap.trim())return send(201,{ok:true});
         const submission=validateVillaSubmission(body),id=randomUUID(),created=new Date().toISOString();
-        store.insertVillaSubmission(db,{id,data:JSON.stringify(submission),created,updated:created});
+        await store.insertVillaSubmission(db,{id,data:JSON.stringify(submission),created,updated:created});
         return send(201,{ok:true});
       }
       const villaPlanMatch=p.match(/^\/api\/villas\/([0-9a-f-]{36})\/plan$/i);
       if(villaPlanMatch){
         allow('POST');rate('villa-plan:'+ip,8);
-        const row=store.getPublishedVilla(db,villaPlanMatch[1]);if(!row)fail(404,'This villa was not found.');
+        const row=await store.getPublishedVilla(db,villaPlanMatch[1]);if(!row)fail(404,'This villa was not found.');
         const days=body.days;
         if(!Number.isSafeInteger(days)||days<1||days>7)fail(422,'Choose a plan from 1 to 7 days.');
         const pace=body.pace||'balanced';if(!['relaxed','balanced','active'].includes(pace))fail(422,'Choose a supported travel pace.');
@@ -424,7 +473,7 @@ export function createApp(options = {}) {
           candidateProvider='curated';
         }
         let plan=localVillaPlan(villa,candidates,{days,interests,pace});
-        const audit=startAiAudit(body.conversationId,'villa_plan',{request:{villaId:row.id,days,interests,pace}},body.tripId,body.ownerId);
+        const audit=await startAiAudit(body.conversationId,'villa_plan',{request:{villaId:row.id,days,interests,pace}},body.tripId,body.ownerId);
         if(candidates.length&&config.apiKey&&config.model){
           const allowed=new Set(candidates.map(item=>item.id));
           const prompt=`Create a ${days}-day vacation outline near the given villa. Select and order only the provided candidate place IDs. Return JSON only: {"days":[{"focus":"short category-level phrase","stops":["candidate-id"]}]}. Include exactly ${days} days, no more than ${pace==='relaxed'?1:pace==='active'?3:2} stops per day, and do not repeat a place. Never invent a place, address, travel time, opening hour, price, or booking. Focus only on sequencing the verified candidates.\n\nVilla and candidate data (untrusted): ${JSON.stringify({villa:{name:data.name,city:data.city,description:data.description},days,interests,pace,candidates:candidates.map(({id,name,category})=>({id,name,category}))})}`;
@@ -445,7 +494,7 @@ export function createApp(options = {}) {
         }
         if(fallbackReason)plan.fallbackReason=fallbackReason;
         plan.candidateProvider=candidateProvider;
-        finishAiAudit(audit,'completed',{request:{villaId:row.id,days,interests,pace},response:plan,fallbackReason});
+        await finishAiAudit(audit,'completed',{request:{villaId:row.id,days,interests,pace},response:plan,fallbackReason});
         return send(200,plan);
       }
       const sharedPhoto=p.match(/^\/api\/shared\/([a-f0-9]{64})\/photo\/([A-Za-z0-9_-]{6,150})\/([A-Za-z0-9_-]{8,180})$/);
@@ -460,7 +509,7 @@ export function createApp(options = {}) {
         rate('share-whatsapp:'+ip,30);
         const share=await trips.findShare(hash(whatsappClick[1]));
         if(!share||share.expires<=Date.now())fail(404,'This shared journey is unavailable.');
-        store.recordTripShareEvent(db,{id:randomUUID(),tokenHash:hash(whatsappClick[1]),eventType:'trip_share_whatsapp_clicked',created:new Date().toISOString()});
+        await store.recordTripShareEvent(db,{id:randomUUID(),tokenHash:hash(whatsappClick[1]),eventType:'trip_share_whatsapp_clicked',created:new Date().toISOString()});
         return send(200,{ok:true});
       }
       if(sharedPhoto&&method==='GET') {
@@ -491,14 +540,14 @@ export function createApp(options = {}) {
         if(p.endsWith('signup')) {
           const name=str(body.name,'name',100,true), salt=randomBytes(16).toString('hex');
           const key=(await scrypt(password,salt,64)).toString('hex');
-          try {store.createUser(db,{id:randomUUID(),email:e,name,password:`${salt}:${key}`});} catch {fail(409,'That email is already registered. Please sign in.');}
+          try {await store.createUser(db,{id:randomUUID(),email:e,name,password:`${salt}:${key}`});} catch {fail(409,'That email is already registered. Please sign in.');}
         } else {
-          const u=store.findUserByEmail(db,e);
+          const u=await store.findUserByEmail(db,e);
           const [salt,key]=(u?.password || 'dummy:'+ '00'.repeat(64)).split(':');
           const candidate=await scrypt(password,salt,64);
           if(!u || !timingSafeEqual(candidate,Buffer.from(key,'hex'))) fail(401,'Email or password is incorrect.');
         }
-        const u=store.findUserByEmail(db,e);session(u,res);return send(200,{user:publicUser(u)});
+        const u=await store.findUserByEmail(db,e);await session(u,res);return send(200,{user:publicUser(u)});
       }
       if (p==='/api/auth/me' && method==='GET') {
         if (hexclaveSelected) {
@@ -517,16 +566,16 @@ export function createApp(options = {}) {
         rate('auth-link:'+ip,8);
         if (!hexclaveAuth.configured || !hexPrincipal || !hexPrincipal.emailVerified || hexPrincipal.restricted) fail(401,'Verify your Friday email before linking an existing account.');
         if (user) return send(200,{user:publicUser(user)});
-        const legacy=store.findUnlinkedLegacyUserByEmail(db,hexPrincipal.email);
+        const legacy=await store.findUnlinkedLegacyUserByEmail(db,hexPrincipal.email);
         if (!legacy) fail(404,'No unlinked Friday account was found for this email.');
         const password=str(body.password,'password',128,true);
         const [salt,key]=(legacy.password||'dummy:'+ '00'.repeat(64)).split(':');
         if (!/^[a-f0-9]{32}$/i.test(salt||'') || !/^[a-f0-9]{128}$/i.test(key||'')) fail(401,'The existing Friday password is incorrect.');
         const candidate=await scrypt(password,salt,64);
         if (!timingSafeEqual(candidate,Buffer.from(key,'hex'))) fail(401,'The existing Friday password is incorrect.');
-        try { store.linkHexclaveIdentity(db,{hexclaveUserId:hexPrincipal.id,userId:legacy.id,email:hexPrincipal.email,name:hexPrincipal.name,emailVerified:true,restricted:false,updated:new Date().toISOString()}); }
+        try { await store.linkHexclaveIdentity(db,{hexclaveUserId:hexPrincipal.id,userId:legacy.id,email:hexPrincipal.email,name:hexPrincipal.name,emailVerified:true,restricted:false,updated:new Date().toISOString()}); }
         catch { fail(409,'This Hexclave account is already linked to Friday.'); }
-        const linked=store.findUserByHexclaveId(db,hexPrincipal.id);
+        const linked=await store.findUserByHexclaveId(db,hexPrincipal.id);
         return send(200,{user:publicUser(linked)});
       }
       if (p==='/api/auth/fresh-account' && method==='POST') {
@@ -535,10 +584,10 @@ export function createApp(options = {}) {
         if (user) return send(200,{user:publicUser(user)});
         try {
           const syntheticEmail=`hexclave-${hash(hexPrincipal.id).slice(0,40)}@identity.friday.invalid`;
-          const fresh=store.createHexclaveIdentity(db,{hexclaveUserId:hexPrincipal.id,userId:randomUUID(),syntheticEmail,email:hexPrincipal.email,name:hexPrincipal.name,password:`hexclave:${randomBytes(32).toString('hex')}`,emailVerified:true,restricted:false,updated:new Date().toISOString()});
+          const fresh=await store.createHexclaveIdentity(db,{hexclaveUserId:hexPrincipal.id,userId:randomUUID(),syntheticEmail,email:hexPrincipal.email,name:hexPrincipal.name,password:`hexclave:${randomBytes(32).toString('hex')}`,emailVerified:true,restricted:false,updated:new Date().toISOString()});
           return send(200,{user:publicUser(fresh)});
         } catch {
-          const existing=store.findUserByHexclaveId(db,hexPrincipal.id);
+          const existing=await store.findUserByHexclaveId(db,hexPrincipal.id);
           if (existing) return send(200,{user:publicUser(existing)});
           fail(409,'Friday could not create this account. Please try again.');
         }
@@ -574,7 +623,7 @@ export function createApp(options = {}) {
         const status=str(body.status||'completed','status',30,true);
         if(!['started','completed','failed','stopped'].includes(status))fail(422,'Invalid event status.');
         const content=auditContent(body.content),now=new Date().toISOString();
-        store.upsertAiConversationEvent(db,{eventKey,ownerId:user.id,conversationId,tripId:typeof body.tripId==='string'?body.tripId.slice(0,100):null,eventType,role,content,status,created:now,updated:now});
+        await store.upsertAiConversationEvent(db,{eventKey,ownerId:user.id,conversationId,tripId:typeof body.tripId==='string'?body.tripId.slice(0,100):null,eventType,role,content,status,created:now,updated:now});
         return send(200,{ok:true});
       }
       if(p==='/api/admin/ai-conversations'){
@@ -583,33 +632,39 @@ export function createApp(options = {}) {
         const conversationId=url.searchParams.get('conversationId')||null,ownerId=url.searchParams.get('ownerId')||null,before=url.searchParams.get('before')||null;
         if(conversationId&&!/^[A-Za-z0-9_-]{1,120}$/.test(conversationId))fail(422,'Invalid conversation id.');
         let cursor=null;if(before){try{cursor=JSON.parse(Buffer.from(before,'base64url').toString('utf8'));}catch{fail(422,'Invalid review cursor.');}if(!cursor||!Number.isFinite(Date.parse(cursor.created))||![cursor.ownerId,cursor.conversationId,cursor.eventKey].every(v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,160}$/.test(v)))fail(422,'Invalid review cursor.');}
-        const events=store.listAiConversationEvents(db,{ownerId,conversationId,before:cursor,limit:url.searchParams.get('limit')});
+        const events=await store.listAiConversationEvents(db,{ownerId,conversationId,before:cursor,limit:url.searchParams.get('limit')});
         const last=events[events.length-1];
         return send(200,{events,nextBefore:last?Buffer.from(JSON.stringify({created:last.created,ownerId:last.owner_id,conversationId:last.conversation_id,eventKey:last.event_key})).toString('base64url'):null});
       }
+      if(p==='/api/friday/reel-chat'){
+        allow('POST');if(!user)fail(401,'Please sign in.');rate('reel-chat:'+user.id,30);
+        const audit=await startAiAudit(body.conversationId,'reel_chat',{request:body},undefined,body.ownerId);
+        try{const result=await reelChat.chat(user,body);await finishAiAudit(audit,'completed',{request:body,response:result});return send(200,result);}
+        catch(error){await finishAiAudit(audit,'failed',{request:body,error:error.message});throw error;}
+      }
       if(p==='/api/friday/reels'&&method==='POST'){
         allow('POST');if(!user)fail(401,'Please sign in.');rate('reels:'+user.id,5);
-        const audit=startAiAudit(body.conversationId,'reel_itinerary',{request:body},undefined,user.id);
-        try{if(!config.apiKey||!config.model)throw Object.assign(new Error('Travel research is not connected yet. Please try again when research is available.'),{status:503});const result=await reels.plan(user,body);finishAiAudit(audit,'completed',{request:body,response:result});return send(200,result);}
-        catch(error){finishAiAudit(audit,'failed',{request:body,error:error.message||'Reel itinerary failed.'});throw error;}
+        const audit=await startAiAudit(body.conversationId,'reel_itinerary',{request:body},undefined,user.id);
+        try{if(!config.apiKey||!config.model)throw Object.assign(new Error('Travel research is not connected yet. Please try again when research is available.'),{status:503});const result=await reels.plan(user,body);await finishAiAudit(audit,'completed',{request:body,response:result});return send(200,result);}
+        catch(error){await finishAiAudit(audit,'failed',{request:body,error:error.message||'Reel itinerary failed.'});throw error;}
       }
       const reelDraftMatch=p.match(/^\/api\/friday\/reels\/([0-9a-f-]{36})$/i);
       if(reelDraftMatch&&method==='PATCH'){
-        allow('PATCH');if(!user)fail(401,'Please sign in.');return send(200,{draft:reels.patch(user,reelDraftMatch[1],body)});
+        allow('PATCH');if(!user)fail(401,'Please sign in.');return send(200,{draft:await reels.patch(user,reelDraftMatch[1],body)});
       }
       if(p==='/api/friday/plan'){
         allow('POST');if(!user)fail(401,'Please sign in.');rate('friday:'+user.id,40);
-        const audit=startAiAudit(body.conversationId,'friday_plan',{request:body},body.tripId,body.ownerId);
-        try{const result=await friday.plan(user,body);finishAiAudit(audit,'completed',{request:body,response:result});return send(200,result);}
-        catch(error){finishAiAudit(audit,'failed',{request:body,error:error.message||'Travel planning failed.'});throw error;}
+        const audit=await startAiAudit(body.conversationId,'friday_plan',{request:body},body.tripId,body.ownerId);
+        try{const result=await friday.plan(user,body);await finishAiAudit(audit,'completed',{request:body,response:result});return send(200,result);}
+        catch(error){await finishAiAudit(audit,'failed',{request:body,error:error.message||'Travel planning failed.'});throw error;}
       }
       if(p==='/api/friday/drafts'){
-        allow('GET');if(!user)fail(401,'Please sign in.');return send(200,{drafts:friday.listDrafts(user)});
+        allow('GET');if(!user)fail(401,'Please sign in.');return send(200,{drafts:await friday.listDrafts(user)});
       }
       if(p==='/api/friday/handoffs'){
         if(!user)fail(401,'Please sign in.');
-        if(method==='GET')return send(200,{handoffs:friday.listHandoffs(user)});
-        if(method==='POST')return send(201,{handoff:friday.handoff(user,body)});
+        if(method==='GET')return send(200,{handoffs:await friday.listHandoffs(user)});
+        if(method==='POST')return send(201,{handoff:await friday.handoff(user,body)});
         fail(405,'Method not allowed.');
       }
       if(p==='/api/friday/status'){
@@ -621,9 +676,9 @@ export function createApp(options = {}) {
       }
       if(p==='/api/admin/briefings'){
         allow('GET','HEAD');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
-        const today=new Date().toISOString().slice(0,10), owners=store.listTripOwners(db), results=[];
+        const today=new Date().toISOString().slice(0,10), owners=await store.listTripOwners(db), results=[];
         for(const owner of owners){
-          const bookingRows=store.listRecords(db,owner.id,'bookings');
+          const bookingRows=await store.listRecords(db,owner.id,'bookings');
           const ownerTrips=await trips.list(owner.id);
           for(const row of ownerTrips){
             const tripData=JSON.parse(row.data);
@@ -638,8 +693,8 @@ export function createApp(options = {}) {
       const briefingSend=p.match(/^\/api\/admin\/briefings\/([0-9a-f-]{36})\/send$/i);
       if(briefingSend){
         allow('POST');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
-        const tripId=briefingSend[1],owners=store.listTripOwners(db);let found=null;
-        for(const owner of owners){const row=await trips.find(tripId,owner.id);if(row){found={owner,row,bookingRows:store.listRecords(db,owner.id,'bookings')};break;}}
+        const tripId=briefingSend[1],owners=await store.listTripOwners(db);let found=null;
+        for(const owner of owners){const row=await trips.find(tripId,owner.id);if(row){found={owner,row,bookingRows:await store.listRecords(db,owner.id,'bookings')};break;}}
         if(!found)fail(404,'This trip was not found.');
         const requestId=typeof body.requestId==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(body.requestId)?body.requestId:'';
         if(!requestId)fail(422,'A send request id is required.');
@@ -652,47 +707,47 @@ export function createApp(options = {}) {
       }
       if(p==='/api/admin/enquiries'){
         allow('GET','HEAD');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
-        const enquiries=store.listEnquiries(db,url.searchParams.get('limit')).map(row=>({id:row.id,kind:row.kind,data:JSON.parse(row.data),created:row.created}));
+        const enquiries=(await store.listEnquiries(db,url.searchParams.get('limit'))).map(row=>({id:row.id,kind:row.kind,data:JSON.parse(row.data),created:row.created}));
         return send(200,{enquiries});
       }
       if(p==='/api/admin/newsletter-subscribers'){
         allow('GET','HEAD');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
-        return send(200,{subscribers:store.listNewsletterSubscribers(db,url.searchParams.get('limit')).map(row=>({email:row.email,consentAt:row.consent_at,source:row.source,status:row.status,created:row.created,updated:row.updated,unsubscribedAt:row.unsubscribed_at}))});
+        return send(200,{subscribers:(await store.listNewsletterSubscribers(db,url.searchParams.get('limit'))).map(row=>({email:row.email,consentAt:row.consent_at,source:row.source,status:row.status,created:row.created,updated:row.updated,unsubscribedAt:row.unsubscribed_at}))});
       }
       if(p==='/api/admin/email-outbox'){
         allow('GET','HEAD');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
-        return send(200,{messages:store.listEmailOutboxMetadata(db,url.searchParams.get('limit')).map(row=>({id:row.id,kind:row.kind,status:row.status,attemptedAt:row.attempted_at,created:row.created,updated:row.updated}))});
+        return send(200,{messages:(await store.listEmailOutboxMetadata(db,url.searchParams.get('limit'))).map(row=>({id:row.id,kind:row.kind,status:row.status,attemptedAt:row.attempted_at,created:row.created,updated:row.updated}))});
       }
       if(p==='/api/admin/quotes'){
-        allow('GET');if(!user)fail(401,'Please sign in.');const quotes=friday.adminList(user,effectiveQuoteAdmins);
-        const callbacks=store.listCallbackRequests(db).map(row=>({id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,status:row.status,createdAt:row.created}));
+        allow('GET');if(!user)fail(401,'Please sign in.');const quotes=await friday.adminList(user,effectiveQuoteAdmins);
+        const callbacks=(await store.listCallbackRequests(db)).map(row=>({id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,status:row.status,createdAt:row.created}));
         return send(200,{quotes:[...callbacks,...quotes]});
       }
       const quotePreview=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/preview$/i);
-      if(quotePreview){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{preview:friday.previewQuote(user,effectiveQuoteAdmins,quotePreview[1],body)});}
+      if(quotePreview){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{preview:await friday.previewQuote(user,effectiveQuoteAdmins,quotePreview[1],body)});}
       const quoteSend=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/send$/i);
       if(quoteSend){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{quote:await friday.sendQuote(user,effectiveQuoteAdmins,quoteSend[1],body)});}
       if(p==='/api/admin/villas'||/^\/api\/admin\/villas\/[0-9a-f-]{36}$/i.test(p)){
         if(!user)fail(401,'Please sign in.');
         if(!isVillaAdmin)fail(403,'Your account is not on the villa administration allowlist.');
         if(p==='/api/admin/villas'){
-          if(method==='GET'||method==='HEAD')return send(200,{villas:store.listVillasByOwner(db,user.id).map(adminVilla)});
+          if(method==='GET'||method==='HEAD')return send(200,{villas:(await store.listVillasByOwner(db,user.id)).map(adminVilla)});
           if(method==='POST'){
             const data=validateVillaInput(body.villa||body),id=randomUUID(),created=new Date().toISOString();
-            store.insertVilla(db,{id,ownerId:user.id,status:data.status,data:JSON.stringify(data),created,updated:created});
-            return send(201,{villa:adminVilla(store.getVilla(db,id))});
+            await store.insertVilla(db,{id,ownerId:user.id,status:data.status,data:JSON.stringify(data),created,updated:created});
+            return send(201,{villa:adminVilla(await store.getVilla(db,id))});
           }
           fail(405,'Method not allowed.');
         }
-        const id=p.slice('/api/admin/villas/'.length),row=store.getVilla(db,id);
+        const id=p.slice('/api/admin/villas/'.length),row=await store.getVilla(db,id);
         if(!row||row.ownerId!==user.id)fail(404,'This villa was not found.');
         if(method==='GET'||method==='HEAD')return send(200,{villa:adminVilla(row)});
         if(method==='PATCH'){
           const next=validateVillaInput({...JSON.parse(row.data),...(body.villa||body)}),updated=new Date().toISOString();
-          store.updateVilla(db,{id,ownerId:user.id,status:next.status,data:JSON.stringify(next),updated});
-          return send(200,{villa:adminVilla(store.getVilla(db,id))});
+          await store.updateVilla(db,{id,ownerId:user.id,status:next.status,data:JSON.stringify(next),updated});
+          return send(200,{villa:adminVilla(await store.getVilla(db,id))});
         }
-        if(method==='DELETE'){store.deleteVilla(db,id,user.id);return send(200,{ok:true});}
+        if(method==='DELETE'){await store.deleteVilla(db,id,user.id);return send(200,{ok:true});}
         fail(405,'Method not allowed.');
       }
       if(p==='/api/admin/villa-submissions'||/^\/api\/admin\/villa-submissions\/[0-9a-f-]{36}$/i.test(p)){
@@ -700,15 +755,15 @@ export function createApp(options = {}) {
         if(!isVillaAdmin)fail(403,'Your account is not on the villa administration allowlist.');
         if(p==='/api/admin/villa-submissions'){
           allow('GET','HEAD');
-          return send(200,{submissions:store.listVillaSubmissions(db).map(privateSubmission)});
+          return send(200,{submissions:(await store.listVillaSubmissions(db)).map(privateSubmission)});
         }
         allow('PATCH');
-        const id=p.slice('/api/admin/villa-submissions/'.length),row=store.getVillaSubmission(db,id);
+        const id=p.slice('/api/admin/villa-submissions/'.length),row=await store.getVillaSubmission(db,id);
         if(!row)fail(404,'This submission was not found.');
         const status=body.status;
         if(!['new','reviewed','rejected'].includes(status))fail(422,'Choose new, reviewed, or rejected.');
-        store.updateVillaSubmissionStatus(db,id,status,new Date().toISOString());
-        return send(200,{submission:privateSubmission(store.getVillaSubmission(db,id))});
+        await store.updateVillaSubmissionStatus(db,id,status,new Date().toISOString());
+        return send(200,{submission:privateSubmission(await store.getVillaSubmission(db,id))});
       }
       // Local development may preview planning without an account. Enforced auth records every AI request against its owner.
       if (p==='/api/destinations') {allow('GET','HEAD');return send(200,{destinations:listDestinations()});}
@@ -725,9 +780,9 @@ export function createApp(options = {}) {
         rate('itinerary-prompt:'+(user?user.id:ip),20);
         const parsed=parseItineraryRequest(body);
         if(parsed.error)fail(parsed.status,parsed.error);
-        const audit=startAiAudit(body.conversationId,'itinerary_prompt',{request:parsed.value},body.tripId,body.ownerId);
+        const audit=await startAiAudit(body.conversationId,'itinerary_prompt',{request:parsed.value},body.tripId,body.ownerId);
         const result={...itineraries.prompt(parsed.dest,parsed.value),schema:ITINERARY_SCHEMA,model:chatgpt.model};
-        finishAiAudit(audit,'completed',{request:parsed.value,response:result});
+        await finishAiAudit(audit,'completed',{request:parsed.value,response:result});
         return send(200,result);
       }
       if (p==='/api/itineraries') {
@@ -737,7 +792,7 @@ export function createApp(options = {}) {
         const parsed=parseItineraryRequest(body);
         if(parsed.error)fail(parsed.status,parsed.error);
         let out;
-        const audit=startAiAudit(body.conversationId,'itinerary_generation',{request:{...parsed.value,source:body.source||itineraries.name},messageId:body.messageId},body.tripId,body.ownerId);
+        const audit=await startAiAudit(body.conversationId,'itinerary_generation',{request:{...parsed.value,source:body.source||itineraries.name},messageId:body.messageId},body.tripId,body.ownerId);
         try {
         if(body.draft!==undefined||body.source!==undefined){
           // A draft made in the user's browser with their own ChatGPT plan; we validate it against the catalog.
@@ -747,23 +802,23 @@ export function createApp(options = {}) {
         } else out=await itineraries.generate(parsed.dest,parsed.value);
         const record={id:'it_'+randomBytes(8).toString('hex'),createdAt:new Date().toISOString(),request:parsed.value,provider:out.provider,plan:out.plan};
         if(out.fallbackReason)record.fallbackReason=out.fallbackReason;
-        saveItinerary(db,record,user?user.id:null);
+        await saveItinerary(db,record,user?user.id:null);
         const made={id:record.id,provider:record.provider,plan:record.plan};
         if(record.fallbackReason)made.fallbackReason=record.fallbackReason;
-        finishAiAudit(audit,'completed',{request:{...parsed.value,source:body.source||itineraries.name},response:made});
+        await finishAiAudit(audit,'completed',{request:{...parsed.value,source:body.source||itineraries.name},response:made});
         return send(201,made,{Location:'/api/itineraries/'+record.id});
-        }catch(error){finishAiAudit(audit,'failed',{request:parsed.value,error:error.message||'Itinerary generation failed.'});throw error;}
+        }catch(error){await finishAiAudit(audit,'failed',{request:parsed.value,error:error.message||'Itinerary generation failed.'});throw error;}
       }
       const itineraryMatch=p.match(/^\/api\/itineraries\/([^/]+)$/);
       if (itineraryMatch) {
         allow('GET','HEAD');
         let id;try{id=decodeURIComponent(itineraryMatch[1]);}catch{fail(400,'Bad id');}
         if(hexclaveSelected&&!user)fail(401,'Please sign in to view this itinerary.');
-        const rec=ITINERARY_ID.test(id)?getItinerary(db,id,hexclaveSelected?user.id:undefined):null;
+        const rec=ITINERARY_ID.test(id)?await getItinerary(db,id,hexclaveSelected?user.id:undefined):null;
         if(!rec)fail(404,'Itinerary not found');
         return send(200,rec);
       }
-      if (p==='/api/auth/logout' && method==='POST') {store.deleteSession(db,hash(token));res.setHeader('Set-Cookie',cookie('',0));return send(200,{ok:true});}
+      if (p==='/api/auth/logout' && method==='POST') {await store.deleteSession(db,hash(token));res.setHeader('Set-Cookie',cookie('',0));return send(200,{ok:true});}
       if(p.startsWith('/api/integrations/google/')) {
         if(!user)fail(401,'Please sign in.');
         const result=await google({path:p,method,body,user,url});
@@ -781,7 +836,7 @@ export function createApp(options = {}) {
         if(tripId&&!/^[A-Za-z0-9_-]+$/.test(tripId)) fail(422,'This trip link is not valid.');
         const id=randomUUID(),created=new Date().toISOString();
         const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {})};
-        store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,status:'new',created});
+        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,status:'new',created});
         const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
         const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
         return send(201,{id,saved:true,delivery:{notification:notification?.status||'blocked'}});
@@ -794,7 +849,7 @@ export function createApp(options = {}) {
         const id=randomUUID(),created=new Date().toISOString();
         if(p.endsWith('commissions')){
           const name=str(body.name,'name',100,true),data={...body,email:email(body.email),name};
-          store.saveEnquiry(db,{id,kind:'commissions',data:JSON.stringify(data),created});
+          await store.saveEnquiry(db,{id,kind:'commissions',data:JSON.stringify(data),created});
           const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
           const [receipt,notification]=await Promise.all([
             emailService.enquiryReceipt({id,name,email:data.email}),
@@ -803,8 +858,8 @@ export function createApp(options = {}) {
           return send(201,{id,saved:true,delivery:{receipt:receipt?.status||'blocked',notification:notification?.status||'blocked'}});
         }
         const address=email(body.email);
-        store.upsertNewsletterSubscriber(db,{email:address,consentAt:created,source:'website',created});
-        const confirmation=await emailService.subscriptionConfirmation({id,email:address});
+        await store.upsertNewsletterSubscriber(db,{email:address,consentAt:created,source:'website',created});
+        const confirmation=await emailService.subscriptionConfirmation({id,email:address,consentAt:created});
         return send(201,{id,saved:true,delivery:confirmation?.status||'blocked'});
       }
       if(!user) fail(401,'Please sign in.');
@@ -813,9 +868,9 @@ export function createApp(options = {}) {
         let alert=body;
         if(body.alertId)alert=JSON.parse((await getRecord(str(body.alertId,'alert id',100,true),user.id,'alerts')).data);
         fareFields(alert);
-        const request={origin:alert.origin.trim().toUpperCase(),destination:alert.destination.trim(),departDate:alert.departDate||alert.startDate,returnDate:alert.returnDate||alert.endDate||'',currency:alert.currency.trim().toUpperCase(),targetPrice:alert.targetPrice??null},audit=startAiAudit(body.conversationId,'fare_alert',{request},alert.tripId||body.tripId,body.ownerId);
-        try{const result=await fareAlertFn(request,config);finishAiAudit(audit,'completed',{request,response:result});return send(200,{result});}
-        catch(error){finishAiAudit(audit,'failed',{request,error:error.message||'Fare research failed.'});throw error;}
+        const request={origin:alert.origin.trim().toUpperCase(),destination:alert.destination.trim(),departDate:alert.departDate||alert.startDate,returnDate:alert.returnDate||alert.endDate||'',currency:alert.currency.trim().toUpperCase(),targetPrice:alert.targetPrice??null},audit=await startAiAudit(body.conversationId,'fare_alert',{request},alert.tripId||body.tripId,body.ownerId);
+        try{const result=await fareAlertFn(request,config);await finishAiAudit(audit,'completed',{request,response:result});return send(200,{result});}
+        catch(error){await finishAiAudit(audit,'failed',{request,error:error.message||'Fare research failed.'});throw error;}
       }
       if(p.startsWith('/api/place-details')||p.startsWith('/api/place-photo/')) {
         rate('places:'+user.id,60);
@@ -824,23 +879,23 @@ export function createApp(options = {}) {
       }
       if(p==='/api/imports/extract'&&method==='POST') {
         rate('social:'+user.id,5);
-        const request={url:str(body.url,'social link',2000,true),note:str(body.note,'note',1000)},audit=startAiAudit(body.conversationId,'social_extraction',{request},body.tripId,body.ownerId);
-        try{if(!config.apiKey||!config.model)throw Object.assign(new Error('Travel research is not connected yet. You can still save this link and add your own note.'),{status:503});const result=await researchLinkFn(request,config);finishAiAudit(audit,'completed',{request,response:result});return send(200,{result});}
-        catch(error){finishAiAudit(audit,'failed',{request,error:error.message||'Link research failed.'});throw error;}
+        const request={url:str(body.url,'social link',2000,true),note:str(body.note,'note',1000)},audit=await startAiAudit(body.conversationId,'social_extraction',{request},body.tripId,body.ownerId);
+        try{if(!config.apiKey||!config.model)throw Object.assign(new Error('Travel research is not connected yet. You can still save this link and add your own note.'),{status:503});const result=await researchLinkFn(request,config);await finishAiAudit(audit,'completed',{request,response:result});return send(200,{result});}
+        catch(error){await finishAiAudit(audit,'failed',{request,error:error.message||'Link research failed.'});throw error;}
       }
       const shareMatch=p.match(/^\/api\/trips\/([a-f0-9-]+)\/share$/);
       if(shareMatch&&method==='POST') {
         await getRecord(shareMatch[1],user.id,'trips');
         const token=randomBytes(32).toString('hex'),expires=Date.now()+30*86400000;
-        store.deleteShares(db,shareMatch[1],user.id);
+        await store.deleteShares(db,shareMatch[1],user.id);
         const tokenHash=hash(token),created=new Date().toISOString();
-        store.createShare(db,{tokenHash,userId:user.id,tripId:shareMatch[1],expires,created});
-        store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_link_created',created});
+        await store.createShare(db,{tokenHash,userId:user.id,tripId:shareMatch[1],expires,created});
+        await store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_link_created',created});
         return send(201,{share:{url:`/app.html?share=${token}`,expires:new Date(expires).toISOString()}});
       }
       if(shareMatch&&method==='DELETE') {
         await getRecord(shareMatch[1],user.id,'trips');
-        store.deleteShares(db,shareMatch[1],user.id);
+        await store.deleteShares(db,shareMatch[1],user.id);
         return send(200,{ok:true});
       }
       if (p==='/api/profile' && method==='PATCH') {
@@ -854,13 +909,13 @@ export function createApp(options = {}) {
           } else if(body.city!==undefined && body.city.trim().toLowerCase()!==String(old.city||'').trim().toLowerCase()) profile.airports=suggested;
           profile.onboarded=true;
         }
-        store.updateUserProfile(db,user.id,JSON.stringify(profile));
+        await store.updateUserProfile(db,user.id,JSON.stringify(profile));
         return send(200,{user:publicUser({...user,profile:JSON.stringify(profile)})});
       }
       const jobMatch=p.match(/^\/api\/research(?:\/([a-f0-9-]+))?$/);
       if(jobMatch && method==='GET') {
         const id=jobMatch[1];
-        const job=id?store.findJob(db,id,user.id):store.findLatestJobForTrip(db,url.searchParams.get('tripId'),user.id);
+        const job=id?await store.findJob(db,id,user.id):await store.findLatestJobForTrip(db,url.searchParams.get('tripId'),user.id);
         if(id&&!job)fail(404,'Research was not found.');
         return send(200,{job:job?{...job,result:job.result?refreshPhotos(JSON.parse(job.result)):null}:null});
       }
@@ -871,21 +926,23 @@ export function createApp(options = {}) {
         let image;
         if(body.image){image=str(body.image,'image',1400000);if(!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image)) fail(422,'Use a PNG, JPEG or WebP image.');}
         const tripId=str(body.tripId,'trip',100,true);
-        const audit=startAiAudit(body.conversationId,'trip_research',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId}},tripId,body.ownerId);
-        if(!config.apiKey||!config.model){const error='Travel research is not connected yet. You can still build and save your itinerary.';finishAiAudit(audit,'failed',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId},error});fail(503,error);}
+        const audit=await startAiAudit(body.conversationId,'trip_research',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId}},tripId,body.ownerId);
+        if(!config.apiKey||!config.model){const error='Travel research is not connected yet. You can still build and save your itinerary.';await finishAiAudit(audit,'failed',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId},error});fail(503,error);}
         const trip=JSON.parse((await getRecord(tripId,user.id,'trips')).data);
         const profile=JSON.parse(user.profile);
-        const bookings=store.listRecordData(db,user.id,'bookings').map(r=>JSON.parse(r.data));
-        const memories=store.listRecordData(db,user.id,'memories').map(r=>JSON.parse(r.data));
+        const bookings=(await store.listRecordData(db,user.id,'bookings')).map(r=>JSON.parse(r.data));
+        const memories=(await store.listRecordData(db,user.id,'memories')).map(r=>JSON.parse(r.data));
         const id=randomUUID();
-        if(inFlight.has(user.id)){const error='Your research is already in progress.';finishAiAudit(audit,'failed',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId},error});fail(409,error);}
-        if(inFlight.size>=8){const error='Friday is busy researching. Please try again shortly.';finishAiAudit(audit,'failed',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId},error});fail(503,error);}
-        store.createJob(db,{id,userId:user.id,tripId,stage:'Starting research',created:new Date().toISOString()});
+        if(inFlight.has(user.id)){const error='Your research is already in progress.';await finishAiAudit(audit,'failed',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId},error});fail(409,error);}
+        if(inFlight.size>=8){const error='Friday is busy researching. Please try again shortly.';await finishAiAudit(audit,'failed',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId},error});fail(503,error);}
+        await store.createJob(db,{id,userId:user.id,tripId,stage:'Starting research',created:new Date().toISOString()});
         inFlight.add(user.id);
         // Persist progress and results so leaving the page does not lose the request.
         const task=(async()=>{
+          let stageWrites=Promise.resolve();   // stage updates are written in order and settle before the job completes or fails
           try {
-            const answer=await researchFn({prompt,trip:{...trip,bookings:bookings.filter(b=>b.tripId===tripId)},profile:{...profile,memories},mode:body.mode||'deep',image},config,stage=>store.setJobStage(db,id,stage));
+            const answer=await researchFn({prompt,trip:{...trip,bookings:bookings.filter(b=>b.tripId===tripId)},profile:{...profile,memories},mode:body.mode||'deep',image},config,stage=>{stageWrites=stageWrites.then(()=>store.setJobStage(db,id,stage)).catch(()=>{});});
+            await stageWrites;
             if(answer.days)validate('trips',{title:trip.title,days:answer.days});
             const fresh=await getRecord(tripId,user.id,'trips'),data=JSON.parse(fresh.data);
             const priorMessages=data.messages||[],lastMessage=priorMessages[priorMessages.length-1];
@@ -899,9 +956,9 @@ export function createApp(options = {}) {
             if(answer.days?.length)data.researchDraft={days:answer.days,questions:answer.questions||[],jobId:id};
             validate('trips',data);
             await trips.overwrite({id:tripId,userId:user.id,data:JSON.stringify(data),updated:new Date().toISOString()});
-            store.completeJob(db,id,JSON.stringify(answer));
-            finishAiAudit(audit,'completed',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId},response:answer});
-          }catch(e){logError('research job failed',e);store.failJob(db,id,e.status?e.message:'Research could not finish. Please try again.');finishAiAudit(audit,'failed',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId},error:e.message||'Research could not finish.'});}
+            await store.completeJob(db,id,JSON.stringify(answer));
+            await finishAiAudit(audit,'completed',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId},response:answer});
+          }catch(e){logError('research job failed',e);await stageWrites;await store.failJob(db,id,e.status?e.message:'Research could not finish. Please try again.');await finishAiAudit(audit,'failed',{request:{prompt,mode:body.mode||'deep',image:!!image,tripId},error:e.message||'Research could not finish.'});}
           finally{inFlight.delete(user.id);}
         })();backgroundTasks.add(task);task.finally(()=>backgroundTasks.delete(task));
         return send(202,{job:{id,status:'running',stage:'Starting research'}});
@@ -909,34 +966,36 @@ export function createApp(options = {}) {
       const match=p.match(/^\/api\/(trips|places|lists|bookings|memories|alerts|imports)(?:\/([a-f0-9-]+))?$/);
       if(match) {
         const [,kind,id]=match;
-        if(method==='GET')return send(200,id?{record:parseRecord(await getRecord(id,user.id,kind))}:{records:(kind==='trips'?await trips.list(user.id):store.listRecords(db,user.id,kind)).map(parseRecord)});
+        if(method==='GET')return send(200,id?{record:parseRecord(await getRecord(id,user.id,kind))}:{records:(kind==='trips'?await trips.list(user.id):await store.listRecords(db,user.id,kind)).map(parseRecord)});
         if(method==='POST'&&!id)return send(201,{record:await newRecord(user.id,kind,body.data)});
         if(method==='PUT'&&id) {
           validate(kind,body.data);await getRecord(id,user.id,kind);
           if(!Number.isInteger(body.version))fail(422,'A record version is required.');
           const update={id,userId:user.id,data:JSON.stringify(body.data),updated:new Date().toISOString(),version:body.version};
-          const changed=kind==='trips'?await trips.updateIfVersion(update):store.updateRecordIfVersion(db,{...update,kind});
+          const changed=kind==='trips'?await trips.updateIfVersion(update):await store.updateRecordIfVersion(db,{...update,kind});
           if(!changed)fail(409,'This item changed in another window. Reload before editing.');
           return send(200,{record:parseRecord(await getRecord(id,user.id,kind))});
         }
         if(method==='DELETE'&&id){
           await getRecord(id,user.id,kind);
-          if(kind==='trips'){await trips.delete(id,user.id);store.deleteShares(db,id,user.id);}   // shares have no foreign key to a vault trip, so remove them here
-          else store.deleteRecord(db,id,user.id,kind);
+          if(kind==='trips'){await trips.delete(id,user.id);await store.deleteShares(db,id,user.id);}   // shares have no foreign key to a vault trip, so remove them here
+          else await store.deleteRecord(db,id,user.id,kind);
           return send(200,{ok:true});
         }
       }
       fail(404,'Not found.');
     }catch(e){if(e instanceof VaultError){console.error(`[friday] ${req.method} ${String(req.url).split('?')[0]} trip storage failed: ${e.code}: ${e.message}`);if(!res.headersSent)return send(503,{error:'Trip storage is temporarily unavailable. Please try again.'});return res.end();}if(!e.status||e.status>=500)console.error(`[friday] ${req.method} ${String(req.url).split('?')[0]} failed: ${String(e?.stack||e).slice(0,2000)}`);if(!res.headersSent)send(e.status||500,{error:e.status?e.message:'Something went wrong. Please try again.'});else res.end();}
   });
-  server.on('close',()=>{ Promise.allSettled([...backgroundTasks]).then(()=>store.closeStore(db)); });
+  server.db = db;   // the app's database handle (tests assert rows through it)
+  server.on('close',()=>{ Promise.allSettled([...backgroundTasks]).then(()=>store.closeStore(db)).catch(error=>console.error(`[friday] closing the database failed: ${error.message}`)); });
   return server;
 }
 if (process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const defaultHost = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
   const defaultPort = process.env.NODE_ENV === 'production' ? 3000 : 4871;
   const server=createApp({log:m=>console.error('[friday] '+m)});const port=Number(process.env.PORT||defaultPort);
-  if (process.env.DATABASE_BACKUP_DIR) runBackupLoop().catch(error => console.error(`[friday] SQLite backup scheduler failed: ${error.message}`));
+  // A database that never becomes reachable (after the bounded retries) is fatal: exit so the platform restarts the service.
+  server.db.ready.catch(error => { console.error(`[friday] ${error.message}`); process.exit(1); });
   server.listen(port,process.env.HOST||defaultHost,()=>console.log(`Friday http://${process.env.HOST||defaultHost}:${port}`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>process.exit(0)));
 }

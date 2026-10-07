@@ -1,5 +1,5 @@
 /* Synthetic browser acceptance fixture for the reel-to-itinerary flow.
- * Loopback only, disposable SQLite, deterministic research, and no email credentials.
+ * Loopback only, disposable in-memory PGlite, deterministic research, and no email credentials.
  * Use a reel URL containing `/unavailable` to exercise the confirmation fallback.
  */
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from '../server/app.mjs';
 
 const dir = await mkdtemp(path.join(os.tmpdir(), 'friday-reel-qa-'));
-const dbPath = path.join(dir, 'reel-acceptance.sqlite');
 const sourceUrl = 'https://fixture.example/sources/kyoto';
 
 const researchLink = async ({ url, note }) => {
@@ -47,7 +46,7 @@ const research = async ({ prompt }) => {
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const server = createApp({
   root,
-  dbPath,
+  memory: true,
   origin: 'http://localhost:4876',
   env: {
     APP_ORIGIN: 'http://localhost:4876',
@@ -57,15 +56,20 @@ const server = createApp({
     AI_MODEL: 'fixture-only-model',
     ANTHROPIC_API_KEY: 'fixture-only-key',
   },
-  ai: { provider: 'claude', apiKey: 'fixture-only-key', model: 'fixture-only-model' },
+  ai: { provider: 'openai', apiKey: 'fixture-only-key', model: 'fixture-only-model' },
   researchLink,
   reelResearch: research,
+  reelInterpret: async (text) => ({fields: {
+    ...(text.includes('Garden')?{placeName:'QA Garden · Synthetic',destination:'Kyoto, Japan'}:{}),
+    ...(text.includes('3 days')?{days:3,travelers:2}:{}),
+    ...(text.includes('2027-04-01')?{startDate:'2027-04-01'}:{})
+  },edit:/slower|relaxed/.test(text)}),
   log: () => {},
 });
 
 server.listen(4876, '127.0.0.1', () => {
   console.log(`Synthetic reel acceptance fixture: http://127.0.0.1:4876/app.html`);
-  console.log(`Temporary database: ${dbPath}`);
+  console.log('Database: in-memory PGlite, discarded on exit.');
   console.log('Reel URL containing /unavailable triggers the explicit unverified-reel confirmation path.');
   console.log('No production database, credentials, external research, or email delivery is used.');
 });

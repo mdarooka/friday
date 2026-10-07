@@ -1387,7 +1387,7 @@
       const starterText = presetDestination ? (presetDestination.prompt || 'Plan a trip to ' + presetDestination.name) : '';
       const remembered = FT.memoryContext ? FT.memoryContext.list(state) : [];
       const showMemory = remembered.length > 0;
-      const renderMemory = () => showMemory ? '<section class="fx-new__memory fx-integration-list" aria-labelledby="fx-new-memory-title"><div><h2 class="fx-h2" id="fx-new-memory-title">What Friday remembers about you</h2><p class="fx-hint">Choose what to use for this trip. Selected details go to Friday’s planner and, if you request a quote, the travel designer.</p></div>' + remembered.map((item) => '<div class="fx-new__memory-row"><label><input type="checkbox" data-memory-pick="' + esc(item.key) + '" checked><span><strong>' + esc(item.label) + '</strong><br>' + esc(item.text) + '</span></label>' + (item.source === 'memory' ? '<div class="fx-integration-actions"><button class="fx-btn fx-btn--line" type="button" data-memory-edit="' + esc(item.id) + '">Edit</button><button class="fx-btn fx-btn--line" type="button" data-memory-remove="' + esc(item.id) + '">Remove</button></div>' : '') + '</div>').join('') + '<button class="fx-btn fx-btn--line" type="button" data-open-prefs>Edit travel preferences</button></section>' : '';
+      const renderMemory = () => showMemory ? '<details class="fx-new__memory"><summary><span data-memory-count>Using ' + remembered.length + ' saved travel ' + (remembered.length === 1 ? 'detail' : 'details') + '</span><span class="fx-new__memory-review">Review</span></summary><div class="fx-new__memory-content"><p class="fx-hint">Choose what to use for this trip. Selected details go to Friday’s planner and, if you request a quote, the travel designer.</p>' + remembered.map((item) => '<div class="fx-new__memory-row"><label><input type="checkbox" data-memory-pick="' + esc(item.key) + '" checked><span><strong>' + esc(item.label) + '</strong><br>' + esc(item.text) + '</span></label>' + (item.source === 'memory' ? '<div class="fx-integration-actions"><button class="fx-btn fx-btn--line" type="button" data-memory-edit="' + esc(item.id) + '">Edit</button><button class="fx-btn fx-btn--line" type="button" data-memory-remove="' + esc(item.id) + '">Remove</button></div>' : '') + '</div>').join('') + '<button class="fx-btn fx-btn--line" type="button" data-open-prefs>Edit travel preferences</button></div></details>' : '';
       el.innerHTML =
         '<div class="fx-new"><div class="fx-new__in">' +
         '<p class="fx-new__eyebrow">Your travel designer</p>' +
@@ -1395,7 +1395,7 @@
         '<form class="fx-prompt" data-prompt novalidate>' +
         '<div class="fx-prompt__chips" data-chips></div>' +
         '<label class="sr" for="fx-prompt-ta">Describe your trip</label>' +
-        '<textarea class="fx-prompt__ta" id="fx-prompt-ta" rows="2" placeholder="Tell Friday where you’d like to go…" maxlength="1200">' + esc(starterText) + '</textarea>' +
+        '<textarea class="fx-prompt__ta" id="fx-prompt-ta" rows="2" placeholder="Tell Friday where you’d like to go, or paste a reel link…" maxlength="1200">' + esc(starterText) + '</textarea>' +
         '<div class="fx-prompt__row">' +
         '<button class="fx-icon-btn" type="button" data-act="attach" aria-label="Attach an image" title="Attach an image">' + icon('image', 18) + '</button>' +
         '<input type="file" accept="image/*" multiple hidden data-file>' +
@@ -1403,12 +1403,17 @@
         '<button class="fx-icon-btn" type="button" data-act="mic" aria-label="Voice input" title="Voice input">' + icon('mic', 18) + '</button>' +
         '<button class="fx-send" type="submit" disabled aria-label="Start planning">' + icon('arrow-right', 18) + '</button>' +
         '</div></form>' +
-        '<p class="fx-new__helper">Start with a place, a feeling, or an idea.</p>' +
+        '<p class="fx-new__helper">Start with a place, a feeling, an idea, or a reel link.</p>' +
         '<div class="fx-new__suggestions" aria-label="Ideas to get started">' +
         ['A quiet weekend', 'Somewhere by the sea', 'Art, food & culture'].map((s) => '<button class="fx-new__suggestion" type="button" data-suggestion="' + esc(s) + '">' + esc(s) + '</button>').join('') +
-        '</div>' + renderMemory() + '<button class="fx-btn fx-btn--line" type="button" data-act="plan-reel">Plan from a reel</button>' +
+        '</div>' + renderMemory() +
         '</div></div>';
       if (showMemory) {
+        delegate(el, 'change', '[data-memory-pick]', () => {
+          const count = el.querySelectorAll('[data-memory-pick]:checked').length;
+          const label = $('[data-memory-count]', el);
+          if (label) label.textContent = count ? 'Using ' + count + ' saved travel ' + (count === 1 ? 'detail' : 'details') : 'No saved travel details selected';
+        });
         delegate(el, 'click', '[data-memory-edit]', async (e, button) => {
           const item = (state.memory || []).find((memory) => memory.id === button.dataset.memoryEdit);
           if (item && FT.integrations && FT.integrations.editMemory) { await FT.integrations.editMemory(item); pages.new.render(); }
@@ -1465,7 +1470,6 @@
     delegate(form, 'click', '[data-act]', (e, b) => {
       const act = b.dataset.act;
       if (act === 'attach') file.click();
-      else if (act === 'plan-reel' && FT.reel) FT.reel.open();
       else if (act === 'mic') {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SR) { toast('Voice input isn’t supported in this browser'); return; }
@@ -1482,7 +1486,6 @@
         } catch (err) { rec = null; toast('Voice input isn’t supported in this browser'); }
       }
     });
-    delegate(root, 'click', '[data-act="plan-reel"]', () => { if (FT.reel) FT.reel.open(); });
     delegate(root, 'click', '.fx-photo', (e, b) => {
       const d = FT.dest(b.dataset.dest);
       ta.value = (d && d.prompt) || 'Plan a trip to ' + (d ? d.name : 'somewhere');
@@ -1596,7 +1599,7 @@
         : '';
 
       el.innerHTML =
-        '<div class="fx-wrap"><div class="fx-section__head"><h1 class="fx-h1">Upcoming</h1><button class="fx-btn fx-btn--line" type="button" data-act="plan-reel">Plan from a reel</button></div><div class="fx-upcoming">' +
+        '<div class="fx-wrap"><div class="fx-section__head"><h1 class="fx-h1">Upcoming</h1><a class="fx-btn fx-btn--line" href="#/new">New trip</a></div><div class="fx-upcoming">' +
         '<button class="fx-cover" type="button" data-trip="' + esc(trip.id) + '" aria-label="Open ' + esc(trip.title) + '">' +
         plateHtml('cover-' + trip.id, { scene: d && d.scene, tone: d && d.tone }, 'landscape', 'plate--fill') +
         '<span class="fx-cover__scrim"></span><span class="fx-cover__body"><span class="fx-cover__title">' + esc(trip.title) + '</span><span class="fx-cover__dates">' + esc(range ? tripRangeLabel(trip) : '') + '</span><span class="fx-pill">' + esc(pill) + '</span></span></button>' +
@@ -1627,7 +1630,6 @@
 
   function wireHome() {
     const el = pageEl('home');
-    delegate(el, 'click', '[data-act="plan-reel"]', () => { if (FT.reel) FT.reel.open(); });
     delegate(el, 'click', '[data-place]', (e, b) => placeModal(b.dataset.dest, b.dataset.place, {}));
     delegate(el, 'click', '[data-trip]', (e, b) => {
       const id = b.dataset.trip;

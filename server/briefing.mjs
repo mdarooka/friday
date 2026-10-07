@@ -43,7 +43,8 @@ export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient,
   const htmlBookings = bookings.length ? `<ul>${bookings.map(item => `<li>${escapeHtml(item.title)}${item.date ? ` · ${escapeHtml(item.date)}${item.end ? `–${escapeHtml(item.end)}` : ''}` : ''}${item.confirmed ? ' · confirmed date' : ' · date to confirm'}</li>`).join('')}</ul>` : '<p>No bookings have been linked to this trip yet.</p>';
   const htmlQuestions = questions.length ? `<ul>${questions.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<p>No open questions are saved for this trip.</p>';
   const dateLabel = departureDate ? `${departureDate}${validDate(endDate) ? ` to ${endDate}` : ''}` : 'Dates to confirm';
-  const subject = `A week to go: ${title}`;
+  const lead = daysBeforeDeparture === 0 ? 'Your trip starts today' : daysBeforeDeparture === 1 ? 'Your trip starts tomorrow' : daysBeforeDeparture >= 2 && daysBeforeDeparture <= 6 ? `${daysBeforeDeparture} days to go` : 'A week to go';
+  const subject = `${lead}: ${title}`;
   const text = `Hello,\n\nYour trip ${title} is coming up${departureDate ? ` on ${dateLabel}` : ''}.\n\nBookings found:\n${bookingLines}\n\nOpen questions:\n${questionLines}\n\nNeed a hand? Reach Friday’s travel designer at ${contact}.\n\nOpen your trip: ${backUrl}\n\nFriday`;
   const html = `<p>Hello,</p><p>Your trip <strong>${escapeHtml(title)}</strong> is coming up. <strong>${escapeHtml(dateLabel)}</strong>.</p><h2>Bookings found</h2>${htmlBookings}<h2>Open questions</h2>${htmlQuestions}<p>Need a hand? <a href="${escapeHtml(contact)}">Reach Friday’s travel designer</a>.</p><p><a href="${escapeHtml(backUrl)}">Open your trip</a></p><p>Friday</p>`;
   return { tripId, title, departureDate, endDate: validDate(endDate) ? endDate : '', daysBeforeDeparture, recipient: clean(recipient, 254), eligible, bookings, questions, subject, text, html, tripUrl: backUrl };

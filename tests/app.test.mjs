@@ -1,25 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import http from 'node:http';
-import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { createApp } from '../server/app.mjs';
 import { vaultModeOptions } from './fake-vault.mjs';
 const origin='http://localhost:4871';
 async function fixture(t,options={}) {
-  const dir=await mkdtemp(path.join(os.tmpdir(),'friday-test-'));
-  const server=createApp({dbPath:path.join(dir,'db.sqlite'),origin,...options,...vaultModeOptions(options)});
+  const server=createApp({memory:true,origin,...options,...vaultModeOptions(options)});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
-  t.after(async()=>{await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});});
+  t.after(async()=>{await new Promise(resolve=>server.close(resolve));});
   const request=async(url,method='GET',data,cookie='',headers={},redirect='follow')=>{
     const res=await fetch(base+url,{method,redirect,headers:{...(data?{'Content-Type':'application/json',Origin:origin}:{}),Cookie:cookie,...headers},body:data?JSON.stringify(data):undefined});
     const result=(res.headers.get('content-type')||'').includes('application/json')?await res.json():await res.text();
     return {status:res.status,result,cookie:res.headers.get('set-cookie')?.split(';')[0],headers:res.headers};
-  };request.dbPath=path.join(dir,'db.sqlite');request.server=server;return request;
+  };request.db=server.db;request.server=server;return request;
+}
+function requestWithHost(request,url,host,{forwardedHost=host,deploymentUrl,method='GET',origin:requestOrigin,body}={}) {
+  return new Promise((resolve,reject)=>{
+    const headers={host};
+    if(forwardedHost)headers['x-forwarded-host']=forwardedHost;
+    if(deploymentUrl)headers['x-vercel-deployment-url']=deploymentUrl;
+    if(requestOrigin)headers.origin=requestOrigin;
+    if(body!==undefined)headers['content-type']='application/json';
+    const req=http.request({hostname:'127.0.0.1',port:request.server.address().port,path:url,method,headers},res=>{
+      const chunks=[];res.on('data',chunk=>chunks.push(chunk));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks).toString()}));
+    });
+    req.on('error',reject);req.end(body);
+  });
 }
 async function signup(request,name='A') {
   const res=await request('/api/auth/signup','POST',{name,email:`${name}@example.com`,password:'long test password 123'});
@@ -74,38 +82,43 @@ test('cross-origin writes, private source paths, and missing provider fail safel
   assert.equal((await request('/api/capabilities')).result.research,false);
   assert.equal((await request('/api/research','POST',{prompt:'Kyoto',tripId:'bad'},a.cookie)).status,503);
 });
-test('temporary hosts stay out of search while the official origin keeps its robots and sitemap',async t=>{
-  const request=await fixture(t,{env:{...process.env,PUBLIC_SITE_ORIGIN:'',APP_ORIGIN:'https://fridaytravel.vercel.app',ITINERARY_PROVIDER:'local'}});
-  const robots=await request('/robots.txt');
-  assert.equal(robots.status,200);assert.equal(robots.headers.get('x-robots-tag'),'noindex, nofollow');assert.match(robots.result,/Disallow: \/\n/);
-  const sitemap=await request('/sitemap.xml');
-  assert.equal(sitemap.status,404);assert.equal(sitemap.headers.get('x-robots-tag'),'noindex, nofollow');
-  const page=await request('/kerala-guide.html');
-  assert.equal(page.status,200);assert.equal(page.headers.get('x-robots-tag'),'noindex, nofollow');
+test('temporary Vercel hosts stay out of search and aliases redirect to the canonical host',async t=>{
+  const request=await fixture(t,{origin:'https://fridaytravel.vercel.app',env:{...process.env,APP_ORIGIN:'https://fridaytravel.vercel.app',PUBLIC_SITE_ORIGIN:'',TRUST_PROXY:'1',ITINERARY_PROVIDER:'local'}});
+  const canonical=await requestWithHost(request,'/kerala-guide.html','deploy.example',{forwardedHost:'fridaytravel.vercel.app'});
+  assert.equal(canonical.status,200);assert.match(canonical.body,/Kerala Travel Guide/);assert.equal(canonical.headers['x-robots-tag'],'noindex, nofollow');
+  const robots=await requestWithHost(request,'/robots.txt','deploy.example',{forwardedHost:'fridaytravel.vercel.app'});
+  assert.equal(robots.status,200);assert.equal(robots.body,`User-agent: *\nDisallow: /\n`);assert.equal(robots.headers['x-robots-tag'],'noindex, nofollow');
+  const sitemap=await requestWithHost(request,'/sitemap.xml','deploy.example',{forwardedHost:'fridaytravel.vercel.app'});
+  assert.equal(sitemap.status,404);assert.equal(sitemap.headers['x-robots-tag'],'noindex, nofollow');
 
-  const official=await fixture(t,{env:{...process.env,PUBLIC_SITE_ORIGIN:'https://friday.example',TRUST_PROXY:'1',ITINERARY_PROVIDER:'local'}});
-  const onHost=(url,host,forwardedHost)=>new Promise((resolve,reject)=>{
-    const headers={host};if(forwardedHost)headers['x-forwarded-host']=forwardedHost;
-    const req=http.request({hostname:'127.0.0.1',port:official.server.address().port,path:url,headers},res=>{
-      const chunks=[];res.on('data',chunk=>chunks.push(chunk));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks).toString()}));
-    });req.on('error',reject);req.end();
+  const redirect=await requestWithHost(request,'/kerala-guide.html?source=temp','deploy.example',{forwardedHost:'friday-travel-peach.vercel.app'});
+  assert.equal(redirect.status,301);assert.equal(redirect.headers.location,'https://fridaytravel.vercel.app/kerala-guide.html?source=temp');assert.equal(redirect.headers['x-robots-tag'],'noindex, nofollow');
+  const aliasRobots=await requestWithHost(request,'/robots.txt','deploy.example',{forwardedHost:'friday-travel-peach.vercel.app'});
+  assert.equal(aliasRobots.status,200);assert.equal(aliasRobots.body,`User-agent: *\nDisallow: /\n`);assert.equal(aliasRobots.headers['x-robots-tag'],'noindex, nofollow');
+  const otherAlias=await requestWithHost(request,'/api/health?check=1','deploy.example',{forwardedHost:'friday-travel-another-alias.vercel.app'});
+  assert.equal(otherAlias.status,301);assert.equal(otherAlias.headers.location,'https://fridaytravel.vercel.app/api/health?check=1');
+
+  const branchPreview=await requestWithHost(request,'/kerala-guide.html','deploy.example',{forwardedHost:'friday-travel-git-hekuto-noindex-temp-hosts-preview.vercel.app',deploymentUrl:'friday-travel-abc123456-team.vercel.app'});
+  assert.equal(branchPreview.status,200);assert.equal(branchPreview.headers['x-robots-tag'],'noindex, nofollow');
+  const previewRobots=await requestWithHost(request,'/robots.txt','deploy.example',{forwardedHost:'friday-travel-git-hekuto-noindex-temp-hosts-preview.vercel.app',deploymentUrl:'friday-travel-abc123456-team.vercel.app'});
+  assert.equal(previewRobots.status,200);assert.equal(previewRobots.body,`User-agent: *\nDisallow: /\n`);assert.equal(previewRobots.headers['x-robots-tag'],'noindex, nofollow');
+  const uniquePreview=await requestWithHost(request,'/kerala-guide.html','deploy.example',{forwardedHost:'friday-travel-abc123456-team.vercel.app',deploymentUrl:'friday-travel-abc123456-team.vercel.app'});
+  assert.equal(uniquePreview.status,200);assert.equal(uniquePreview.headers['x-robots-tag'],'noindex, nofollow');
+
+  const custom=await fixture(t,{origin:'https://friday.example',env:{...process.env,APP_ORIGIN:'https://friday.example',PUBLIC_SITE_ORIGIN:'',ITINERARY_PROVIDER:'local'}});
+  const customPage=await requestWithHost(custom,'/kerala-guide.html','friday.example');
+  assert.equal(customPage.status,200);assert.equal(customPage.headers['x-robots-tag'],undefined);
+});
+test('configured APP_ORIGIN_ALIASES remain accepted for production form writes',async t=>{
+  const request=await fixture(t,{
+    origin:'https://fridaytravel.vercel.app',
+    env:{...process.env,NODE_ENV:'production',APP_ORIGIN:'https://fridaytravel.vercel.app',PUBLIC_SITE_ORIGIN:'',APP_ORIGIN_ALIASES:'https://deploy.example',AUTH_PROVIDER:'local',AUTH_REQUIRED:'true',TRUST_PROXY:'1',ITINERARY_PROVIDER:'local'},
+    hexclaveAuth:{configured:false,projectId:null,currentUser:async()=>null}
   });
-  const guide=await onHost('/kerala-guide.html','friday.example');
-  assert.equal(guide.status,200);assert.match(guide.headers['content-type'],/text\/html/);assert.match(guide.body,/Kerala Travel Guide/);assert.equal(guide.headers['x-robots-tag'],undefined);
-  const tempRobots=await onHost('/robots.txt','deploy.example');
-  assert.equal(tempRobots.status,200);assert.match(tempRobots.body,/Disallow: \/\n/);assert.equal(tempRobots.headers['x-robots-tag'],'noindex, nofollow');
-  const normalRobots=await onHost('/robots.txt','friday.example');
-  assert.equal(normalRobots.status,200);assert.match(normalRobots.body,/Disallow: \/api\//);assert.doesNotMatch(normalRobots.body,/Disallow: \/$/);assert.match(normalRobots.body,/Sitemap: https:\/\/friday\.example\/sitemap\.xml/);assert.equal(normalRobots.headers['x-robots-tag'],undefined);
-  const normalSitemap=await onHost('/sitemap.xml','friday.example');
-  assert.equal(normalSitemap.status,200);assert.match(normalSitemap.headers['content-type'],/application\/xml/);assert.match(normalSitemap.body,/<urlset/);assert.equal(normalSitemap.headers['x-robots-tag'],undefined);
-  const redirect=await onHost('/kerala-guide.html?source=temp','deploy.example');
-  assert.equal(redirect.status,301);assert.equal(redirect.headers.location,'https://friday.example/kerala-guide.html?source=temp');assert.equal(redirect.headers['x-robots-tag'],'noindex, nofollow');
-  const proxied=await onHost('/kerala-guide.html','deploy.example','fridaytravel.vercel.app');
-  assert.equal(proxied.status,301);assert.equal(proxied.headers.location,'https://friday.example/kerala-guide.html');
-  const officialProxy=await onHost('/kerala-guide.html','deploy.example','friday.example');
-  assert.equal(officialProxy.status,200);assert.equal(officialProxy.headers['x-robots-tag'],undefined);
-  const health=await onHost('/api/health','deploy.example');
-  assert.equal(health.status,200);assert.equal(health.headers['x-robots-tag'],'noindex, nofollow');
+  const accepted=await requestWithHost(request,'/api/origin-probe','deploy.example',{origin:'https://deploy.example',method:'POST',body:'{}'});
+  assert.equal(accepted.status,401,'the configured alias passes the origin check and reaches the sign-in check');
+  const rejected=await requestWithHost(request,'/api/origin-probe','deploy.example',{origin:'https://unlisted.example',method:'POST',body:'{}'});
+  assert.equal(rejected.status,403,'unlisted origins remain blocked in production');
 });
 test('Deep jobs persist progress, save drafts and do not overwrite manual edits',async t=>{
   let release;const gate=new Promise(resolve=>release=resolve);
@@ -135,7 +148,7 @@ test('profile edits preserve airport removals and enquiries persist',async t=>{
   await request('/api/profile','PATCH',{city:'San Francisco'},a.cookie);
   assert.deepEqual((await request('/api/auth/me','GET',undefined,a.cookie)).result.user.profile.airports,['SFO']);
   assert.equal((await request('/api/commissions','POST',{name:'A',email:'a@example.com',message:'A thoughtful trip'})).status,201);
-  const db=new DatabaseSync(request.dbPath);assert.equal(db.prepare('SELECT count(*) AS n FROM enquiries').get().n,1);db.close();
+  assert.equal((await request.db.one('SELECT count(*) AS n FROM enquiries')).n,1);
 });
 test('trip sharing is explicit, read-only, sanitized, owner-controlled, revocable, and expires',async t=>{
   const request=await fixture(t),a=await signup(request,'ShareOwner'),b=await signup(request,'ShareOther');
@@ -147,9 +160,9 @@ test('trip sharing is explicit, read-only, sanitized, owner-controlled, revocabl
   assert.deepEqual(shared.result.trip,{title:'Kyoto',destination:'Japan',startDate:'2026-11-01',endDate:'2026-11-03',days:[{title:'Temple',date:'2026-11-01',notes:'Walk slowly',items:[{title:'Garden',time:'10:00',notes:'',address:'',url:'https://example.com/',openingHours:'',rating:'',reviews:'',photos:[]}]}]});
   assert.equal(JSON.stringify(shared.result).includes('private'),false);assert.equal(JSON.stringify(shared.result).includes('secret'),false);
   assert.equal((await request('/api/trips/'+trip.id+'/share','DELETE',{},b.cookie)).status,404);
-  const db=new DatabaseSync(request.dbPath),tokenHash=createHash('sha256').update(token).digest('hex');
-  assert.equal(db.prepare('SELECT count(*) AS n FROM shares WHERE token_hash=?').get(token).n,0);
-  db.prepare('UPDATE shares SET expires=0 WHERE token_hash=?').run(tokenHash);db.close();
+  const tokenHash=createHash('sha256').update(token).digest('hex');
+  assert.equal((await request.db.one('SELECT count(*) AS n FROM shares WHERE token_hash=$1',[token])).n,0);
+  await request.db.query('UPDATE shares SET expires=0 WHERE token_hash=$1',[tokenHash]);
   assert.equal((await request('/api/shared/'+token)).status,404);
   const replacement=await request('/api/trips/'+trip.id+'/share','POST',{},a.cookie);const nextToken=new URL(replacement.result.share.url,'http://localhost').searchParams.get('share');
   assert.equal((await request('/api/trips/'+trip.id+'/share','DELETE',{},a.cookie)).status,200);
@@ -170,8 +183,7 @@ test('trip share previews are server-rendered and share use is counted in SQLite
   assert.equal(human.result.includes('PRIVATE conversation'),false);
   const bot=await request('/app.html?share='+token,'GET',undefined,'',{'User-Agent':'WhatsApp/2.24.1'});assert.equal(bot.status,200);
   assert.equal((await request('/api/shared/'+token+'/whatsapp-click','POST',{},'')).status,200);
-  const db=new DatabaseSync(request.dbPath);
-  const counts=Object.fromEntries(db.prepare('SELECT event_type,count(*) AS n FROM trip_share_events GROUP BY event_type').all().map(row=>[row.event_type,row.n]));db.close();
+  const counts=Object.fromEntries((await request.db.all('SELECT event_type,count(*) AS n FROM trip_share_events GROUP BY event_type')).map(row=>[row.event_type,row.n]));
   assert.equal(counts.trip_share_link_created,1);assert.equal(counts.trip_share_link_opened,1);assert.equal(counts.trip_share_preview_bot,1);assert.equal(counts.trip_share_whatsapp_clicked,1);
   const plainTrip=(await request('/api/trips','POST',{data:{title:'No cover',destination:'India',days:[]}},owner.cookie)).result.record;
   const plainShare=await request('/api/trips/'+plainTrip.id+'/share','POST',{},owner.cookie),plainToken=new URL(plainShare.result.share.url,origin).searchParams.get('share');

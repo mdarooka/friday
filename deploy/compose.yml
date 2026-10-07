@@ -11,14 +11,18 @@ services:
       HOST: 0.0.0.0
       PORT: 4871
       APP_ORIGIN: https://${APP_DOMAIN:-localhost}
-      DATABASE_PATH: /app/.data/friday.sqlite
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USER: friday
+      DATABASE_NAME: friday
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       AUTH_REQUIRED: "true"
       TRUST_PROXY: "1"
-    volumes:
-      - friday-data:/app/.data
-      - friday-backups:/app/backups
     expose:
       - "4871"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - friday-internal
     healthcheck:
@@ -27,6 +31,23 @@ services:
       timeout: 5s
       start_period: 15s
       retries: 3
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: friday
+      POSTGRES_DB: friday
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - friday-postgres:/var/lib/postgresql/data
+    networks:
+      - friday-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U friday -d friday"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   caddy:
     image: caddy:2-alpine
@@ -47,31 +68,8 @@ services:
     networks:
       - friday-internal
 
-  friday-backup:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    command: ["node", "server/tools/backup-loop.mjs"]
-    environment:
-      NODE_ENV: production
-      DATABASE_PATH: /app/.data/friday.sqlite
-      DATABASE_BACKUP_DIR: /app/backups
-      DATABASE_BACKUP_INTERVAL_SECONDS: ${DATABASE_BACKUP_INTERVAL_SECONDS:-86400}
-    volumes:
-      - friday-data:/app/.data
-      - friday-backups:/app/backups
-    depends_on:
-      friday:
-        condition: service_healthy
-    networks:
-      - friday-internal
-    healthcheck:
-      disable: true
-
 volumes:
-  friday-data:
-  friday-backups:
+  friday-postgres:
   caddy-data:
   caddy-config:
 

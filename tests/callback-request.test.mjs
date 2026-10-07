@@ -2,14 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import { DatabaseSync } from 'node:sqlite';
 import { startApp, signUp } from './helpers.mjs';
 
 const emailConfig = { HEXCLAVE_PROJECT_ID: 'project-test', HEXCLAVE_SECRET_SERVER_KEY: 'server-secret-test' };
 
 test('callback requests validate Indian numbers, enter the quotes queue, and notify the team', async t => {
   const sends = [];
-  const { request, dbPath } = await startApp(t, {
+  const { request, db } = await startApp(t, {
     env: { ...emailConfig, AUTH_PROVIDER: 'local', QUOTE_ADMIN_EMAILS: 'quoteadmin@example.com', FRIDAY_ENQUIRY_EMAIL: 'studio@example.com' },
     hexclaveAuth: { configured: false, currentUser: async () => null },
     emailFetch: async (url, options) => { sends.push({ url, body: JSON.parse(options.body) }); return new Response(null, { status: 202 }); },
@@ -38,9 +37,7 @@ test('callback requests validate Indian numbers, enter the quotes queue, and not
   assert.equal(callback.bestTime, 'afternoon');
   assert.equal(callback.entryPoint, 'planner');
   assert.equal(callback.tripId, 'trip_123');
-  const db = new DatabaseSync(dbPath);
-  assert.equal(db.prepare('SELECT count(*) AS n FROM callback_requests').get().n, 1);
-  db.close();
+  assert.equal((await db.one('SELECT count(*) AS n FROM callback_requests')).n, 1);
 });
 
 test('callback route rate-limits repeat submissions', async t => {
@@ -96,5 +93,8 @@ test('generated contact page and planner include callback form and analytics scr
   assert.match(contact, /Call me back/);
   assert.match(contact, /callback-analytics\.js/);
   assert.match(planner, /callback-analytics\.js/);
-  assert.match(await readFile(new URL('../assets/js/trip-integrations.js', import.meta.url), 'utf8'), /label: 'Call me back'/);
+  const integrations = await readFile(new URL('../assets/js/trip-integrations.js', import.meta.url), 'utf8');
+  assert.match(integrations, /label: 'Call me back'/);
+  assert.match(integrations, /fx-planner-callback/);
+  assert.match(await readFile(new URL('../assets/css/trip.css', import.meta.url), 'utf8'), /\.fx-planner-callback\s*\{[\s\S]*position:\s*fixed/);
 });

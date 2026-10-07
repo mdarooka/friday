@@ -45,8 +45,8 @@ test('Kerala guide answers the researched questions and has canonical/social met
   assert.match(guide, /When is the best time to visit Kerala\?/);
   assert.match(guide, /Is Alleppey or Kumarakom better for a houseboat\?/);
   assert.match(guide, /What does a Kerala trip cost\?/);
-  assert.match(guide, /<link rel="canonical" href="kerala-guide\.html">/);
-  assert.match(guide, /<meta property="og:image" content="assets\/images\/friday-social\.jpg">/);
+  assert.match(guide, /<link rel="canonical" href="https:\/\/fridaytravel\.vercel\.app\/kerala-guide\.html">/);
+  assert.match(guide, /<meta property="og:image" content="https:\/\/fridaytravel\.vercel\.app\/assets\/images\/friday-social\.jpg">/);
   assert.match(guide, /data-guide-cta="planner"/);
   assert.match(guide, /data-guide-cta="quote"/);
 });
@@ -61,6 +61,32 @@ test('sitemap generation emits an absolute guide URL when an origin is configure
   assert.match(robots, /Disallow: \/admin-villas\n/);
   assert.match(robots, /Disallow: \/api\//);
   assert.doesNotMatch(robots, /Disallow: \/kerala-guide/);
+});
+
+test('production metadata uses Friday’s canonical domain when no build origin is configured', async () => {
+  const metadata = require('../build/site-metadata.js');
+  assert.equal(metadata.siteOrigin({}), 'https://fridaytravel.vercel.app');
+  const sitemap = await readFile(new URL('../sitemap.xml', import.meta.url), 'utf8');
+  const robots = await readFile(new URL('../robots.txt', import.meta.url), 'utf8');
+  assert.match(sitemap, /https:\/\/fridaytravel\.vercel\.app\/field-notes\.html/);
+  assert.match(robots, /Sitemap: https:\/\/fridaytravel\.vercel\.app\/sitemap\.xml/);
+});
+
+test('generated legal pages use a real effective date and do not mark About as current', async () => {
+  const [privacy, terms, fieldNotes] = await Promise.all([
+    readFile(new URL('../privacy.html', import.meta.url), 'utf8'),
+    readFile(new URL('../terms.html', import.meta.url), 'utf8'),
+    readFile(new URL('../field-notes.html', import.meta.url), 'utf8'),
+  ]);
+  for (const html of [privacy, terms]) {
+    assert.match(html, /October 7, 2026/);
+    assert.doesNotMatch(html, /OWNER: launch date/);
+    assert.doesNotMatch(html, /href="about\.html" aria-current="page"/);
+  }
+  assert.match(fieldNotes, /Travel guides and considered starting points/);
+  assert.match(fieldNotes, /A thoughtful first plan for Kerala/);
+  assert.match(fieldNotes, /href="kerala-guide\.html"/);
+  assert.doesNotMatch(fieldNotes, /This page has moved/);
 });
 
 test('guide view, CTA, and trip start events carry only safe attribution and guide status', async () => {

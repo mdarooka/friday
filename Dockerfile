@@ -3,8 +3,7 @@ FROM node:24-bookworm-slim
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
-    APP_ORIGIN=https://fridaytravel.vercel.app \
-    DATABASE_PATH=/app/.data/friday.sqlite
+    APP_ORIGIN=https://fridaytravel.vercel.app
 
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -12,8 +11,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY . .
 RUN npm run build \
-    && mkdir -p /app/.data /app/backups /data \
-    && chown -R node:node /app /data
+    && chown -R node:node /app
 
 USER node
 EXPOSE 3000 4871

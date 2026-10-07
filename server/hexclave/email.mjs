@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 const API_URL = 'https://api.hexclave.com/api/v1/emails/send-email';
 const validAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ''));
 
@@ -17,7 +19,7 @@ export function createHexclaveEmailService({ db, store, env = process.env, fetch
     if (!configured) return row;
     const dedupeKey = row.dedupe_key;
     const attemptedAt = new Date().toISOString();
-    if (!store.claimEmailOutbox(db, dedupeKey, attemptedAt, includeBlocked)) return store.getEmailOutboxByKey(db, dedupeKey);
+    if (!await store.claimEmailOutbox(db, dedupeKey, attemptedAt, includeBlocked)) return await store.getEmailOutboxByKey(db, dedupeKey);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
@@ -39,18 +41,18 @@ export function createHexclaveEmailService({ db, store, env = process.env, fetch
         }),
       });
       if (!response.ok) throw new Error(`Hexclave email endpoint returned ${response.status}`);
-      store.setEmailOutboxStatus(db, dedupeKey, 'provider_accepted', new Date().toISOString());
+      await store.setEmailOutboxStatus(db, dedupeKey, 'provider_accepted', new Date().toISOString());
     } catch {
       // Even a timeout or provider error may follow acceptance. Never retry automatically.
-      store.setEmailOutboxStatus(db, dedupeKey, 'delivery_unknown', new Date().toISOString());
+      await store.setEmailOutboxStatus(db, dedupeKey, 'delivery_unknown', new Date().toISOString());
     } finally { clearTimeout(timeout); }
-    return store.getEmailOutboxByKey(db, dedupeKey);
+    return await store.getEmailOutboxByKey(db, dedupeKey);
   }
 
   async function send({ dedupeKey, kind, to, subject, html, text = '' }) {
     if (!dedupeKey || !kind || !to || !subject || !html) throw new TypeError('A dedupe key, recipient, subject and body are required.');
     const now = new Date().toISOString();
-    const record = store.createEmailOutbox(db, {
+    const record = await store.createEmailOutbox(db, {
       id: dedupeKey,
       dedupeKey,
       kind,
@@ -61,26 +63,26 @@ export function createHexclaveEmailService({ db, store, env = process.env, fetch
       created: now,
       updated: now,
     });
-    const row = store.getEmailOutboxByKey(db, dedupeKey);
+    const row = await store.getEmailOutboxByKey(db, dedupeKey);
     if (record.changes === 0 || !configured) return row;
     return deliver(row);
   }
 
-  function queueUnaddressed({ dedupeKey, kind, subject, html, text = '' }) {
+  async function queueUnaddressed({ dedupeKey, kind, subject, html, text = '' }) {
     const now = new Date().toISOString();
-    store.createEmailOutbox(db, { id: dedupeKey, dedupeKey, kind, recipient: '', subject, content: JSON.stringify({ html, text }), status: 'blocked', created: now, updated: now });
-    return store.getEmailOutboxByKey(db, dedupeKey);
+    await store.createEmailOutbox(db, { id: dedupeKey, dedupeKey, kind, recipient: '', subject, content: JSON.stringify({ html, text }), status: 'blocked', created: now, updated: now });
+    return await store.getEmailOutboxByKey(db, dedupeKey);
   }
 
   async function drainPending({ limit = 100 } = {}) {
     if (!configured) throw new Error('Hexclave email delivery is not configured.');
-    const rows = store.listPendingEmailOutbox(db, limit);
-    const results = await Promise.all(rows.map(row => {
+    const rows = await store.listPendingEmailOutbox(db, limit);
+    const results = await Promise.all(rows.map(async row => {
       if (row.kind === 'commission_notification' && !row.recipient) {
         const recipient = String(env.FRIDAY_ENQUIRY_EMAIL || '').trim().toLowerCase();
         if (!validAddress(recipient)) return row;
-        store.setEmailOutboxRecipient(db, row.dedupe_key, recipient, new Date().toISOString());
-        row = store.getEmailOutboxByKey(db, row.dedupe_key);
+        await store.setEmailOutboxRecipient(db, row.dedupe_key, recipient, new Date().toISOString());
+        row = await store.getEmailOutboxByKey(db, row.dedupe_key);
       }
       if (!validAddress(row.recipient)) return row;
       return deliver(row, true);
@@ -121,14 +123,21 @@ export function createHexclaveEmailService({ db, store, env = process.env, fetch
         html: content,
       });
     },
-    subscriptionConfirmation({ id, email }) {
+    subscriptionConfirmation({ id, email, consentAt }) {
+      const address = String(email || '').trim().toLowerCase();
+      const consent = typeof consentAt === 'string' ? consentAt : '';
+      const secret = env.NEWSLETTER_UNSUBSCRIBE_SECRET || env.HEXCLAVE_SECRET_SERVER_KEY;
+      const origin = String(env.APP_ORIGIN || (env.VERCEL_PROJECT_PRODUCTION_URL && `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`) || (env.VERCEL_URL && `https://${env.VERCEL_URL}`) || '').replace(/\/$/, '');
+      const token = secret && consent && `${Buffer.from(address).toString('base64url')}.${Buffer.from(consent).toString('base64url')}.${createHmac('sha256', secret).update(`${address}\n${consent}`).digest('base64url')}`;
+      const unsubscribeUrl = token && origin ? `${origin}/api/newsletter/unsubscribe?token=${encodeURIComponent(token)}` : '';
+      const footer = unsubscribeUrl ? `\n\nTo unsubscribe at any time: ${unsubscribeUrl}` : '';
       return send({
         dedupeKey: `subscription:${id}:confirmation`,
         kind: 'subscription_confirmation',
         to: email,
         subject: 'You’re on Friday’s list',
-        text: 'Thanks for choosing to receive occasional marketing notes from Friday. We have saved your signup and consent.',
-        html: '<p>Thanks for choosing to receive occasional marketing notes from Friday. We have saved your signup and consent.</p>',
+        text: `Thanks for choosing to receive occasional marketing notes from Friday. We have saved your signup and consent.${footer}`,
+        html: `<p>Thanks for choosing to receive occasional marketing notes from Friday. We have saved your signup and consent.</p>${unsubscribeUrl ? `<p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from Friday emails</a></p>` : ''}`,
       });
     },
     quote({ id, to, subject, text }) {

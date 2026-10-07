@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DatabaseSync } from 'node:sqlite';
 import { startApp, signUp } from './helpers.mjs';
-import { getItinerary, saveItinerary } from '../server/store.mjs';
+import { getItinerary, saveItinerary, openStore } from '../server/store.mjs';
 import { createApp } from '../server/app.mjs';
 
 const post = (request, body, opts) => request('/api/itineraries', 'POST', body, opts);
@@ -40,7 +39,7 @@ test('GET /api/destinations/:id returns the catalog; unknown is 404', async (t) 
 });
 
 test('POST /api/itineraries works signed out, saves, and GET returns it to anyone holding the id', async (t) => {
-  const { request, dbPath } = await startApp(t);
+  const { request, db } = await startApp(t);
   const body = { destination: 'goa', types: ['Beach downtime'], days: 5, dates: { start: '2027-01-10' }, pace: 'relaxed', base: 'Quiet boutique village' };
   const r = await post(request, body);
   assert.equal(r.status, 201);
@@ -59,19 +58,15 @@ test('POST /api/itineraries works signed out, saves, and GET returns it to anyon
   assert.equal(got.result.request.destination, 'goa');
   assert.ok(got.result.createdAt);
 
-  const db = new DatabaseSync(dbPath);
-  assert.equal(db.prepare('SELECT user_id FROM itineraries WHERE id=?').get(made.id).user_id, null);
-  db.close();
+  assert.equal((await db.one('SELECT user_id FROM itineraries WHERE id=$1', [made.id])).user_id, null);
 });
 
 test('a signed-in generation records its owner; the id is still the only key to read it', async (t) => {
-  const { request, dbPath } = await startApp(t);
+  const { request, db } = await startApp(t);
   const a = await signUp(request, 'Owner');
   const made = (await post(request, { destination: 'kerala', days: 3 }, { cookie: a.cookie })).result;
-  const db = new DatabaseSync(dbPath);
-  const owner = db.prepare('SELECT id FROM users WHERE email=?').get('Owner@example.com'.toLowerCase()).id;
-  assert.equal(db.prepare('SELECT user_id FROM itineraries WHERE id=?').get(made.id).user_id, owner);
-  db.close();
+  const owner = (await db.one('SELECT id FROM users WHERE email=$1', ['Owner@example.com'.toLowerCase()])).id;
+  assert.equal((await db.one('SELECT user_id FROM itineraries WHERE id=$1', [made.id])).user_id, owner);
   assert.equal((await request('/api/itineraries/' + made.id)).status, 200);
 });
 
@@ -142,15 +137,16 @@ test('unknown itinerary ids, unknown routes and wrong methods', async (t) => {
   assert.equal((await request('/api/itineraries')).status, 405);
 });
 
-test('the store only accepts minted ids', () => {
-  const db = new DatabaseSync(':memory:');
-  assert.equal(getItinerary(db, '../../x'), null);
-  assert.throws(() => saveItinerary(db, { id: '../x' }), /invalid itinerary id/);
+test('the store only accepts minted ids', async (t) => {
+  const db = openStore({ memory: true });
+  t.after(() => db.close());
+  assert.equal(await getItinerary(db, '../../x'), null);
+  await assert.rejects(() => saveItinerary(db, { id: '../x' }), /invalid itinerary id/);
 });
 
 test('the itinerary provider is validated at startup, separately from AI_PROVIDER', async (t) => {
-  assert.throws(() => createApp({ origin: 'http://localhost:4871', dbPath: ':memory:', env: { ITINERARY_PROVIDER: 'bard' } }), /ITINERARY_PROVIDER/);
-  assert.throws(() => createApp({ origin: 'http://localhost:4871', dbPath: ':memory:', env: { OPENAI_AUTH: 'chatgpt' } }), /OPENAI_AUTH/);
+  assert.throws(() => createApp({ origin: 'http://localhost:4871', memory: true, env: { ITINERARY_PROVIDER: 'bard' } }), /ITINERARY_PROVIDER/);
+  assert.throws(() => createApp({ origin: 'http://localhost:4871', memory: true, env: { OPENAI_AUTH: 'chatgpt' } }), /OPENAI_AUTH/);
   const a = await startApp(t, { env: { ITINERARY_PROVIDER: '' } });
   const b = await startApp(t, { env: { ITINERARY_PROVIDER: '', OPENAI_API_KEY: 'sk-test' } });
   const c = await startApp(t, { env: { ITINERARY_PROVIDER: '', OPENAI_API_KEY: 'sk-test', AI_PROVIDER: 'perplexity' } });
