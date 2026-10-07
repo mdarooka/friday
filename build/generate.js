@@ -689,7 +689,7 @@ ${PageHero({
         <h2 class="h2" style="margin-top:.9rem" data-reveal>${d.title}</h2>
         <p class="lede" style="margin-top:1.2rem" data-reveal>${d.lede}</p>
         <p class="card__d" style="margin-top:1rem" data-reveal>${d.note}</p>
-        <p style="margin-top:1.4rem" data-reveal><a class="link" href="contact.html">Ask about this journey <span class="arrow">&rarr;</span></a></p>
+        <p style="margin-top:1.4rem" data-reveal><a class="link" href="contact.html?quote_path=package">Ask about this journey <span class="arrow">&rarr;</span></a></p>
       </div>
     </article>`).join('')}
   </div>
@@ -759,7 +759,7 @@ ${PageHero({
         ${eyebrow('Included')}
         <h2 class="h2" style="margin-top:1rem" data-reveal>What the price<br>actually carries.</h2>
         <p class="card__d" style="margin-top:1.2rem" data-reveal>${d.note}</p>
-        <p style="margin-top:2rem" data-reveal><a class="btn" href="commission.html">Ask about places <span class="arrow">&rarr;</span></a></p>
+        <p style="margin-top:2rem" data-reveal><a class="btn" href="contact.html?quote_path=package">Ask about places <span class="arrow">&rarr;</span></a></p>
       </div>
       <div class="c-6 s-7 c-md-12">
         <div class="places" data-reveal>
@@ -1051,7 +1051,84 @@ ${PageHero({
 `;
 page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true });
 
-/* ======================================================= 12. The planner */
+/* ======================================================= 12. Privacy and terms */
+
+const privacy = `
+${PageHero({
+  eyebrow: 'Privacy policy',
+  title: 'Your details, handled with care.',
+  lede: 'This page explains what Friday collects, why we use it, and the choices you have.',
+  meta: [{ k: 'Effective date', v: '[OWNER: effective date]' }],
+  seed: 'friday-privacy', scene: 'forest', tone: 'moss',
+})}
+<section class="section section--tight"><div class="wrap prose legal-document">
+  <p>Friday is an AI-assisted travel planning service operated by <strong>[OWNER: legal entity name]</strong>, at <strong>[OWNER: postal address]</strong> (“Friday”, “we”, “us”). For privacy requests, contact <strong>[OWNER: privacy contact email]</strong>.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Information we collect</h2>
+  <p>We collect details you choose to provide, including your name and email when you create an account; travel destinations, dates, budgets, preferences, saved places, bookings, notes, planner messages, and files or images you submit; and information in quote or commission enquiries. If you introduce a villa, we collect your name, email, optional phone number, property name, location, address, map link or coordinates, description, website and photo links.</p>
+  <p>If you subscribe to Friday’s newsletter, we store your email address, the date you agreed to receive email, and subscription status. If you connect Gmail or Google Calendar, Friday receives only the read-only access you approve. Gmail is searched for travel-confirmation messages and Friday saves extracted booking details and a limited message excerpt; Calendar reads upcoming events and saves event details. We do not send email or change your calendar.</p>
+  <p>When you search for nearby places, Friday may send your place search, place identifier, or map coordinates to Google Places. If you ask Friday to research a public social post, the post link and any note you wrote are sent to the selected research provider. Do not submit information you do not have permission to share.</p>
+  <p>Friday’s sign-in provider receives the account details needed to create and secure your account. The website also receives technical information needed to serve requests and protect the service, such as your IP address and browser request details.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">How we use information</h2>
+  <p>We use information to operate your account, save and sync your plans, answer your travel requests, show places, import bookings you choose, prepare enquiries for the Friday team, send requested service emails, and send the newsletter only after you opt in. We also use it to protect the service, investigate technical issues, and meet legal obligations.</p>
+  <p>Friday may use AI to draft travel ideas. When you ask for research, relevant request text, trip details, preferences and any image you submit are sent to the AI or search provider configured for that task. For itinerary drafts, the request and trip choices may be sent to OpenAI when that provider is configured; otherwise the planner uses its local itinerary generator. Anthropic (Claude) and Perplexity may receive travel research prompts and relevant trip context when configured. If you connect your own ChatGPT account, your browser sends your request to OpenAI using your account; Friday’s server receives the request and draft needed to save your plan, but your ChatGPT access and refresh tokens stay in your browser and are not sent to Friday.</p>
+  <p>AI output is a suggestion, not a confirmed booking, quote, price or guarantee. Review it before relying on it. Friday does not sell personal information or use it for targeted advertising.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Who processes information</h2>
+  <ul>
+    <li><strong>Hexclave</strong> provides account authentication and email delivery through its shared email service. If Friday’s optional Data Vault storage is configured, it stores encrypted trip data for Friday. When quote-request measurement is enabled, Hexclave Analytics receives the quote event and its limited attribution details. When you choose Google or Microsoft sign-in, that provider also processes your sign-in and profile details.</li>
+    <li><strong>Google</strong> provides the Gmail and Calendar APIs you choose to connect, Google Places search and details, and Google Fonts used to display the site. Opening a Google Maps link takes you to Google.</li>
+    <li><strong>Anthropic</strong>, <strong>Perplexity</strong> and <strong>OpenAI</strong> process prompts or drafts only when the relevant AI feature and provider are configured or when you choose your own ChatGPT account.</li>
+    <li><strong>[OWNER: hosting provider and data region]</strong> operates the site and its server-side database. This must be completed before launch.</li>
+  </ul>
+  <p>These providers process information to deliver their services to Friday. They may process it in countries outside India. Their own privacy notices and terms also apply to their services. We do not control their separate processing.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Google API Services user data</h2>
+  <p>Friday’s use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements. Gmail and Calendar access is read-only, starts only when you connect the service, and is used to find and organize travel bookings you choose to use in Friday. Relevant booking details may be sent to the configured AI provider only when you ask Friday to plan using those details. Friday does not use Google API data for advertising, sell it, or use it to train general-purpose AI models. Friday staff do not browse your Google mailbox or calendar. If you affirmatively choose to include a specific imported booking in an enquiry or ask Friday staff to review that item for support, they may see only the information needed for that request; staff may also access information when needed for security or to comply with law. You can disconnect Google in Friday; disconnecting removes Friday’s saved connection token but does not automatically remove booking details already imported into your Friday account.
+  </p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Cookies and browser storage</h2>
+  <p>Sign-in uses a necessary authentication cookie managed by Hexclave. The app also uses your browser’s local storage to keep planner data and preferences on this device, and, if you connect ChatGPT, to keep that account’s tokens in your browser. Short-lived session storage supports the ChatGPT sign-in return. These browser records are not advertising cookies. You can clear local or session storage in your browser, but clearing it may remove unsynced plans or disconnect ChatGPT.</p>
+  <p>The site loads its fonts from Google Fonts. When quote-request measurement is enabled, Friday stores first-visit source, medium, campaign and referring-site hostname in local storage, along with a short event queue and recent request references to avoid duplicate events. When you submit an enquiry or quote request, it sends Hexclave Analytics one quote event with the request reference, the request path category and those attribution details. The feature disables automatic analytics and session replays in its analytics client; it does not use advertising trackers. You can clear this attribution and its event queue by clearing Friday’s site storage in your browser. Friday should provide any consent controls required by law before this measurement is enabled.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">How long we keep information</h2>
+  <p>Friday’s server keeps account records, saved trips, planning conversations and research records, Google-imported booking details, villa submissions, quote enquiries, email delivery records and newsletter subscription records. The current app code does not set an automatic deletion period for these records. We keep newsletter opt-in and unsubscribe status so we can respect your email choices. Google connection setup state expires after ten minutes. A trip share link stops working after 30 days, but its expired server record may remain until it is replaced, revoked or otherwise removed. Deleted data may remain in backups for <strong>[OWNER: backup retention period]</strong>.</p>
+  <p>You can delete individual trip and planner records in the app, revoke a share link, and disconnect Google. There is no self-service account deletion or data-export control in the current app. Contact the privacy address above to request access, a copy, correction, deletion or account closure. We will verify the request and respond as required by applicable law. Unsubscribing from the newsletter currently requires contacting Friday; the site does not yet provide a self-service unsubscribe link.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Your rights and choices</h2>
+  <p>Depending on the law that applies to you, you may have rights to access, obtain a copy of, correct, update or erase your personal data; withdraw consent where processing relies on consent; object to or restrict certain processing; and raise a grievance. For people in India, requests will be handled under the Digital Personal Data Protection Act, 2023 and applicable rules as they come into force. To make a request or raise a grievance, email <strong>[OWNER: privacy contact email]</strong>. You may also disconnect Google or clear browser storage as described above. Withdrawing consent does not affect processing already carried out lawfully before withdrawal.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Security and changes</h2>
+  <p>We use access controls and safeguards intended to protect information, but no internet service can guarantee absolute security. Please do not send passwords, payment-card details or sensitive identity documents in a trip note or enquiry. We may update this policy when Friday’s practices or legal requirements change. We will post the updated version here with a new effective date.</p>
+</div></section>`;
+page('privacy.html', { title: 'Privacy policy', description: 'How Friday collects, uses, stores and shares personal information.', body: privacy, active: 'about.html', lightHead: true });
+
+const terms = `
+${PageHero({
+  eyebrow: 'Terms of use',
+  title: 'A clearer way to plan.',
+  lede: 'These terms explain what Friday offers and what to expect when you use it.',
+  meta: [{ k: 'Effective date', v: '[OWNER: effective date]' }],
+  seed: 'friday-terms', scene: 'terraces', tone: 'slate',
+})}
+<section class="section section--tight"><div class="wrap prose legal-document">
+  <p>These terms apply to Friday, an AI-assisted travel planning service operated by <strong>[OWNER: legal entity name]</strong>, at <strong>[OWNER: postal address]</strong> (“Friday”, “we”, “us”). By using Friday, you agree to these terms. If you do not agree, do not use the service. Questions can be sent to <strong>[OWNER: privacy contact email]</strong>.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">What Friday provides</h2>
+  <p>Friday helps you explore destinations, create and save draft itineraries, organize bookings, discover places, and send trip or villa enquiries. Some features use AI or information from third parties. Friday’s AI drafts are suggestions for you to review; they may be incomplete, outdated or wrong. Check important details independently, including opening times, route conditions, travel requirements and supplier information.</p>
+  <p>Sample journeys, displayed listings, search results and AI-generated plans are for planning and inspiration. They do not guarantee that a hotel, villa, ticket, activity, transport service or other item is available or suitable for your trip.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Quotes and bookings</h2>
+  <p>Prices, dates and availability shown in examples or planning material are not confirmed. Send an enquiry to ask the Friday team for a quote. A price or availability is confirmed only when Friday’s team provides a quote, and a booking is not made until the team separately confirms the reservation and any required payment or supplier terms. Friday’s planner does not purchase, hold or confirm travel reservations for you.</p>
+  <p>Travel reservations are arranged through the Friday team and may be supplied by airlines, accommodation providers, guides or other third parties. Their own booking conditions, payment schedules, cancellation rules and travel terms apply. Read those terms before accepting a quote or paying a supplier. Friday will identify any service fee, commission or other charge in the quote or booking terms that apply to your request.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Your account and information</h2>
+  <p>Keep your account details secure and provide accurate information. You are responsible for activity under your account, except where applicable law says otherwise. You may save only information you have the right to use, and you must have permission to connect or share another person’s email, calendar, travel or property details. Shared trip links can be viewed by anyone who has the link until the link expires or you revoke it.</p>
+  <p>Use Friday lawfully and respectfully. Do not misuse the service, attempt unauthorized access, interfere with its operation, upload malware, scrape or copy the service at scale, send spam, infringe others’ rights, or use Friday to create harmful or deceptive content. We may suspend access where necessary to protect users, Friday or others, or to comply with law.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Third-party services</h2>
+  <p>Friday may rely on Google, AI providers and other external services. Their services may be unavailable or change, and their own terms and privacy policies apply. Friday is not responsible for third-party websites or services except where applicable law makes us responsible. Connecting a third-party account is optional and can be disconnected in Friday.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Intellectual property and feedback</h2>
+  <p>Friday and its original site materials are owned by or licensed to Friday and protected by law. You keep rights in material you submit. You allow Friday to process it as needed to provide the features you request and as described in the Privacy Policy. You may use your saved plans for personal trip planning; do not copy or redistribute Friday’s site materials or another person’s content without permission.</p>
+  <h2 class="h3" style="margin:2.5rem 0 .8rem">Availability, liability and legal terms</h2>
+  <p>Friday is provided on an “as available” basis. To the extent permitted by law, we do not promise uninterrupted access or warrant that AI suggestions, third-party data, travel information, prices or availability will be error-free. Nothing in these terms excludes or limits any consumer right, remedy or liability that cannot lawfully be excluded or limited.</p>
+  <p>To the extent permitted by law, Friday will not be liable for indirect or consequential loss arising from use of the planning service or reliance on unconfirmed information. Any liability that cannot be excluded remains subject to applicable law. This does not limit responsibility for a confirmed booking or service where the law or the written booking terms require otherwise.</p>
+  <p>These terms are governed by the laws of India. Disputes are subject to the courts with jurisdiction in India, without limiting any mandatory consumer protections or remedies available to you.</p>
+  <p>We may revise these terms by posting an updated version here. If a change materially affects your rights, we will take steps required by law to notify you. If one part of these terms is unenforceable, the rest remains in effect.</p>
+  <p>Not legal advice. Friday’s policies and terms should be reviewed by an Indian lawyer before launch.</p>
+</div></section>`;
+page('terms.html', { title: 'Terms of use', description: 'Terms for using Friday’s AI travel planning and enquiry service.', body: terms, active: 'about.html', lightHead: true });
+
+/* ======================================================= 13. The planner */
 
 const TRIP = require('./trip');
 written.push(write('trip.html', TRIP.tripPage()));

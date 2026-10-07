@@ -157,13 +157,17 @@ function Footer() {
         { label: 'Help & FAQs', href: 'help.html' },
         { label: 'Contact Friday', href: 'contact.html' },
       ])}
-      ${col('Friday', [{ label: 'About Friday', href: 'about.html' }])}
+      ${col('Friday', [
+        { label: 'About Friday', href: 'about.html' },
+        { label: 'Privacy policy', href: 'privacy.html' },
+        { label: 'Terms of use', href: 'terms.html' },
+      ])}
       ${col('For villa owners', [{ label: 'List your villa', href: 'partner.html' }])}
     </div>
 
     <div class="foot__bar">
       <span>&copy; <span data-year>2026</span> ${D.brand.name}</span>
-      <span>${D.brand.affiliation} &middot; ${D.brand.experience}</span>
+      <span>${D.brand.location}</span>
     </div>
   </div>
 </footer>`;
