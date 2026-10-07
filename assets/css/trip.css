@@ -791,3 +791,10 @@ button[data-preview] { margin-bottom: 1rem; }
 .fx .fx-auth__tabs [aria-pressed="true"] { background: var(--primary-tint); border-color: var(--primary); color: var(--primary-text); }
 .fx .fx-auth .fx-error:empty { background: transparent; border-color: transparent; padding: 0; min-height: 0; margin: 0; }
 .fx .fx-auth .fx-error:not(:empty) { margin: .9rem 0 1.2rem; }
+/* `.fx p { margin: 0 }` (specificity 0,1,1) was zeroing the copy's margins; outrank it. */
+.fx .fx-auth__copy { margin: 1rem 0 1.5rem; }
+/* Centre the submit button and the hint / Forgot password group beneath it. */
+.fx .fx-auth form button[type="submit"] { display: flex; margin-inline: auto; }
+.fx .fx-auth [data-auth-legal], .fx .fx-auth [data-auth-extra] { text-align: center; }
+.fx .fx-auth [data-auth-extra] > [data-forgot-password] { margin-top: .75rem; }
+.fx .fx-auth [data-auth-legal] { margin-top: 1.25rem; }
