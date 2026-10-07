@@ -11,7 +11,7 @@ const brand = {
   experience: '22 years of travel design experience.',
   parentName: 'Kusum Travels',
   affiliation: 'A Kusum Travels brand',
-  email: 'studio@friday.com',
+  email: 'manavdarooka1@gmail.com',
   location: 'Bombay',
 };
 
