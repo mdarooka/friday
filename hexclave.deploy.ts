@@ -12,7 +12,7 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, hexclave }) => ({
       dockerfilePath: "Dockerfile",
       devCommand: "node server/app.mjs",
       persistentVolumes: {
-        fridayData: { path: "/data", sizeGb: 1 },
+        friday_data: { path: "/data", sizeGb: 1 },
       },
       env: {
         NODE_ENV: "production",
