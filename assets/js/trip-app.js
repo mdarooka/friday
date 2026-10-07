@@ -2030,17 +2030,20 @@
     const state=FT.backend&&FT.backend.authState||{};
     if (FT.backend&&FT.backend.capabilities&&FT.backend.capabilities.authRequired) $('[data-auth-offline]',box).hidden=true;
     let mode = 'signin';
+    function say(msg,text,tone){if(!msg)return;msg.textContent=text||'';if(text)msg.dataset.tone=tone||'error';else delete msg.dataset.tone;msg.hidden=!text;}
     function draw() {
       extra.innerHTML='';
       legal.hidden=true;
+      const status=!!(hexclave&&(state.verificationRequired||state.accountRestricted));
+      box.querySelector('.fx-auth__card').classList.toggle('fx-auth__card--status',status);
       if(hexclave&&(state.verificationRequired||state.accountRestricted)){
         form.hidden=true;box.querySelector('.fx-auth__tabs').hidden=true;
         if(state.accountRestricted){
           box.querySelector('.fx-auth__copy').textContent='Friday cannot open this account yet. '+(state.restrictedReason==='restricted_by_administrator'?'The account is waiting for review.':'Please contact Friday support for help.');
-          extra.innerHTML='<button class="fx-btn fx-btn--ink" type="button" data-refresh-auth>Check account status</button><button class="fx-btn fx-btn--line" type="button" data-signout-auth>Sign out</button><p class="fx-error" role="status" data-auth-message></p>';
+          extra.innerHTML='<div class="fx-auth__actions"><button class="fx-btn fx-btn--ink" type="button" data-refresh-auth>Check account status</button></div><p class="fx-auth__note" role="status" aria-live="polite" data-auth-message hidden></p><p class="fx-auth__quiet"><button class="fx-link fx-auth__linkbtn" type="button" data-signout-auth>Sign out</button></p>';
         } else {
           box.querySelector('.fx-auth__copy').textContent='We sent a verification link'+(state.email?' to '+state.email:'')+'. Open it to unlock your journeys.';
-          extra.innerHTML='<button class="fx-btn fx-btn--ink" type="button" data-refresh-auth>I’ve verified my email</button><button class="fx-btn fx-btn--line" type="button" data-resend-verification>Resend verification email</button><button class="fx-btn fx-btn--line" type="button" data-signout-auth>Sign out</button><p class="fx-error" role="status" data-auth-message></p><p class="fx-hint" style="margin-top:1rem">You can return here after verifying your email.</p>';
+          extra.innerHTML='<div class="fx-auth__actions"><button class="fx-btn fx-btn--ink" type="button" data-refresh-auth>I’ve verified my email</button><button class="fx-btn fx-btn--line" type="button" data-resend-verification>Resend verification email</button></div><p class="fx-auth__note" role="status" aria-live="polite" data-auth-message hidden></p><p class="fx-auth__quiet"><button class="fx-link fx-auth__linkbtn" type="button" data-signout-auth>Sign out</button></p><p class="fx-hint fx-auth__hint">You can return here after verifying your email.</p>';
         }
         return;
       }
@@ -2060,7 +2063,7 @@
       form.querySelector('[type=submit]').textContent = mode === 'signup' ? 'Create account' : 'Sign in';
       box.querySelectorAll('[data-auth-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.authMode === mode)));
       legal.hidden=false;
-      if(hexclave&&mode==='signin')extra.innerHTML='<button class="fx-btn fx-btn--line" type="button" data-forgot-password>Forgot password?</button><p class="fx-error" role="status" data-auth-message></p>';
+      if(hexclave&&mode==='signin')extra.innerHTML='<button class="fx-btn fx-btn--line" type="button" data-forgot-password>Forgot password?</button><p class="fx-auth__note" role="status" aria-live="polite" data-auth-message hidden></p>';
     }
     box.addEventListener('click', (e) => {
       const skip = e.target.closest('[data-auth-skip]');
@@ -2072,13 +2075,13 @@
         return;
       }
       const resend=e.target.closest('[data-resend-verification]');
-      if(resend){resend.disabled=true;const msg=$('[data-auth-message]',box);msg.textContent='';FT.backend.resendVerification().then(()=>{msg.textContent='A new verification link is on its way.';}).catch(err=>{msg.textContent=err.message||'Could not send a new link. Please try again.';}).finally(()=>{resend.disabled=false;});return;}
+      if(resend){resend.disabled=true;const msg=$('[data-auth-message]',box);say(msg,'');FT.backend.resendVerification().then(()=>{say(msg,'A new verification link is on its way.','success');}).catch(err=>{say(msg,err.message||'Could not send a new link. Please try again.','error');}).finally(()=>{resend.disabled=false;});return;}
       const refreshAuth=e.target.closest('[data-refresh-auth]');
-      if(refreshAuth){refreshAuth.disabled=true;const msg=$('[data-auth-message]',box);msg.textContent='';FT.backend.init().then(()=>{if(FT.backend.user){box.remove();if(side)side.hidden=false;booted=false;boot();}else{msg.textContent=FT.backend.authState.accountRestricted?'Friday still cannot open this account.':'Email verification is still pending. Open the link from your inbox, then check again.';}}).catch(err=>{msg.textContent=err.message||'Could not check your account status.';}).finally(()=>{refreshAuth.disabled=false;});return;}
+      if(refreshAuth){refreshAuth.disabled=true;const msg=$('[data-auth-message]',box);say(msg,'');FT.backend.init().then(()=>{if(FT.backend.user){box.remove();if(side)side.hidden=false;booted=false;boot();}else{say(msg,FT.backend.authState.accountRestricted?'Friday still cannot open this account.':'Email verification is still pending. Open the link from your inbox, then check again.','info');}}).catch(err=>{say(msg,err.message||'Could not check your account status.','error');}).finally(()=>{refreshAuth.disabled=false;});return;}
       const signoutAuth=e.target.closest('[data-signout-auth]');
-      if(signoutAuth){signoutAuth.disabled=true;FT.backend.logout().then(()=>FT.backend.init()).then(()=>{box.remove();if(side)side.hidden=false;booted=false;boot();}).catch(err=>{$('[data-auth-message]',box).textContent=err.message||'Could not sign out.';signoutAuth.disabled=false;});return;}
+      if(signoutAuth){signoutAuth.disabled=true;FT.backend.logout().then(()=>FT.backend.init()).then(()=>{box.remove();if(side)side.hidden=false;booted=false;boot();}).catch(err=>{say($('[data-auth-message]',box),err.message||'Could not sign out.','error');signoutAuth.disabled=false;});return;}
       const forgot=e.target.closest('[data-forgot-password]');
-      if(forgot){const input=$('#auth-email',box),msg=$('[data-auth-message]',box);if(!input||!input.reportValidity())return;forgot.disabled=true;msg.textContent='';FT.backend.forgotPassword(input.value).then(()=>{msg.textContent='If an account uses that email, a password reset link is on its way.';}).catch(err=>{msg.textContent=err.message||'Could not send a reset link. Please try again.';}).finally(()=>{forgot.disabled=false;});return;}
+      if(forgot){const input=$('#auth-email',box),msg=$('[data-auth-message]',box);if(!input||!input.reportValidity())return;forgot.disabled=true;say(msg,'');FT.backend.forgotPassword(input.value).then(()=>{say(msg,'If an account uses that email, a password reset link is on its way.','success');}).catch(err=>{say(msg,err.message||'Could not send a reset link. Please try again.','error');}).finally(()=>{forgot.disabled=false;});return;}
       const fresh=e.target.closest('[data-fresh-account]');
       if(fresh){fresh.disabled=true;FT.backend.freshAccount().then(()=>FT.backend.init()).then(()=>{box.remove();if(side)side.hidden=false;booted=false;boot();}).catch(err=>{fresh.disabled=false;$('[data-auth-error]',box).textContent=err.message||'Could not create a separate account.';});return;}
       const b=e.target.closest('[data-auth-mode]');
