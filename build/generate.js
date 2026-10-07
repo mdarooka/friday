@@ -141,19 +141,7 @@ const home = `
   </div>
 </section>
 
-<section class="section inverse">
-  <div class="wrap grid" style="align-items:center">
-    <div class="c-5 c-md-12"><p class="closer__mark" data-reveal>Friday</p></div>
-    <div class="c-6 s-7 c-md-12">
-      ${eyebrow('Start planning')}
-      <h2 class="h2" style="margin-top:1rem" data-reveal>Tell us what<br>you&rsquo;re imagining.</h2>
-      <p class="lede" style="margin-top:1.3rem" data-reveal>Start with Friday&rsquo;s AI planner or send a note about the trip you have in mind.</p>
-      <p style="margin-top:2rem" data-reveal><a class="btn" href="trip.html">Plan a trip <span class="arrow">&rarr;</span></a> <a class="link" style="margin-left:1rem" href="contact.html">Contact Friday <span class="arrow">&rarr;</span></a></p>
-    </div>
-  </div>
-</section>
-
-<section class="section section--tight">
+<section class="section section--tight home-newsletter">
   <div class="wrap grid" style="align-items:center">
     <div class="c-5 c-md-12">
       ${eyebrow('Field notes by email')}

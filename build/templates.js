@@ -18,7 +18,7 @@ const FONT_LINKS = `<link rel="preconnect" href="https://fonts.googleapis.com">
    pill on paper. It reuses .btn--solid, which reads its colours from --fg / --bg. */
 const PLAN_CTA_CSS = `.nav__cta{--fg:var(--paper);--bg:var(--ink);margin-left:clamp(.4rem,1vw,1rem)}
 .head.is-solid .nav__cta,.head.is-light .nav__cta{--fg:var(--ink);--bg:var(--paper)}
-.hero__cta{--bg:var(--ink);--accent:var(--ochre);flex:none;margin-right:auto}`;
+.hero__cta{--bg:var(--ink);--accent:var(--ochre)}`;
 
 /* ------------------------------------------------------------- fragments */
 
@@ -114,20 +114,20 @@ function Header(active) {
       <div class="menu__col">
         <p class="menu__h">Your trip</p>
         <a class="menu__link" href="trip.html"${currentAttr('trip.html')}>Plan a trip</a>
-        <a class="menu__link menu__link--sm" href="trip.html#/"${active === 'trip.html' ? ' aria-current="page"' : ''}>My trips</a>
-        <a class="menu__link menu__link--sm" href="trip.html#/bookings">Bookings</a>
-        <a class="menu__link menu__link--sm" href="trip.html" data-menu-auth>Sign in</a>
+        <a class="menu__link" href="trip.html#/"${active === 'trip.html' ? ' aria-current="page"' : ''}>My trips</a>
+        <a class="menu__link" href="trip.html#/bookings">Bookings</a>
+        <a class="menu__link" href="trip.html" data-menu-auth>Sign in</a>
       </div>
       <div class="menu__col">
         <p class="menu__h">Help</p>
         <a class="menu__link" href="help.html"${currentAttr('help.html')}>Help &amp; FAQs</a>
-        <a class="menu__link menu__link--sm" href="contact.html"${currentAttr('contact.html')}>Contact Friday</a>
+        <a class="menu__link" href="contact.html"${currentAttr('contact.html')}>Contact Friday</a>
       </div>
       <div class="menu__col">
         <p class="menu__h">Friday</p>
         <a class="menu__link" href="about.html"${currentAttr('about.html')}>About Friday</a>
         <p class="menu__h" style="margin-top:2.2rem">For villa owners</p>
-        <a class="menu__link menu__link--sm" href="partner.html"${currentAttr('partner.html')}>List your villa</a>
+        <a class="menu__link" href="partner.html"${currentAttr('partner.html')}>List your villa</a>
       </div>
     </div>
   </div>
@@ -146,6 +146,8 @@ function Footer() {
 <footer class="foot inverse">
   <div class="wrap">
     <div class="foot__grid">
+      <a class="foot__brand" href="index.html" aria-label="Friday — home">${D.brand.name}</a>
+      <div class="foot__links">
       ${col('Explore', [
         { label: 'Villas', href: 'villas.html' },
         { label: 'Packages', href: 'departures.html' },
@@ -169,6 +171,7 @@ function Footer() {
         { label: 'Terms of use', href: 'terms.html' },
       ])}
       ${col('For villa owners', [{ label: 'List your villa', href: 'partner.html' }])}
+      </div>
     </div>
 
     <div class="foot__bar">
@@ -237,9 +240,7 @@ function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedRevea
         <h1 class="h1" style="margin-top:1.1rem" data-reveal>${title}</h1>
         ${lede ? `<p class="lede" style="margin-top:1.6rem" data-reveal>${lede}</p>` : ''}
       </div>
-      <div class="phero__side">
-        ${meta ? `<div class="stack stack--sm" data-reveal>${meta.map((m) => `<div><p class="eyebrow">${m.k}</p><p style="margin:.25rem 0 0;font-family:var(--serif);font-size:1.2rem">${m.v}</p></div>`).join('')}</div>` : ''}
-      </div>
+      ${meta ? `<div class="phero__side"><div class="stack stack--sm" data-reveal>${meta.map((m) => `<div><p class="eyebrow">${m.k}</p><p class="phero__meta-value">${m.v}</p></div>`).join('')}</div></div>` : ''}
     </div>
     ${seed ? `<div class="phero__art" style="margin-top:clamp(2.4rem,5vw,4.5rem)"${seedReveal ? ` data-reveal="${esc(seedReveal)}"` : ''}>${Plate(seed, { ratio: 'w', scene, tone, svgRatio: 'panorama' })}</div>` : ''}
   </section>`;

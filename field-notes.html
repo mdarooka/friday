@@ -25,7 +25,7 @@
 
 <style>.nav__cta{--fg:var(--paper);--bg:var(--ink);margin-left:clamp(.4rem,1vw,1rem)}
 .head.is-solid .nav__cta,.head.is-light .nav__cta{--fg:var(--ink);--bg:var(--paper)}
-.hero__cta{--bg:var(--ink);--accent:var(--ochre);flex:none;margin-right:auto}</style>
+.hero__cta{--bg:var(--ink);--accent:var(--ochre)}</style>
 </head>
 <body data-light-head>
 <a class="skip" href="#main">Skip to content</a>
@@ -63,20 +63,20 @@
       <div class="menu__col">
         <p class="menu__h">Your trip</p>
         <a class="menu__link" href="trip.html">Plan a trip</a>
-        <a class="menu__link menu__link--sm" href="trip.html#/">My trips</a>
-        <a class="menu__link menu__link--sm" href="trip.html#/bookings">Bookings</a>
-        <a class="menu__link menu__link--sm" href="trip.html" data-menu-auth>Sign in</a>
+        <a class="menu__link" href="trip.html#/">My trips</a>
+        <a class="menu__link" href="trip.html#/bookings">Bookings</a>
+        <a class="menu__link" href="trip.html" data-menu-auth>Sign in</a>
       </div>
       <div class="menu__col">
         <p class="menu__h">Help</p>
         <a class="menu__link" href="help.html">Help &amp; FAQs</a>
-        <a class="menu__link menu__link--sm" href="contact.html">Contact Friday</a>
+        <a class="menu__link" href="contact.html">Contact Friday</a>
       </div>
       <div class="menu__col">
         <p class="menu__h">Friday</p>
         <a class="menu__link" href="about.html">About Friday</a>
         <p class="menu__h" style="margin-top:2.2rem">For villa owners</p>
-        <a class="menu__link menu__link--sm" href="partner.html">List your villa</a>
+        <a class="menu__link" href="partner.html">List your villa</a>
       </div>
     </div>
   </div>
@@ -90,9 +90,7 @@
         <h1 class="h1" style="margin-top:1.1rem" data-reveal>Ideas for<br>the journey ahead.</h1>
         <p class="lede" style="margin-top:1.6rem" data-reveal>Travel guides and considered starting points for planning with Friday.</p>
       </div>
-      <div class="phero__side">
-        <div class="stack stack--sm" data-reveal><div><p class="eyebrow">Explore</p><p style="margin:.25rem 0 0;font-family:var(--serif);font-size:1.2rem">Travel guides</p></div><div><p class="eyebrow">From</p><p style="margin:.25rem 0 0;font-family:var(--serif);font-size:1.2rem">Friday</p></div></div>
-      </div>
+      <div class="phero__side"><div class="stack stack--sm" data-reveal><div><p class="eyebrow">Explore</p><p class="phero__meta-value">Travel guides</p></div><div><p class="eyebrow">From</p><p class="phero__meta-value">Friday</p></div></div></div>
     </div>
     
   </section>
@@ -142,6 +140,8 @@
 <footer class="foot inverse">
   <div class="wrap">
     <div class="foot__grid">
+      <a class="foot__brand" href="index.html" aria-label="Friday — home">Friday</a>
+      <div class="foot__links">
       <div class="foot__col">
       <p class="foot__h">Explore</p>
       <ul class="foot__list"><li><a href="villas.html">Villas</a></li><li><a href="departures.html">Packages</a></li><li><a href="kerala-guide.html">Kerala guide</a></li><li><a href="kyoto-guide.html">Kyoto guide</a></li><li><a href="field-notes.html">Field Notes</a></li><li><a href="trip.html">Plan a trip</a></li></ul>
@@ -162,6 +162,7 @@
       <p class="foot__h">For villa owners</p>
       <ul class="foot__list"><li><a href="partner.html">List your villa</a></li></ul>
     </div>
+      </div>
     </div>
 
     <div class="foot__bar">
