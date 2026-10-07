@@ -267,8 +267,10 @@ input[type="search"].fx-input::-webkit-search-cancel-button { display: none; }
 .fx-tip__d { margin-top: 4px; font-size: .8125rem; line-height: 1.45; color: var(--fg-mute); }
 .fx-tip__link { display: inline-block; margin-top: 8px; font-size: .8125rem; color: var(--primary-text); }
 .fx-tip__link:hover { text-decoration: underline; text-underline-offset: 3px; }
-.fx-tip__x { position: absolute; top: -2px; right: -4px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; color: var(--fg-mute); }
-.fx-tip__x:hover { background: var(--paper-3); color: var(--ink); }
+.fx-tip__x { position: absolute; top: -11px; right: -13px; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 6px; color: var(--fg-mute); isolation: isolate; }
+.fx-tip__x::after { content: ""; position: absolute; z-index: -1; top: 50%; left: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); border-radius: 6px; pointer-events: none; }
+.fx-tip__x:hover { background: transparent; color: var(--ink); }
+.fx-tip__x:hover::after { background: var(--paper-3); }
 
 .fx-side__label { padding: 2px 10px 8px; font-size: .6875rem; text-transform: uppercase; letter-spacing: .245em; color: var(--fg-mute); }
 .fx-trips { display: grid; gap: 1px; padding-bottom: 12px; }
@@ -832,4 +834,23 @@ button[data-preview] { margin-bottom: 1rem; }
 .fx-planner-callback[hidden] { display: none; }
 @media (max-width: 640px) {
   .fx-planner-callback { right: max(14px, env(safe-area-inset-right)); bottom: max(84px, env(safe-area-inset-bottom)); }
+}
+
+/* Larger invisible hit areas keep planner icon controls comfortable to tap
+   without changing their visible size, border, or hover background. */
+.fx-icon-btn,
+.fx-attach button {
+  position: relative;
+}
+.fx-icon-btn::before,
+.fx-attach button::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  background: transparent;
 }

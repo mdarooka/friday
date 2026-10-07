@@ -3,6 +3,44 @@
    Uses the tokens from friday.css. Ochre is the only accent.
    ========================================================================== */
 
+/* Keep the small navigation and dismissal icons visually unchanged while
+   giving each button a 44px touch target. */
+.ch-experiences__nav button,
+.ch-cal__nav button,
+.ch-making__top button,
+.ch-r__tog,
+.ch-ic {
+  position: relative;
+}
+.ch-experiences__nav button::before,
+.ch-cal__nav button::before,
+.ch-making__top button::before,
+.ch-r__tog::before,
+.ch-ic::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  background: transparent;
+}
+/* The paired arrows get their extra width on the outside, so their targets
+   do not overlap in the narrow navigation groups. */
+.ch-experiences__nav button:first-child::before,
+.ch-cal__nav button:first-child::before {
+  left: -16px;
+  transform: translateY(-50%);
+}
+.ch-experiences__nav button:last-child::before,
+.ch-cal__nav button:last-child::before {
+  left: auto;
+  right: -16px;
+  transform: translateY(-50%);
+}
+
 .ch-thread {
   overflow-y: auto;
   overflow-x: hidden;

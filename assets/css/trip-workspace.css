@@ -793,3 +793,56 @@ body[data-route="trip"] .wsp-inlineadd {
 .fx-new__memory-row label input { margin-top: .25rem; }
 .fx-new__memory-row label span { font-size: .8rem; }
 .fx-new__memory-content > .fx-btn { margin-top: .25rem; }
+
+/* Invisible 44px hit areas leave the workspace controls' visible shapes and
+   surrounding layout unchanged. */
+.wsp-iconbtn,
+.wsp-seg button,
+.wsp-att__x,
+.wsp-tab__x,
+.wsp-tabplus,
+.wsp-banner__x {
+  position: relative;
+}
+.wsp-iconbtn::before,
+.wsp-seg button::before,
+.wsp-att__x::before,
+.wsp-tab__x::before,
+.wsp-tabplus::before,
+.wsp-banner__x::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  background: transparent;
+}
+
+/* Keep touch targets between tightly grouped actions from crossing into the
+   neighboring icon's target area. */
+.wsp-areahead__bed::before,
+.wsp-crow .wsp-mic::before {
+  left: -8px;
+  transform: translateY(-50%);
+}
+.wsp-areahead__chev::before {
+  left: auto;
+  right: -8px;
+  transform: translateY(-50%);
+}
+.wsp-dayhead__act .wsp-iconbtn:first-child::before {
+  left: -12px;
+  transform: translateY(-50%);
+}
+.wsp-dayhead__act .wsp-iconbtn:last-child::before {
+  left: auto;
+  right: -12px;
+  transform: translateY(-50%);
+}
+.wsp-inlineadd .wsp-iconbtn::before {
+  left: 0;
+  transform: translateY(-50%);
+}
