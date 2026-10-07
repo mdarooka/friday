@@ -1394,8 +1394,18 @@
       const presetDestination = FT.requestedDestination();
       const starterText = presetDestination ? (presetDestination.prompt || 'Plan a trip to ' + presetDestination.name) : '';
       const remembered = FT.memoryContext ? FT.memoryContext.list(state) : [];
-      const showMemory = remembered.length > 0;
-      const renderMemory = () => showMemory ? '<details class="fx-new__memory"><summary><span data-memory-count>Using ' + remembered.length + ' saved travel ' + (remembered.length === 1 ? 'detail' : 'details') + '</span><span class="fx-new__memory-review">Review</span></summary><div class="fx-new__memory-content"><p class="fx-hint">Choose what to use for this trip. Selected details go to Friday’s planner and, if you request a quote, the travel designer.</p>' + remembered.map((item) => '<div class="fx-new__memory-row"><label><input type="checkbox" data-memory-pick="' + esc(item.key) + '" checked><span><strong>' + esc(item.label) + '</strong><br>' + esc(item.text) + '</span></label>' + (item.source === 'memory' ? '<div class="fx-integration-actions"><button class="fx-btn fx-btn--line" type="button" data-memory-edit="' + esc(item.id) + '">Edit</button><button class="fx-btn fx-btn--line" type="button" data-memory-remove="' + esc(item.id) + '">Remove</button></div>' : '') + '</div>').join('') + '<button class="fx-btn fx-btn--line" type="button" data-open-prefs>Edit travel preferences</button></div></details>' : '';
+      const showMemory = true;
+      const renderMemory = () => {
+        const selectedSummary = FT.memoryContext ? FT.memoryContext.summary(remembered) : 'Start with your own words';
+        const blankTitle = state.trips.length ? 'Nothing saved to guide this trip.' : 'Nothing saved yet.';
+        const blankCopy = state.trips.length
+          ? 'A fresh start is fine. Friday will follow what you write in the box above.'
+          : 'Begin with your own words. Save a detail only if you would like Friday to remember it for next time.';
+        const choices = remembered.length
+          ? '<p class="fx-memory__intro">Keep the notes that should shape this trip. Turn off anything that does not fit.</p><fieldset class="fx-memory__choices"><legend class="fx-memory__legend">Choose this trip’s notes</legend>' + remembered.map((item, index) => '<label class="fx-memory__choice" for="fx-memory-' + index + '"><input id="fx-memory-' + index + '" type="checkbox" data-memory-pick="' + esc(item.key) + '" checked><span class="fx-memory__value"><span class="fx-memory__kind">' + esc(item.label) + '</span><span>' + esc(item.text) + '</span></span></label>').join('') + '</fieldset>'
+          : '<div class="fx-memory__empty"><strong>' + esc(blankTitle) + '</strong><p>' + esc(blankCopy) + '</p></div>';
+        return '<details class="fx-new__memory"><summary><span class="fx-memory__mark" aria-hidden="true"></span><span class="fx-memory__summary"><span class="fx-memory__title">Friday remembers</span><span class="fx-memory__line" data-memory-summary aria-live="polite">' + esc(selectedSummary) + '</span></span><span class="fx-memory__chevron" aria-hidden="true">⌄</span></summary><div class="fx-memory__panel">' + choices + '<button class="fx-btn fx-btn--line fx-memory__done" type="button" data-memory-done>Done choosing</button><a class="fx-memory__manage" href="#/preferences">Edit preferences or forget a memory</a><p class="fx-memory__privacy">Only checked notes shape this trip. They reach a travel designer only if you ask Friday for a quote.</p></div></details>';
+      };
       el.innerHTML =
         '<div class="fx-new"><div class="fx-new__in">' +
         '<p class="fx-new__eyebrow">Your travel designer</p>' +
@@ -1404,6 +1414,7 @@
         '<div class="fx-prompt__chips" data-chips></div>' +
         '<label class="sr" for="fx-prompt-ta">Describe your trip</label>' +
         '<textarea class="fx-prompt__ta" id="fx-prompt-ta" rows="2" placeholder="Tell Friday where you’d like to go, or paste a reel link…" maxlength="1200">' + esc(starterText) + '</textarea>' +
+        renderMemory() +
         '<div class="fx-prompt__row">' +
         '<button class="fx-icon-btn" type="button" data-act="attach" aria-label="Attach an image" title="Attach an image">' + icon('image', 18) + '</button>' +
         '<input type="file" accept="image/*" multiple hidden data-file>' +
@@ -1414,27 +1425,20 @@
         '<p class="fx-new__helper">Start with a place, a feeling, an idea, or a reel link.</p>' +
         '<div class="fx-new__suggestions" aria-label="Ideas to get started">' +
         ['A quiet weekend', 'Somewhere by the sea', 'Art, food & culture'].map((s) => '<button class="fx-new__suggestion" type="button" data-suggestion="' + esc(s) + '">' + esc(s) + '</button>').join('') +
-        '</div>' + renderMemory() +
+        '</div>' +
         '</div></div>';
-      if (showMemory) {
-        delegate(el, 'change', '[data-memory-pick]', () => {
-          const count = el.querySelectorAll('[data-memory-pick]:checked').length;
-          const label = $('[data-memory-count]', el);
-          if (label) label.textContent = count ? 'Using ' + count + ' saved travel ' + (count === 1 ? 'detail' : 'details') : 'No saved travel details selected';
-        });
-        delegate(el, 'click', '[data-memory-edit]', async (e, button) => {
-          const item = (state.memory || []).find((memory) => memory.id === button.dataset.memoryEdit);
-          if (item && FT.integrations && FT.integrations.editMemory) { await FT.integrations.editMemory(item); pages.new.render(); }
-        });
-        delegate(el, 'click', '[data-memory-remove]', async (e, button) => {
-          const item = (state.memory || []).find((memory) => memory.id === button.dataset.memoryRemove);
-          if (item && await FT.ui.confirm('Remove this memory from Friday?', { title: 'Remove memory', okLabel: 'Remove', danger: true })) {
-            store.update((s) => { s.memory = s.memory.filter((memory) => memory.id !== item.id); });
-            pages.new.render();
-          }
-        });
-        delegate(el, 'click', '[data-open-prefs]', () => router.go('#/preferences'));
-      }
+      delegate(el, 'change', '[data-memory-pick]', () => {
+        const selected = Array.from(el.querySelectorAll('[data-memory-pick]:checked')).map((box) => remembered.find((item) => item.key === box.dataset.memoryPick)).filter(Boolean);
+        const label = $('[data-memory-summary]', el);
+        if (label) label.textContent = FT.memoryContext ? FT.memoryContext.summary(selected) : (selected.length ? 'Planning with your saved details' : 'A fresh start this trip');
+      });
+      delegate(el, 'click', '[data-memory-done]', (e, button) => {
+        const details = button.closest('details');
+        if (!details) return;
+        details.open = false;
+        const summary = details.querySelector('summary');
+        if (summary) summary.focus();
+      });
       wirePrompt(el, remembered, showMemory);
       // From a guide the traveller has already chosen a place, so focus the seeded prompt (caret at the end) on every screen size.
       if (presetDestination || !isNarrow()) { const ta = $('.fx-prompt__ta', el); if (ta) { safeFocus(ta); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) { /* ignore */ } } }

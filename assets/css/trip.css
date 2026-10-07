@@ -662,6 +662,34 @@ input[type="search"].fx-input::-webkit-search-cancel-button { display: none; }
 .fx .fx-prompt { border-radius: 12px; background: #FAF8F5; border: 1px solid var(--rule); box-shadow: 0 2px 14px rgba(21, 20, 15, .04); transition: box-shadow .2s, border-color .2s; }
 .fx .fx-prompt:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(176, 85, 45, .12); }
 .fx .fx-new__title { font-family: var(--serif); font-weight: 300; }
+
+/* Saved travel notes live inside the prompt, close to the words they shape. */
+form.fx-prompt > .fx-new__memory { position: relative; z-index: 20; flex: 0 0 auto; width: 100%; margin: 8px 0 0; border-top: 1px solid var(--rule); color: var(--ink); text-align: left; }
+form.fx-prompt > .fx-new__memory > summary { display: flex; align-items: center; justify-content: flex-start; gap: 10px; min-height: 54px; padding: 5px 2px; color: var(--ink); font-size: 1rem; cursor: pointer; list-style: none; text-align: left; }
+form.fx-prompt > .fx-new__memory > summary::-webkit-details-marker { display: none; }
+form.fx-prompt > .fx-new__memory > summary:focus-visible { outline: 2px solid var(--ochre); outline-offset: 2px; }
+.fx-memory__mark { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--ochre); }
+.fx-memory__summary { display: grid; min-width: 0; gap: 2px; flex: 1 1 auto; }
+.fx-memory__title { color: var(--fg-soft); font-size: .65rem; font-weight: 600; letter-spacing: .14em; line-height: 1.3; text-transform: uppercase; }
+.fx-memory__line { display: -webkit-box; overflow: hidden; color: var(--ink); font-size: .78rem; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.fx-memory__chevron { display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 32px; border: 1px solid var(--rule); border-radius: 50%; color: var(--fg-soft); font-size: 1rem; transition: transform .18s ease; }
+.fx-new__memory[open] .fx-memory__chevron { transform: rotate(180deg); }
+.fx-memory__panel { position: absolute; z-index: 100; inset: calc(100% + 8px) 0 auto; display: grid; gap: 10px; max-height: min(58vh, 420px); overflow-y: auto; padding: 16px; border: 1px solid rgba(21, 20, 15, .2); background: #FAF8F5; color: var(--ink); box-shadow: 0 12px 30px rgba(21, 20, 15, .16); }
+.fx-memory__intro { margin: 0; color: var(--fg-soft); font-size: .82rem; line-height: 1.5; }
+.fx-memory__choices { display: grid; gap: 0; min-width: 0; margin: 0; padding: 0; border: 0; }
+.fx-memory__legend { margin-bottom: 4px; color: var(--fg-soft); font-size: .68rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.fx-memory__choice { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 7px 6px; border-top: 1px solid var(--rule-soft); color: var(--ink); font-size: .84rem; line-height: 1.45; cursor: pointer; }
+.fx-memory__choice input { width: 18px; height: 18px; flex: 0 0 18px; margin: 0; accent-color: var(--primary); }
+.fx-memory__value { display: grid; min-width: 0; flex: 1 1 auto; gap: 2px; overflow-wrap: anywhere; }
+.fx-memory__kind { color: var(--fg-soft); font-size: .67rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.fx-memory__empty { padding: 10px 0 4px; }
+.fx-memory__empty strong { display: block; margin-bottom: 4px; color: var(--ink); font: 400 1.35rem/1.2 var(--serif); }
+.fx-memory__empty p { margin: 0; color: var(--fg-soft); font-size: .84rem; line-height: 1.55; }
+.fx-memory__manage { display: flex; align-items: center; min-height: 44px; width: fit-content; max-width: 100%; color: var(--ink); font-size: .8rem; font-weight: 500; text-decoration: underline; text-underline-offset: .18em; }
+.fx-memory__manage:focus-visible { outline: 2px solid var(--ochre); outline-offset: 2px; }
+.fx-memory__done { min-height: 44px; padding-inline: 14px; }
+.fx-memory__privacy { margin: 0; padding-top: 9px; border-top: 1px solid var(--rule-soft); color: var(--fg-soft); font-size: .72rem; line-height: 1.5; }
+
 .fx .fx-cover, .fx .fx-stay { border-radius: var(--fx-radius); }
 .fx .fx-pcard, .fx .fx-cover { transition: transform .22s var(--ease-out), box-shadow .22s; }
 .fx .fx-pcard:hover, .fx .fx-cover:hover { transform: var(--fx-lift); box-shadow: var(--fx-shadow-lift); }

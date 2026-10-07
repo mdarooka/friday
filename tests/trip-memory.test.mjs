@@ -32,3 +32,11 @@ test('quote handoff only includes preferences the traveler explicitly chose to s
   assert.equal(window.FridayTrip.memoryContext.quoteInstructions('Plan a calm trip', preferences, false), 'Plan a calm trip');
   assert.equal(window.FridayTrip.memoryContext.quoteInstructions(shared, preferences, true).split(heading).length - 1, 1);
 });
+
+test('the composer summary reflects selected notes and offers a clear fresh-start state', () => {
+  const summarize = window.FridayTrip.memoryContext.summary;
+  assert.equal(summarize([]), 'Start with your own words');
+  assert.equal(summarize([{ text: 'Slow mornings' }, { text: 'Vegetarian food' }, { text: 'Small stays' }]), 'Planning with: Slow mornings · Vegetarian food +1');
+  assert.equal(summarize([{ text: '  Leave mornings open and unplanned for a relaxed pace  ' }]), 'Planning with: Leave mornings open and unp…');
+  assert.equal(summarize([{ label: 'Home city', text: 'Delhi' }, { label: 'Hotels', text: 'Small locally owned stays' }]), 'Planning with: Home base set · Small locally owned stays');
+});
