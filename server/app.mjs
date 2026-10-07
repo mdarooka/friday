@@ -813,6 +813,8 @@ export function createApp(options = {}) {
         return send(200,{callback:{id:callbackStatus[1],status:wanted}});
       }
       const quotePreview=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/preview$/i);
+      const quoteReplied=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/replied$/i);
+      if(quoteReplied){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{reply:await friday.markQuoteReplied(user,effectiveQuoteAdmins,quoteReplied[1])});}
       if(quotePreview){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{preview:await friday.previewQuote(user,effectiveQuoteAdmins,quotePreview[1],body)});}
       const quoteSend=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/send$/i);
       if(quoteSend){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{quote:await friday.sendQuote(user,effectiveQuoteAdmins,quoteSend[1],body)});}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { startApp, signUp } from './helpers.mjs';
 
 test('Friday workflow routes enforce session, ownership, admin allowlist, preview confirmation and quote status',async t=>{
-  const {request}=await startApp(t,{env:{AUTH_PROVIDER:'local',AUTH_REQUIRED:'true',QUOTE_ADMIN_EMAILS:'admin@example.com',HEXCLAVE_PROJECT_ID:'project-test',HEXCLAVE_SECRET_SERVER_KEY:'test-server-key'},hexclaveAuth:{configured:false,currentUser:async()=>null},emailFetch:async(url,options)=>{
+  const {request,db}=await startApp(t,{env:{AUTH_PROVIDER:'local',AUTH_REQUIRED:'true',QUOTE_ADMIN_EMAILS:'admin@example.com',HEXCLAVE_PROJECT_ID:'project-test',HEXCLAVE_SECRET_SERVER_KEY:'test-server-key'},hexclaveAuth:{configured:false,currentUser:async()=>null},emailFetch:async(url,options)=>{
     assert.equal(url,'https://api.hexclave.com/api/v1/emails/send-email');
     const sent=JSON.parse(options.body);assert.deepEqual(sent.emails,['customer@example.com']);assert.match(sent.html,/Amount: USD 4200\.00/);return new Response(null,{status:202});
   }});
@@ -21,7 +21,14 @@ test('Friday workflow routes enforce session, ownership, admin allowlist, previe
   const handoff=await request('/api/friday/handoffs','POST',{draftId:draft.id,version:draft.version,confirmed:true},{cookie:customer.cookie});assert.equal(handoff.status,201);assert.match(handoff.result.handoff.snapshot.instructions,/Slow mornings and small locally owned hotels/);
   const repeated=await request('/api/friday/handoffs','POST',{draftId:draft.id,version:draft.version,confirmed:true},{cookie:customer.cookie});assert.equal(repeated.result.handoff.id,handoff.result.handoff.id);
   const quote=(await request('/api/admin/quotes','GET',undefined,{cookie:admin.cookie})).result.quotes[0];assert.equal(quote.customerEmail,'customer@example.com');
+  assert.equal(quote.firstReplyAt,null);
   assert.equal((await request('/api/admin/quotes','GET',undefined,{cookie:other.cookie})).status,403);
+  assert.equal((await request(`/api/admin/quotes/${quote.id}/replied`,'POST',{}, {cookie:other.cookie})).status,403);
+  await db.query('UPDATE friday_quotes SET created=$1 WHERE id=$2',[new Date(Date.now()-25*60*60*1000).toISOString(),quote.id]);
+  const reply=await request(`/api/admin/quotes/${quote.id}/replied`,'POST',{}, {cookie:admin.cookie});assert.equal(reply.status,200);assert.ok(reply.result.reply.hoursWaited>=25&&reply.result.reply.hoursWaited<26);
+  const repeatedReply=await request(`/api/admin/quotes/${quote.id}/replied`,'POST',{}, {cookie:admin.cookie});assert.equal(repeatedReply.result.reply.firstReplyAt,reply.result.reply.firstReplyAt);
+  const afterReply=(await request('/api/admin/quotes','GET',undefined,{cookie:admin.cookie})).result.quotes[0];assert.equal(afterReply.firstReplyAt,reply.result.reply.firstReplyAt);
+  assert.equal((await db.one('SELECT first_reply_at FROM friday_quotes WHERE id=$1',[quote.id])).first_reply_at,reply.result.reply.firstReplyAt);
   const preview=(await request(`/api/admin/quotes/${quote.id}/preview`,'POST',{amount:4200,currency:'USD',details:'Includes the stated trip design.'},{cookie:admin.cookie}));assert.equal(preview.status,200);assert.match(preview.result.preview.text,/Your selected plan/);
   const mismatch=await request(`/api/admin/quotes/${quote.id}/send`,'POST',{amount:4201,currency:'USD',details:'Includes the stated trip design.',previewHash:preview.result.preview.previewHash},{cookie:admin.cookie});assert.equal(mismatch.status,409);
   const sent=await request(`/api/admin/quotes/${quote.id}/send`,'POST',{amount:4200,currency:'USD',details:'Includes the stated trip design.',previewHash:preview.result.preview.previewHash},{cookie:admin.cookie});assert.equal(sent.status,200);assert.equal(sent.result.quote.status,'provider_accepted');

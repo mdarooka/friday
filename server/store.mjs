@@ -41,7 +41,8 @@ async function createSchema(tx, { tripsInVault = false } = {}) {
     CREATE TABLE IF NOT EXISTS callback_requests(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL,best_time TEXT NOT NULL,entry_point TEXT NOT NULL,trip_id TEXT,status TEXT NOT NULL DEFAULT 'new',created TEXT NOT NULL,topic TEXT);
     CREATE INDEX IF NOT EXISTS callback_requests_created ON callback_requests(created DESC);
     ALTER TABLE callback_requests ADD COLUMN IF NOT EXISTS topic TEXT;   -- optional booking question ("Ask designer about this"); added after the first release
-    CREATE TABLE IF NOT EXISTS friday_quotes(id TEXT PRIMARY KEY,handoff_id TEXT NOT NULL UNIQUE REFERENCES friday_handoffs(id),owner_id TEXT NOT NULL REFERENCES users(id),customer_email TEXT NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,quote TEXT,attempted_at TEXT,created TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS friday_quotes(id TEXT PRIMARY KEY,handoff_id TEXT NOT NULL UNIQUE REFERENCES friday_handoffs(id),owner_id TEXT NOT NULL REFERENCES users(id),customer_email TEXT NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,quote TEXT,attempted_at TEXT,created TEXT NOT NULL,first_reply_at TEXT);
+    ALTER TABLE friday_quotes ADD COLUMN IF NOT EXISTS first_reply_at TEXT;
     CREATE TABLE IF NOT EXISTS reel_chats(owner_id TEXT NOT NULL,conversation_id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(owner_id,conversation_id));
     CREATE TABLE IF NOT EXISTS google_connections(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('gmail','calendar')),refresh_token TEXT NOT NULL,scopes TEXT NOT NULL,connected_at TEXT NOT NULL,PRIMARY KEY(user_id,kind));
     CREATE TABLE IF NOT EXISTS google_oauth_states(state_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,verifier TEXT NOT NULL,expires BIGINT NOT NULL);
@@ -113,7 +114,8 @@ export const updateFridayDraft = async (db,row) => changes(await db.query('UPDAT
 export const insertFridayHandoff = async (db,row) => { await db.query('INSERT INTO friday_handoffs(id,owner_id,draft_id,version,snapshot,status,created) VALUES($1,$2,$3,$4,$5,$6,$7)',[row.id,row.ownerId,row.draftId,row.version,row.snapshot,row.status,row.created]); };
 export const createFridayHandoffWithQuote = (db,handoff,quote) => db.transaction(async tx => { await insertFridayHandoff(tx,handoff); await insertFridayQuote(tx,quote); return true; });
 export const listFridayHandoffs = (db,owner) => db.all('SELECT id,draft_id,version,snapshot,status,created FROM friday_handoffs WHERE owner_id=$1 ORDER BY created DESC',[owner]);
-export const listFridayQuotes = db => db.all('SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created FROM friday_quotes ORDER BY created');
+export const listFridayQuotes = db => db.all("SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created,first_reply_at FROM friday_quotes ORDER BY CASE WHEN status='pending' AND first_reply_at IS NULL THEN 0 ELSE 1 END,created ASC");
+export const markFridayQuoteReplied = async (db,id,repliedAt) => changes(await db.query("UPDATE friday_quotes SET first_reply_at=$1 WHERE id=$2 AND status='pending' AND first_reply_at IS NULL",[repliedAt,id]));
 export const createCallbackRequest = async (db, row) => { await db.query('INSERT INTO callback_requests(id,name,phone,best_time,entry_point,trip_id,status,created,topic) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[row.id,row.name,row.phone,row.bestTime,row.entryPoint,row.tripId||null,row.status||'new',row.created,row.topic||null]); };
 export const setCallbackStatus = async (db, id, status) => changes(await db.query('UPDATE callback_requests SET status=$1 WHERE id=$2',[status,id]));
 export const listCallbackRequests = db => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,status,created,topic FROM callback_requests ORDER BY created DESC');
