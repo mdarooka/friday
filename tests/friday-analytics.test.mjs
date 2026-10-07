@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
 const read = name => readFile(new URL(`../assets/js/${name}`, import.meta.url), 'utf8');
-const scripts = await Promise.all(['friday-analytics.js', 'quote-analytics.js', 'callback-analytics.js', 'guide-analytics.js', 'trip-analytics.js', 'briefing-analytics.js'].map(read));
+const scripts = await Promise.all(['friday-analytics.js', 'quote-analytics.js', 'callback-analytics.js', 'guide-analytics.js', 'trip-analytics.js'].map(read));
 
 function setup({ failFirst = 0 } = {}) {
   const values = new Map();
@@ -43,12 +43,19 @@ test('all feature scripts on one page share a single Hexclave client and capabil
   await window.FridayQuoteAnalytics.track('enquiry', 'enquiry-1');
   await window.FridayCallbackAnalytics.track('contact', 'callback-1');
   await window.FridayTrip.tripAnalytics.trackCreated({ returning: true });
-  await window.FridayBriefingAnalytics.track('briefing_opened', { trip_id: 'trip-1' });
   const types = batches.flatMap(batch => batch.events.map(event => event.event_type));
-  assert.deepEqual(types, ['public_page_viewed', 'quote_requested', 'callback_requested', 'trip_created', 'briefing_opened']);
+  assert.deepEqual(types, ['public_page_viewed', 'quote_requested', 'callback_requested', 'trip_created']);
   assert.equal(counts.clients, 1);
   assert.equal(counts.fetches, 1);
   assert.equal(counts.users, 1);
+});
+
+test('the briefing uses Hexclave’s built-in page-view event with its own path', async () => {
+  const { window, batches } = setup();
+  await window.FridayAnalytics.track('$page-view', { path: '/trip-briefing.html' });
+  const event = batches.flatMap(batch => batch.events).find(item => item.event_type === '$page-view');
+  assert.ok(event);
+  assert.equal(event.data.path, '/trip-briefing.html');
 });
 
 test('quote and callback events share one first-touch source', async () => {

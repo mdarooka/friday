@@ -28,7 +28,8 @@
     if(hexclaveLoad)return hexclaveLoad;
     if(!projectId)return Promise.reject(new Error('Friday account sign-in is not configured yet.'));
     hexclaveLoad=import('https://esm.sh/@hexclave/js@1.0.125').then(function(mod){
-      hexclaveApp=new mod.HexclaveClientApp({projectId:projectId,tokenStore:'cookie',devTool:false,urls:{default:{type:'hosted'},afterSignIn:'/trip.html',afterSignUp:'/trip.html',afterSignOut:'/trip.html'}});
+      var returnPath=/(?:^|\/)trip-briefing\.html$/.test(location.pathname||'')?location.pathname+location.search:'/trip.html';
+      hexclaveApp=new mod.HexclaveClientApp({projectId:projectId,tokenStore:'cookie',devTool:false,urls:{default:{type:'hosted'},afterSignIn:returnPath,afterSignUp:returnPath,afterSignOut:'/trip.html'}});
       installAuthorizedFetch();return hexclaveApp;
     }).catch(function(error){hexclaveLoad=null;throw new Error('Friday could not load its secure sign-in service. Check your connection and try again.');});
     return hexclaveLoad;
@@ -61,7 +62,9 @@
     var d=FT.dest&&FT.dest(t.destId),villaRefs=t.villaOrigin&&Array.isArray(t.villaOrigin.placeRefs)?t.villaOrigin.placeRefs:[],days=(t.plan&&Array.isArray(t.plan.days)?t.plan.days:[]).map(function(day){return {title:day.title||day.town||day.area||'Day',date:day.date||'',notes:day.notes||'',items:(day.items||[]).map(function(it){var p=FT.place&&FT.place(t.destId,it.place),ref=villaRefs.filter(function(x){return x.id===it.place;})[0];if(ref&&ref.source==='google')return {title:'Nearby place',googlePlaceId:ref.googlePlaceId,source:'google-place',time:it.time||''};var at=p&&Array.isArray(p.at)&&isFinite(p.at[0])&&isFinite(p.at[1])?{lat:p.at[1],lng:p.at[0]}:{};return Object.assign({title:(p&&p.name)||it.title||it.place||'Place',time:it.time||'',notes:it.note||it.notes||'',address:p&&p.address||'',url:p&&p.url||''},at);})};});
     var messages=[];(t.threads||[]).forEach(function(th){(th.messages||[]).forEach(function(m){var text=msgText(m);if(text&&['user','assistant'].indexOf(m.role)>=0)messages.push({role:m.role,text:text});});});
     var range=t.prefs&&t.prefs.dates||{};
-    return {title:titleOf(t),destination:d&&d.name||t.destName||t.destination||'',startDate:range.start||'',endDate:range.end||'',days:days,messages:messages,archived:!!t.archived,claudeState:t};
+    var stayPlace=t.plan&&t.plan.stay&&FT.place?FT.place(t.destId,t.plan.stay):null;
+    var stay=stayPlace?{name:stayPlace.name||stayPlace.title||'',address:stayPlace.address||'',start:range.start||'',end:range.end||''}:null;
+    return {title:titleOf(t),destination:d&&d.name||t.destName||t.destination||'',startDate:range.start||'',endDate:range.end||'',days:days,stay:stay,messages:messages,archived:!!t.archived,claudeState:t};
   }
   function payload(kind,item){
     var data={title:titleOf(item),claudeState:item};

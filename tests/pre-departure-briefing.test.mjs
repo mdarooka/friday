@@ -11,8 +11,8 @@ function sample({ dateStatus = 'confirmed', days = 7 } = {}) {
   const start = departure(days);
   return prepareBriefing({
     tripId,
-    tripData: { title: 'A week in Kerala', destination: 'Kerala', startDate: start, endDate: departure(days + 5), openQuestions: ['Confirm airport pickup'] },
-    bookingRows: [{ id: 'booking-1', data: JSON.stringify({ tripId, title: 'Kochi flight', start, end: departure(days + 1), dateStatus, source: 'google-gmail' }) }],
+    tripData: { title: 'A week in Kerala', destination: 'Kerala', startDate: start, endDate: departure(days + 5), stay: { name: 'Fort Kochi House', address: 'Kochi' }, days: [{ title: 'Fort Kochi', date: start, items: [{ title: 'Ferry', time: '09:30' }] }], openQuestions: ['Confirm airport pickup'] },
+    bookingRows: [{ id: 'booking-1', data: JSON.stringify({ tripId, title: 'Kochi flight', start, end: departure(days + 1), dateStatus, source: 'google-gmail', ref: 'AB123' }) }, { id: 'calendar-1', data: JSON.stringify({ tripId, title: 'Airport pickup', start: start + 'T09:15:00+05:30', end: start + 'T10:00:00+05:30', source: 'google-calendar', location: 'Kochi airport' }) }],
     recipient: 'traveller@example.com', origin: 'https://friday.example', now: new Date(),
   });
 }
@@ -31,9 +31,24 @@ test('briefing email renders trip dates, linked bookings, open questions, design
   assert.match(briefing.text, /Kochi flight/);
   assert.match(briefing.text, /Confirm airport pickup/);
   assert.match(briefing.text, /contact\.html/);
+  assert.match(briefing.text, /Fort Kochi House/);
+  assert.match(briefing.text, /Ferry/);
+  assert.match(briefing.text, /AB123/);
+  assert.match(briefing.text, /Airport pickup · \d{4}-\d{2}-\d{2} 09:15/);
+  assert.match(briefing.text, /30 hours/);
+  assert.match(briefing.tripUrl, /trip-briefing\.html/);
   assert.match(briefing.tripUrl, /ref=briefing/);
   assert.match(briefing.tripUrl, /trip=6c0c0b79/);
-  assert.match(briefing.html, /confirmed date/);
+  assert.match(briefing.html, /date marked confirmed/);
+});
+
+test('missing trip details stay empty instead of becoming invented bookings or plans', () => {
+  const briefing = prepareBriefing({ tripId, tripData: { title: 'Trip without details' }, origin: 'https://friday.example' });
+  assert.deepEqual(briefing.days, []);
+  assert.equal(briefing.stay, null);
+  assert.deepEqual(briefing.bookings, []);
+  assert.match(briefing.text, /No day-by-day plan has been saved yet/);
+  assert.match(briefing.text, /No bookings have been linked/);
 });
 
 test('briefing subject reflects the actual departure window through departure day', () => {
@@ -70,16 +85,36 @@ test('staff can send an eligible trip briefing through the existing email servic
   assert.match(sent[0].text, /ref=briefing/);
 });
 
-test('briefing event sender covers sent and opened events with trip and departure timing properties', async () => {
-  const source = (await readFile(new URL('../assets/js/friday-analytics.js', import.meta.url), 'utf8')) + '\n' + (await readFile(new URL('../assets/js/briefing-analytics.js', import.meta.url), 'utf8'));
-  const admin = await readFile(new URL('../assets/js/admin.js', import.meta.url), 'utf8');
+test('private briefing view uses the shared content route and a built-in page-view path', async () => {
+  const app = await readFile(new URL('../server/app.mjs', import.meta.url), 'utf8');
   const planner = await readFile(new URL('../assets/js/trip-app.js', import.meta.url), 'utf8');
-  const adminPage = await readFile(new URL('../admin.html', import.meta.url), 'utf8');
-  const tripPage = await readFile(new URL('../trip.html', import.meta.url), 'utf8');
-  assert.match(adminPage, /data-panel="briefings"/);
-  assert.match(tripPage, /briefing-analytics\.js/);
-  assert.match(source, /briefing_sent/);
-  assert.match(source, /briefing_opened/);
-  assert.match(admin, /days_before_departure/);
-  assert.match(planner, /trip_id: briefingTripId/);
+  const view = await readFile(new URL('../assets/js/trip-briefing-view.js', import.meta.url), 'utf8');
+  const page = await readFile(new URL('../trip-briefing.html', import.meta.url), 'utf8');
+  const workspace = await readFile(new URL('../assets/js/trip-workspace.js', import.meta.url), 'utf8');
+  assert.ok(app.includes('const tripBriefing=p.match'));
+  assert.ok(planner.includes('trip-briefing'));
+  assert.ok(workspace.includes('data-ws=\"briefing\"'));
+  assert.ok(view.includes("track('$page-view', { path: '/trip-briefing.html' })"));
+  assert.ok(!view.includes('briefing_opened'));
+  assert.ok(page.includes('trip-briefing.css'));
+  assert.ok(page.includes('trip-briefing-view.js'));
+});
+
+test('traveler briefing API returns only the owner’s trip content', async t => {
+  const { request } = await startApp(t, { env: { AUTH_REQUIRED: 'true' } });
+  const owner = await signUp(request, 'Owner');
+  const other = await signUp(request, 'Other');
+  const start = departure(7), end = departure(10);
+  const created = await request('/api/trips', 'POST', { data: { title: 'Private Kerala trip', destination: 'Kerala', startDate: start, endDate: end, stay: { name: 'Saved house' }, days: [{ title: 'Kochi', date: start, items: [{ title: 'Fort walk' }] }] } }, { cookie: owner.cookie });
+  const id = created.result.record.id;
+  const unauthenticated = await request(`/api/trips/${id}/briefing`, 'GET');
+  assert.equal(unauthenticated.status, 401);
+  const privateToOther = await request(`/api/trips/${id}/briefing`, 'GET', undefined, { cookie: other.cookie });
+  assert.equal(privateToOther.status, 404);
+  const response = await request(`/api/trips/${id}/briefing`, 'GET', undefined, { cookie: owner.cookie });
+  assert.equal(response.status, 200);
+  assert.equal(response.result.briefing.title, 'Private Kerala trip');
+  assert.equal(response.result.briefing.days[0].items[0].title, 'Fort walk');
+  assert.equal(response.result.briefing.stay.name, 'Saved house');
+  assert.equal('recipient' in response.result.briefing, false);
 });

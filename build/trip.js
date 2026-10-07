@@ -59,11 +59,11 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
 <link rel="stylesheet" href="assets/css/trip-workspace.css">
 <link rel="stylesheet" href="assets/css/trip-map.css">
 <link rel="stylesheet" href="assets/css/trip-chat.css">
+<link rel="stylesheet" href="assets/css/trip-briefing.css">
 <script src="assets/js/friday-analytics.js" defer></script>
 <script src="assets/js/quote-analytics.js" defer></script>
 <script src="assets/js/guide-analytics.js" defer></script>
 <script src="assets/js/trip-data.js" defer></script>
-<script src="assets/js/briefing-analytics.js" defer></script>
 <script src="assets/js/trip-art.js" defer></script>
 <script src="assets/js/trip-generator.js" defer></script>
 <script src="assets/js/trip-memory.js" defer></script>
@@ -79,6 +79,7 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
 <script src="assets/js/trip-feedback.js" defer></script>
 <script src="assets/js/trip-confidence.js" defer></script>
 <script src="assets/js/trip-shared-map.js" defer></script>
+<script src="assets/js/trip-briefing-view.js" defer></script>
 <script src="assets/js/trip-workspace.js" defer></script>
 <script src="assets/js/trip-villa.js" defer></script>
 <script src="assets/js/callback-analytics.js" defer></script>
@@ -106,6 +107,13 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
 <noscript><p style="padding:2rem;font-family:sans-serif">Friday's planner needs JavaScript. The rest of the site does not: <a href="index.html">back to Friday</a>.</p></noscript>
 </body>
 </html>`;
+}
+
+function tripBriefingPage() {
+  return tripPage()
+    .replace('<title>' + esc(TITLE) + '</title>', '<title>Your trip briefing · Friday</title>\n<meta name="robots" content="noindex, nofollow">')
+    .replace('<meta name="description" content="' + esc(DESCRIPTION) + '">', '<meta name="description" content="Your private Friday trip briefing.">')
+    .replace('<body class="fx">', '<body class="fx fx-briefing-entry">');
 }
 
 function appAliasPage() {
@@ -176,4 +184,4 @@ ${artSrc}
   return { 'assets/js/trip-data.js': dataJs, 'assets/js/trip-art.js': artJs };
 }
 
-module.exports = { tripPage, tripScripts, appAliasPage, chatgptCallbackPage };
+module.exports = { tripPage, tripBriefingPage, tripScripts, appAliasPage, chatgptCallbackPage };

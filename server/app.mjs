@@ -1135,6 +1135,14 @@ export function createApp(options = {}) {
         })();backgroundTasks.add(task);task.finally(()=>backgroundTasks.delete(task));
         return send(202,{job:{id,status:'running',stage:'Starting research'}});
       }
+      const tripBriefing=p.match(/^\/api\/trips\/([a-f0-9-]{36})\/briefing$/i);
+      if(tripBriefing){
+        allow('GET','HEAD');if(!user)fail(401,'Please sign in to open this trip briefing.');
+        const tripId=tripBriefing[1],row=await getRecord(tripId,user.id,'trips'),tripData=JSON.parse(row.data);
+        const briefing=prepareBriefing({tripId,tripData,bookingRows:await store.listRecords(db,user.id,'bookings'),recipient:user.email,origin});
+        const {recipient,subject,text,html,...content}=briefing;
+        return send(200,{briefing:content});
+      }
       const match=p.match(/^\/api\/(trips|places|lists|bookings|memories|alerts|imports)(?:\/([a-f0-9-]+))?$/);
       if(match) {
         const [,kind,id]=match;

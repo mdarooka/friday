@@ -2155,9 +2155,6 @@
     if (!app || !main) return;
 
     const params = new URLSearchParams(location.search);
-    if (params.get('ref') === 'briefing' && params.get('trip')) {
-      try { sessionStorage.setItem('friday.briefing-return.v1', params.get('trip')); } catch (e) {}
-    }
     const shareToken=new URLSearchParams(location.search).get('share');
     if(shareToken&&FT.backend&&typeof FT.backend.shared==='function'){
       try{const shared=await FT.backend.shared(shareToken);if(shared&&shared.trip){sharedTripView(main,shared.trip,shareToken);if(FT.sharedMap)FT.sharedMap.mount(main,shared.trip);if(FT.feedback)FT.feedback.mountShared(main,shareToken);return;}}
@@ -2183,21 +2180,6 @@
         return;
       }
     }
-    if (FT.backend && FT.backend.user) {
-      var briefingTripId = null;
-      try { briefingTripId = sessionStorage.getItem('friday.briefing-return.v1'); } catch (e) {}
-      var briefingTrip = briefingTripId && FT.store && FT.store.get ? (FT.store.get().trips || []).find(function (trip) { return trip.serverId === briefingTripId || trip.id === briefingTripId; }) : null;
-      if (briefingTrip) {
-        try { sessionStorage.removeItem('friday.briefing-return.v1'); } catch (e) {}
-        if (window.FridayBriefingAnalytics) {
-          var openedKey = 'friday.briefing-opened.v1:' + briefingTripId;
-          var opened = false;
-          try { opened = localStorage.getItem(openedKey) === '1'; if (!opened) localStorage.setItem(openedKey, '1'); } catch (e) {}
-          if (!opened) window.FridayBriefingAnalytics.track('briefing_opened', { trip_id: briefingTripId });
-        }
-        if (FT.trips && FT.trips.open) FT.trips.open(briefingTrip.id);
-      }
-    }
     const googleReturn = new URLSearchParams(location.search).get('google');
     if (googleReturn) {
       const kind = new URLSearchParams(location.search).get('kind') || 'Google';
@@ -2205,7 +2187,27 @@
       if (FT.ui && FT.ui.toast) FT.ui.toast(toast);
       const clean = new URL(location.href); clean.searchParams.delete('google'); clean.searchParams.delete('kind'); history.replaceState(null, '', clean.pathname + clean.search + clean.hash);
     }
+    if (!/(?:^|\/)trip-briefing\.html$/.test(location.pathname || '') && params.get('ref') === 'briefing' && params.get('trip') && FT.backend && FT.backend.user && FT.store && FT.store.get) {
+      var legacyBriefingTrip = (FT.store.get().trips || []).find(function (trip) { return trip.serverId === params.get('trip') || trip.id === params.get('trip'); });
+      if (legacyBriefingTrip && FT.trips && FT.trips.open) FT.trips.open(legacyBriefingTrip.id);
+    }
     if (FT.backend && !FT.backend.user && FT.backend.capabilities.authRequired !== false) { authGate(main); return; }
+    const briefingEntry = /(?:^|\/)trip-briefing\.html$/.test(location.pathname || '');
+    if (briefingEntry) {
+      const side = $('[data-side]'); if (side) side.hidden = true;
+      if (!FT.backend || !FT.backend.user) { authGate(main); return; }
+      const briefingTripId = new URLSearchParams(location.search).get('trip');
+      if (!briefingTripId) { FT.briefingView.showMessage(main, 'Choose a trip', 'Open a trip from your planner to see its briefing.'); return; }
+      main.innerHTML = '<section class="friday-briefing__state"><p class="friday-briefing__eyebrow">Your trip briefing</p><h1>Loading your trip…</h1><p>Your private briefing is being prepared.</p></section>';
+      FT.backend.request('/api/trips/' + encodeURIComponent(briefingTripId) + '/briefing').then(function (response) {
+        FT.briefingView.render(main, response.briefing || {});
+      }).catch(function (error) {
+        const unavailable = error && error.status === 404;
+        FT.briefingView.showMessage(main, unavailable ? 'This briefing isn’t available' : 'Your briefing could not be loaded', unavailable ? 'This trip may have been removed or belongs to another account.' : (error.message || 'Check your connection, then try again.'), !unavailable);
+        const retry = main.querySelector('[data-retry-briefing]'); if (retry) retry.addEventListener('click', function () { location.reload(); });
+      });
+      return;
+    }
     // Villa-origin trips keep provider data out of persistence, so reconstruct
     // their runtime destination catalog before the first workspace render.
     if (FT.villa && typeof FT.villa.prepareCatalogs === 'function') FT.villa.prepareCatalogs();
