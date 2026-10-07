@@ -228,11 +228,11 @@ export function createApp(options = {}) {
         let relative = decoded.replace(/^\//,'') || 'index.html';
         if (relative === 'app') relative='app.html';
         // Only public generated pages and assets may be served, never backend/source/data.
-        if (!(/^[a-z0-9-]+\.html$/.test(relative) || /^assets\/[a-zA-Z0-9_./-]+\.(css|js|svg|png|jpg|jpeg|webp|ico|woff2)$/.test(relative))) fail(404,'Not found.');
+        if (!(/^[a-z0-9-]+\.html$/.test(relative) || /^(robots\.txt|sitemap\.xml)$/.test(relative) || /^assets\/[a-zA-Z0-9_./-]+\.(css|js|svg|png|jpg|jpeg|webp|ico|woff2)$/.test(relative))) fail(404,'Not found.');
         const realRoot = await realpath(root);
         const full = await realpath(path.resolve(realRoot,relative)).catch(()=>fail(404,'Not found.'));
         if (!full.startsWith(realRoot+path.sep) || !(await stat(full)).isFile()) fail(404,'Not found.');
-        const types={'.html':'text/html','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2'};
+        const types={'.html':'text/html','.txt':'text/plain','.xml':'application/xml','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2'};
         const content=await readFile(full);
         res.writeHead(200,{'Content-Type':types[path.extname(full)]+'; charset=utf-8'}); res.end(method==='HEAD'?undefined:content);return;
       }

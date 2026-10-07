@@ -8,6 +8,8 @@ const { Plate, SecHead, eyebrow, facts, practice, places, quote, glyph, layout, 
 const { partnerBody } = require('./partner');
 const Villas = require('./villas');
 const Admin = require('./admin');
+const { siteOrigin, sitemapXml, robotsTxt } = require('./site-metadata');
+const PUBLIC_ORIGIN = siteOrigin();
 
 const OUT = path.join(__dirname, '..');
 const write = (file, html) => {
@@ -18,7 +20,9 @@ const written = [];
 const legacyPage = /^(?:ethos|method|designers|alliances|compositions|wild|drive|salon|field-notes|commission)\.html$|^(?:composition-|departure-|note-).+\.html$/;
 const page = (file, opts) => {
   if (legacyPage.test(file)) return;
-  written.push(write(file, layout(opts)));
+  const privatePage = file === 'admin.html' || file === 'admin-villas.html';
+  const extraScripts = [...(privatePage ? [] : ['assets/js/guide-analytics.js']), ...(opts.extraScripts || [])];
+  written.push(write(file, layout({ ...opts, extraScripts })));
 };
 
 /* ========================================================== 1. Home */
@@ -146,6 +150,67 @@ const home = `
 `;
 
 page('index.html', { title: 'Your travel designer', description: 'Friday is an AI travel designer from Bombay. Explore villas and sample packages, or shape a trip with Friday.', body: home });
+
+/* ======================================================== Kerala guide */
+
+const KERALA = require('./trip-data/kerala');
+const guideAreaOrder = ['kochi', 'munnar', 'thekkady', 'alleppey', 'kumarakom', 'varkala', 'kovalam'];
+const guideAreas = guideAreaOrder.map((id) => {
+  const area = KERALA.areas.find((item) => item.id === id);
+  const stops = Object.values(KERALA.places).filter((place) => place.area === id && place.kind !== 'stay').slice(0, 3);
+  return `<article class="c-4 c-md-12" data-reveal><div class="prose"><p class="eyebrow eyebrow--accent">${T.esc(area.name)}</p><h3 class="h3">${T.esc(area.town)}</h3><ul>${stops.map((place) => `<li><strong>${T.esc(place.name)}</strong>${place.blurb ? ` — ${T.esc(place.blurb)}` : ''}</li>`).join('')}</ul></div></article>`;
+}).join('');
+const keralaGuide = `
+${PageHero({
+  eyebrow: 'A Friday field guide',
+  title: 'A slower way<br>through Kerala.',
+  lede: 'A practical starting point for a Kerala trip: choose a pace, pair the hills with the backwaters or coast, and leave room for the transfers between them.',
+  seed: 'kerala-guide-backwaters', scene: 'isles', tone: 'jade',
+})}
+<section class="section section--tight"><div class="wrap">
+  <div class="grid" style="align-items:start">
+    <article class="c-6 c-md-12 prose" data-reveal>
+      <p class="eyebrow">How many days do you need in Kerala?</p>
+      <h2 class="h2">Start with the days you have.</h2>
+      <p>Friday’s Kerala planner uses three starting points: a 4–5 day escape, an unhurried week, or a longer two-week loop. They are prompts, not fixed packages. For a shorter trip, choose a smaller part of the state rather than trying to join every coast, hill and backwater stop.</p>
+    </article>
+    <article class="c-6 c-md-12 prose" data-reveal style="--i:1">
+      <p class="eyebrow">When is the best time to visit Kerala?</p>
+      <h2 class="h2">Match the season to the trip.</h2>
+      <p>Kerala Tourism describes November to February as pleasant, and notes that the monsoon brings heavy rain in some periods. Its guidance also varies by activity and region: its backwater advice points to October–February for houseboat cruises. Check current weather and local operating guidance before booking; this guide does not confirm live conditions.</p>
+      <p><a class="link" href="https://www.keralatourism.org/faq/20-things-to-know-before-you-visit-kerala" target="_blank" rel="noopener noreferrer">Read Kerala Tourism’s seasonal advice <span class="arrow">&rarr;</span></a></p>
+    </article>
+  </div>
+</div></section>
+<section class="section inverse"><div class="wrap">
+  <p class="eyebrow">Where to go</p>
+  <h2 class="h2">Which places fit<br>one Kerala trip?</h2>
+  <p class="lede" style="max-width:42em;margin-top:1rem">These are places from Friday’s hand-researched destination catalogue. Pick a few around the experience you want; check routes and opening details for your own dates.</p>
+  <div class="grid" style="margin-top:2rem">${guideAreas}</div>
+</div></section>
+<section class="section"><div class="wrap grid" style="align-items:start">
+  <article class="c-6 c-md-12 prose" data-reveal>
+    <p class="eyebrow">Backwaters</p>
+    <h2 class="h2">Is Alleppey or Kumarakom better for a houseboat?</h2>
+    <p>There is no single best choice for every route. Friday’s catalogue lists a houseboat cruise in Alleppey (Alappuzha) and a sunset cruise on Vembanad Lake in Kumarakom; it does not say one is better. If an overnight stay matters, confirm availability, route, operator rules and current prices directly—these sample listings are not live booking details.</p>
+    <p><a class="link" href="https://www.keralatourism.org/destination/alappuzha-beach/60/" target="_blank" rel="noopener noreferrer">Kerala Tourism’s Alappuzha guide <span class="arrow">&rarr;</span></a></p>
+  </article>
+  <article class="c-6 c-md-12 prose" data-reveal style="--i:1">
+    <p class="eyebrow">Budget</p>
+    <h2 class="h2">What does a Kerala trip cost?</h2>
+    <p>This catalogue does not provide a current, trip-wide cost. Your total depends on dates, group size, route, stays and boat choices; Friday’s sample place data is not a live quote. Share your dates and what matters to you before making a budget or booking decision.</p>
+    <p><a class="link" href="https://www.keralatourism.org/faq/20-things-to-know-before-you-visit-kerala" target="_blank" rel="noopener noreferrer">Kerala Tourism’s travel basics <span class="arrow">&rarr;</span></a></p>
+  </article>
+</div></section>
+<section class="section inverse"><div class="wrap grid" style="align-items:center">
+  <div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">Make Kerala<br>your own route.</h2><p class="lede" style="margin-top:1rem">Start with the places that interest you, then shape the pace and dates with Friday.</p></div>
+  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" href="trip.html?destination=kerala&amp;from_guide=kerala#/new">Plan your Kerala trip <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" href="contact.html?quote_path=guide&amp;destination=kerala">Ask Friday about a quote <span class="arrow">&rarr;</span></a></div>
+</div></section>`;
+page('kerala-guide.html', {
+  title: 'Kerala Travel Guide: Itineraries, Munnar & Backwaters',
+  description: 'Plan a Kerala trip around the time you have, from Kochi and Munnar to Alleppey backwaters and the coast. Browse Friday’s curated places.',
+  body: keralaGuide, canonical: 'kerala-guide.html',
+});
 
 page('partner.html', { title: 'List your villa', description: 'Introduce your villa to Friday for consideration in its collection of considered places to stay.', body: partnerBody(), active: 'partner.html', lightHead: true, extraStyles: ['assets/css/partner.css'], extraScripts: ['assets/js/partner.js'] });
 
@@ -1165,6 +1230,12 @@ const redirectPage = (file, target, label) => {
 D.compositions.forEach((item) => redirectPage(`composition-${item.slug}.html`, 'departures.html', 'Packages'));
 D.departures.forEach((item) => redirectPage(`departure-${item.slug}.html`, 'departures.html', 'Packages'));
 fs.readdirSync(OUT).filter((file) => /^note-.+\.html$/.test(file)).forEach((file) => redirectPage(file, 'about.html', 'About Friday'));
+
+/* Search files only name public pages. Configure PUBLIC_SITE_ORIGIN for a stable production sitemap.
+   APP_ORIGIN and Vercel's production URL are supported as fallbacks; no domain is guessed at build time. */
+const sitemapPages = ['index.html', 'about.html', 'help.html', 'contact.html', 'partner.html', 'departures.html', 'villas.html', 'kerala-guide.html'].filter((file) => fs.existsSync(path.join(OUT, file)));
+write('sitemap.xml', sitemapXml(sitemapPages, PUBLIC_ORIGIN));
+write('robots.txt', robotsTxt(PUBLIC_ORIGIN));
 
 /* ------------------------------------------------------------- report */
 

@@ -4,6 +4,9 @@ const { plate } = require('./art');
 const D = require('./data');
 
 const esc = (s = '') => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const { siteOrigin, publicUrl } = require('./site-metadata');
+const SITE_ORIGIN = siteOrigin();
+const SOCIAL_IMAGE = publicUrl('assets/images/friday-social.jpg', SITE_ORIGIN);
 
 /* The <head> font links, shared with the planner page (build/trip.js). */
 const FONT_LINKS = `<link rel="preconnect" href="https://fonts.googleapis.com">
@@ -146,6 +149,7 @@ function Footer() {
       ${col('Explore', [
         { label: 'Villas', href: 'villas.html' },
         { label: 'Packages', href: 'departures.html' },
+        { label: 'Kerala guide', href: 'kerala-guide.html' },
         { label: 'Plan a trip', href: 'trip.html' },
       ])}
       ${col('Your trip', [
@@ -175,7 +179,8 @@ function Footer() {
 
 /* ------------------------------------------------------------ the shell */
 
-function layout({ title, description, body, active, lightHead, extraStyles = [], extraScripts = [] }) {
+function layout({ title, description, body, active, lightHead, canonical, extraStyles = [], extraScripts = [] }) {
+  const canonicalHref = canonical ? publicUrl(canonical, SITE_ORIGIN) : null;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -187,6 +192,12 @@ function layout({ title, description, body, active, lightHead, extraStyles = [],
 <meta property="og:title" content="${esc(title)} · ${esc(D.brand.name)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:type" content="website">
+<meta property="og:image" content="${esc(SOCIAL_IMAGE)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A coastal travel scene with Friday’s thoughtful journeys message">
+<meta name="twitter:card" content="summary_large_image">
+${canonicalHref ? `<link rel="canonical" href="${esc(canonicalHref)}">\n<meta property="og:url" content="${esc(canonicalHref)}">` : ''}
 ${FONT_LINKS}
 <link rel="stylesheet" href="assets/css/friday.css">
 ${extraStyles.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')}

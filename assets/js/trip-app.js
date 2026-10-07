@@ -695,6 +695,7 @@
         threads: [{ id: uid('th'), title: d && d.threadTitle ? d.threadTitle : 'New conversation', createdAt: now, messages: [] }],
       });
       store.update((s) => { s.trips.unshift(t); s.currentTripId = t.id; });
+      if (FT.guideAnalytics && typeof FT.guideAnalytics.tripStarted === 'function') FT.guideAnalytics.tripStarted(t);
       return t;
     },
     open(id) { router.go('#/trip/' + id); },
@@ -1381,6 +1382,9 @@
   pages.new = {
     render() {
       const el = pageEl('new');
+      const requestedDestination = new URLSearchParams(location.search || '').get('destination');
+      const presetDestination = requestedDestination && FT.dest(requestedDestination);
+      const starterText = presetDestination ? (presetDestination.prompt || 'Plan a trip to ' + presetDestination.name) : '';
       el.innerHTML =
         '<div class="fx-new"><div class="fx-new__in">' +
         '<p class="fx-new__eyebrow">Your travel designer</p>' +
@@ -1388,7 +1392,7 @@
         '<form class="fx-prompt" data-prompt novalidate>' +
         '<div class="fx-prompt__chips" data-chips></div>' +
         '<label class="sr" for="fx-prompt-ta">Describe your trip</label>' +
-        '<textarea class="fx-prompt__ta" id="fx-prompt-ta" rows="2" placeholder="Tell Friday where you’d like to go…" maxlength="1200"></textarea>' +
+        '<textarea class="fx-prompt__ta" id="fx-prompt-ta" rows="2" placeholder="Tell Friday where you’d like to go…" maxlength="1200">' + esc(starterText) + '</textarea>' +
         '<div class="fx-prompt__row">' +
         '<button class="fx-icon-btn" type="button" data-act="attach" aria-label="Attach an image" title="Attach an image">' + icon('image', 18) + '</button>' +
         '<input type="file" accept="image/*" multiple hidden data-file>' +
@@ -1474,7 +1478,9 @@
       const text = ta.value.trim();
       if (!text) { ta.focus(); return; }
       const payload = { text, attachments: atts.map((a) => ({ name: a.name })) };
-      const trip = FT.trips.create();
+      const requestedDestination = new URLSearchParams(location.search || '').get('destination');
+      const presetDestination = requestedDestination && FT.dest(requestedDestination);
+      const trip = FT.trips.create(presetDestination ? { destId: presetDestination.id } : undefined);
       router.go('#/trip/' + trip.id);
       if (FT.chat && typeof FT.chat.send === 'function') {
         try { FT.chat.send(payload); } catch (err) { console.error(err); toast('The assistant hit a snag.'); }
