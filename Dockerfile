@@ -3,6 +3,7 @@ FROM node:24-bookworm-slim
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
+    APP_ORIGIN=https://p-81-we-5b6199efcb56de4167-c098b2d7396b0066.deploy.built-with-hexclave.com \
     DATABASE_PATH=/app/.data/friday.sqlite
 
 WORKDIR /app

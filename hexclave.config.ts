@@ -22,6 +22,9 @@ export const config = {
       "vercel": {
         "enabled": true
       },
+      "deploy": {
+        "enabled": true
+      },
       "analytics": {
         "enabled": true
       },
