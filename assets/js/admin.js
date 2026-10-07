@@ -49,6 +49,8 @@
     selectedVillaId: null,
     selectedQuoteId: null,
     selectedAiEventKey: null,
+    briefings: [],
+    emailConfigured: false,
     quotes: [],
     aiEvents: [],
     aiNextBefore: null,
@@ -112,6 +114,8 @@
     dom.inspectorDl = $('[data-inspector-dl]', dom.page);
     dom.inspectorContent = $('[data-inspector-content]', dom.page);
     dom.aiLoadMoreBtn = $('[data-ai-load-more]', dom.page);
+    dom.briefings = $('[data-admin-briefings]', dom.page);
+    dom.briefingSetup = $('[data-briefing-setup]', dom.page);
 
     /* Comms */
     dom.enquiriesTable = $('[data-admin-enquiries-table]', dom.page);
@@ -158,8 +162,29 @@
 
     if (tabKey === 'villas') loadVillasTab();
     else if (tabKey === 'quotes') loadQuotesTab();
+    else if (tabKey === 'briefings') loadBriefingsTab();
     else if (tabKey === 'ai') loadAiTab(true);
     else if (tabKey === 'comms') loadCommsTab();
+  }
+
+  /* ---------------- Trip briefings ---------------- */
+
+  function loadBriefingsTab() {
+    dom.briefings.innerHTML = empty('Loading upcoming trips…');
+    return FridayAdmin.request('/api/admin/briefings').then(function (res) {
+      state.emailConfigured = !!res.emailConfigured;
+      dom.briefingSetup.textContent = state.emailConfigured ? '' : 'Email delivery is not configured. Sending is disabled.';
+      state.briefings = res.briefings || [];
+      renderBriefings(state.briefings);
+    }).catch(function (err) { dom.briefings.innerHTML = empty('Could not load trip briefings: ' + err.message); });
+  }
+
+  function renderBriefings(rows) {
+    if (!rows.length) { dom.briefings.innerHTML = empty('No dated trips with linked bookings are due in the next 30 days.'); return; }
+    dom.briefings.innerHTML = '<table class="admin-table"><thead><tr><th>Trip</th><th>Departure</th><th>Bookings</th><th>Action</th></tr></thead><tbody>' + rows.map(function (row) {
+      var allowed = !!row.eligible && state.emailConfigured;
+      return '<tr><td><strong>' + esc(row.title) + '</strong></td><td>' + esc(row.departureDate) + ' · ' + esc(row.daysBeforeDeparture) + ' days</td><td>' + esc(row.bookingCount) + '</td><td><button class="btn btn--solid" type="button" data-send-briefing="' + esc(row.tripId) + '" data-days-before="' + esc(row.daysBeforeDeparture) + '" ' + (allowed ? '' : 'disabled') + '>Send briefing</button><small>' + (allowed ? '' : esc(row.reason || 'Email delivery is not configured.')) + '</small></td></tr>';
+    }).join('') + '</tbody></table>';
   }
 
   /* ---------------- Tab 1: Villas ---------------- */
@@ -758,6 +783,21 @@
           .then(function () { return loadVillasTab(); })
           .catch(function (err) { alert('Could not update submission: ' + err.message); })
           .finally(function () { subStatus.disabled = false; });
+      }
+
+      /* Trip briefing send */
+      var sendBriefing = e.target.closest('[data-send-briefing]');
+      if (sendBriefing && !sendBriefing.disabled) {
+        sendBriefing.disabled = true;
+        var tripId = sendBriefing.dataset.sendBriefing;
+        var daysBefore = Number(sendBriefing.dataset.daysBefore);
+        var requestId = window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'briefing_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        FridayAdmin.request('/api/admin/briefings/' + encodeURIComponent(tripId) + '/send', 'POST', { requestId: requestId })
+          .then(function (res) {
+            if (window.FridayBriefingAnalytics) window.FridayBriefingAnalytics.track('briefing_sent', { trip_id: res.tripId, days_before_departure: res.daysBeforeDeparture });
+            return loadBriefingsTab().then(function () { dom.briefingSetup.textContent = 'Briefing accepted for delivery.'; });
+          })
+          .catch(function (err) { dom.briefingSetup.textContent = err.message || 'Friday could not confirm delivery.'; sendBriefing.disabled = false; });
       }
 
       /* Quote actions */

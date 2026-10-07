@@ -156,7 +156,7 @@ if (Villas.villasBody && Villas.villaBody && Villas.adminVillasBody) {
 }
 
 if (Admin && Admin.adminBody) {
-  page('admin.html', { title: 'Operations Console', description: 'Friday team operations console for villas, quotes, and AI review.', body: Admin.adminBody(), lightHead: true, extraStyles: ['assets/css/villas.css', 'assets/css/admin.css'], extraScripts: ['assets/js/admin-auth.js', 'assets/js/admin.js'] });
+  page('admin.html', { title: 'Operations Console', description: 'Friday team operations console for villas, quotes, and AI review.', body: Admin.adminBody(), lightHead: true, extraStyles: ['assets/css/villas.css', 'assets/css/admin.css'], extraScripts: ['assets/js/admin-auth.js', 'assets/js/briefing-analytics.js', 'assets/js/admin.js'] });
 }
 
 const about = `

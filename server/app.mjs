@@ -22,6 +22,7 @@ import { createFridayWorkflow } from './friday-workflow.mjs';
 import { createReelWorkflow } from './reel-workflow.mjs';
 import { createHexclaveAuth } from './hexclave/auth.mjs';
 import { createHexclaveEmailService } from './hexclave/email.mjs';
+import { briefingEmail, prepareBriefing } from './briefing.mjs';
 const scrypt = promisify(scryptCallback);
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = x => createHash('sha256').update(x).digest('hex');
@@ -554,6 +555,37 @@ export function createApp(options = {}) {
       if(p==='/api/admin/status'){
         allow('GET','HEAD');if(!user)fail(401,'Please sign in.');
         return send(200,{user:{email:user.email||null,name:user.name||null},access:isAdmin,capabilities:{villas:isVillaAdmin,quotes:isQuoteAdmin,aiReview:isAiReviewAdmin,enquiries:isAdmin,newsletter:isAdmin,emailOutbox:isAdmin},setup:{emailConfigured:emailService.configured,commissionEmailConfigured:emailService.configured&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL||'')}});
+      }
+      if(p==='/api/admin/briefings'){
+        allow('GET','HEAD');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
+        const today=new Date().toISOString().slice(0,10), owners=store.listTripOwners(db), results=[];
+        for(const owner of owners){
+          const bookingRows=store.listRecords(db,owner.id,'bookings');
+          const ownerTrips=await trips.list(owner.id);
+          for(const row of ownerTrips){
+            const tripData=JSON.parse(row.data);
+            if(tripData.archived||tripData.claudeState?.archived)continue;
+            const briefing=prepareBriefing({tripId:row.id,tripData,bookingRows,recipient:owner.email,origin,now:new Date(`${today}T12:00:00Z`)});
+            if(briefing.departureDate&&briefing.daysBeforeDeparture>=0&&briefing.daysBeforeDeparture<=30)results.push({tripId:row.id,title:briefing.title,departureDate:briefing.departureDate,daysBeforeDeparture:briefing.daysBeforeDeparture,bookingCount:briefing.bookings.length,eligible:briefing.eligible,reason:briefing.eligible?'Confirmed date within 7 days':'A linked booking with a confirmed date is required, and sending is limited to 7 days before departure.'});
+          }
+        }
+        results.sort((a,b)=>a.departureDate.localeCompare(b.departureDate)||a.title.localeCompare(b.title));
+        return send(200,{briefings:results,emailConfigured:emailService.configured});
+      }
+      const briefingSend=p.match(/^\/api\/admin\/briefings\/([0-9a-f-]{36})\/send$/i);
+      if(briefingSend){
+        allow('POST');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
+        const tripId=briefingSend[1],owners=store.listTripOwners(db);let found=null;
+        for(const owner of owners){const row=await trips.find(tripId,owner.id);if(row){found={owner,row,bookingRows:store.listRecords(db,owner.id,'bookings')};break;}}
+        if(!found)fail(404,'This trip was not found.');
+        const requestId=typeof body.requestId==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(body.requestId)?body.requestId:'';
+        if(!requestId)fail(422,'A send request id is required.');
+        const briefing=prepareBriefing({tripId,tripData:JSON.parse(found.row.data),bookingRows:found.bookingRows,recipient:found.owner.email,origin});
+        if(!briefing.eligible)fail(409,'Only trips with a linked confirmed booking departing within 7 days can receive a briefing.');
+        if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(briefing.recipient))fail(409,'This traveller account has no deliverable email address.');
+        const row=await briefingEmail({dedupeKey:`briefing:${tripId}:${requestId}`,briefing,emailService});
+        if(row?.status!=='provider_accepted')fail(503,'Friday could not confirm the briefing email was accepted. Check the email outbox before trying again.');
+        return send(200,{sent:true,emailStatus:row.status,tripId,daysBeforeDeparture:briefing.daysBeforeDeparture,tripUrl:briefing.tripUrl});
       }
       if(p==='/api/admin/enquiries'){
         allow('GET','HEAD');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
