@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { createApp } from '../server/app.mjs';
-import { openStore, createUser, insertRecord } from '../server/store.mjs';
+import { openStore, createUser, insertRecord, createShare } from '../server/store.mjs';
 import { startApp, signUp, origin } from './helpers.mjs';
 import { createFakeVault, fakeKeys } from './fake-vault.mjs';
 import { createVaultClient, createVaultTripStore, VaultError, hashKey, encryptValue, decryptValue } from '../server/storage/hexclave-vault.mjs';
@@ -135,7 +134,7 @@ test('trip store: layout, index maintenance, tombstones, version check, isolatio
 
 /* ---- the app on the vault ---- */
 test('vault mode: trips CRUD through the API, 409 on stale versions, isolation, nothing in SQLite records', async t => {
-  const { request, fake, dbPath, vault } = await startVaultApp(t);
+  const { request, fake, db, vault } = await startVaultApp(t);
   const a = await signUp(request, 'A'), b = await signUp(request, 'B');
   const created = await request('/api/trips', 'POST', { data: trip() }, { cookie: a.cookie });
   assert.equal(created.status, 201); assert.equal(created.result.record.version, 1); assert.equal(created.result.record.kind, 'trips');
@@ -151,9 +150,7 @@ test('vault mode: trips CRUD through the API, 409 on stale versions, isolation, 
   assert.equal((await request('/api/trips/' + id, 'GET', undefined, { cookie: a.cookie })).result.record.data.title, 'Kyoto 2');
   // other kinds stay in SQLite
   assert.equal((await request('/api/places', 'POST', { data: { title: 'Garden' } }, { cookie: a.cookie })).status, 201);
-  const db = new DatabaseSync(dbPath);
-  assert.deepEqual(db.prepare('SELECT kind,count(*) AS n FROM records GROUP BY kind').all().map(r => ({ ...r })), [{ kind: 'places', n: 1 }]);
-  db.close();
+  assert.deepEqual((await db.all('SELECT kind,count(*) AS n FROM records GROUP BY kind')).map(r => ({ ...r })), [{ kind: 'places', n: 1 }]);
   assert.equal(fake.size, 2, "one trip record and one index in the vault");
   // delete: tombstone, index, 404 afterwards
   assert.equal((await request('/api/trips/' + id, 'DELETE', undefined, { cookie: a.cookie })).status, 200);
@@ -164,7 +161,7 @@ test('vault mode: trips CRUD through the API, 409 on stale versions, isolation, 
 });
 
 test('vault mode: shares for a vault trip work, expire, and are removed with the trip', async t => {
-  const { request, dbPath } = await startVaultApp(t);
+  const { request, db } = await startVaultApp(t);
   const a = await signUp(request, 'A'), b = await signUp(request, 'B');
   const id = (await request('/api/trips', 'POST', { data: trip() }, { cookie: a.cookie })).result.record.id;
   assert.equal((await request(`/api/trips/${id}/share`, 'POST', {}, { cookie: b.cookie })).status, 404, 'only the owner can share');
@@ -174,14 +171,14 @@ test('vault mode: shares for a vault trip work, expire, and are removed with the
   const shared = await request('/api/shared/' + token);
   assert.equal(shared.status, 200); assert.equal(shared.result.trip.title, 'Kyoto');
   const hashed = createHash('sha256').update(token).digest('hex');
-  let db = new DatabaseSync(dbPath); db.prepare('UPDATE shares SET expires=0 WHERE token_hash=?').run(hashed); db.close();
+  await db.query('UPDATE shares SET expires=0 WHERE token_hash=$1', [hashed]);
   assert.equal((await request('/api/shared/' + token)).status, 404, 'expired');
   const again = await request(`/api/trips/${id}/share`, 'POST', {}, { cookie: a.cookie });
   const token2 = new URL(again.result.share.url, 'http://x').searchParams.get('share');
   assert.equal((await request('/api/shared/' + token2)).status, 200);
   assert.equal((await request(`/api/trips/${id}`, 'DELETE', undefined, { cookie: a.cookie })).status, 200);
   assert.equal((await request('/api/shared/' + token2)).status, 404, 'a deleted trip is no longer shared');
-  db = new DatabaseSync(dbPath); assert.equal(db.prepare('SELECT count(*) AS n FROM shares').get().n, 0, 'share rows are deleted with the trip'); db.close();
+  assert.equal((await db.one('SELECT count(*) AS n FROM shares')).n, 0, 'share rows are deleted with the trip');
 });
 
 test('vault mode: research updates the vault trip and Google imports validate trips through the store', async t => {
@@ -196,8 +193,7 @@ test('vault mode: research updates the vault trip and Google imports validate tr
   assert.equal(saved.data.researchDraft.days[0].title, 'Gardens'); assert.equal(saved.version, 2);
   assert.ok(fake.size > 0);
   // Google: the trip check goes through the injected store function, not SQL
-  const db = new DatabaseSync(':memory:');
-  db.exec('CREATE TABLE users(id TEXT PRIMARY KEY);'); const g = createGoogleIntegration({ db, origin, clientId: 'c', clientSecret: 's', encryptionKey: 'ab'.repeat(32), findTripId: async (userId, tripId) => (userId === 'alice' && tripId === 'vault-trip' ? { id: tripId } : undefined), fetch: async () => { throw new Error('no network'); } });
+  const gdb = openStore({ memory: true }); t.after(() => gdb.close()); const g = createGoogleIntegration({ db: gdb, origin, clientId: 'c', clientSecret: 's', encryptionKey: 'ab'.repeat(32), findTripId: async (userId, tripId) => (userId === 'alice' && tripId === 'vault-trip' ? { id: tripId } : undefined), fetch: async () => { throw new Error('no network'); } });
   const missing = await g({ path: '/api/integrations/google/sync', method: 'POST', body: { kind: 'gmail', tripId: 'nope' }, user: { id: 'alice' }, url: new URL(origin + '/api/integrations/google/sync') });
   assert.equal(missing.status, 404);
 });
@@ -227,49 +223,49 @@ test('trip storage configuration: sqlite by default, hexclave needs its keys at 
   assert.throws(() => resolveTripStorage({ TRIP_STORAGE: 'postgres' }), /TRIP_STORAGE must be/);
   for (const missing of Object.keys(fakeKeys).filter(k => k !== 'HEXCLAVE_VAULT_STORE')) {
     const env = { TRIP_STORAGE: 'hexclave', ...fakeKeys, [missing]: '' };
-    assert.throws(() => createApp({ dbPath: ':memory:', origin, env }), e => e.message.includes(missing) && secrets.every(s => !e.message.includes(s)), missing);
+    assert.throws(() => createApp({ memory: true, origin, env }), e => e.message.includes(missing) && secrets.every(s => !e.message.includes(s)), missing);
   }
-  assert.throws(() => createApp({ dbPath: ':memory:', origin, env: { TRIP_STORAGE: 'hexclave', ...fakeKeys, HEXCLAVE_VAULT_STORE: 'bad/store' }, vaultFetch: createFakeVault().fetch }), /HEXCLAVE_VAULT_STORE/);
+  assert.throws(() => createApp({ memory: true, origin, env: { TRIP_STORAGE: 'hexclave', ...fakeKeys, HEXCLAVE_VAULT_STORE: 'bad/store' }, vaultFetch: createFakeVault().fetch }), /HEXCLAVE_VAULT_STORE/);
   // keys without TRIP_STORAGE: trips stay in SQLite and the vault is never called
   const fake = createFakeVault();
-  const { request, dbPath } = await startApp(t, { env: { ...fakeKeys }, vaultFetch: fake.fetch });
+  const { request, db } = await startApp(t, { env: { ...fakeKeys }, vaultFetch: fake.fetch });
   const a = await signUp(request, 'A');
   assert.equal((await request('/api/trips', 'POST', { data: trip() }, { cookie: a.cookie })).status, 201);
   assert.equal(fake.requests.length, 0);
-  const db = new DatabaseSync(dbPath); assert.equal(db.prepare("SELECT count(*) AS n FROM records WHERE kind='trips'").get().n, 1); db.close();
+  assert.equal((await db.one("SELECT count(*) AS n FROM records WHERE kind='trips'")).n, 1);
 });
 
-test('opening an existing database in vault mode drops the shares foreign key once and keeps share rows', async t => {
-  const file = `${(await import('node:os')).tmpdir()}/friday-fk-${process.pid}-${Date.now()}.sqlite`;
-  t.after(async () => { for (const s of ['', '-wal', '-shm']) await (await import('node:fs/promises')).rm(file + s, { force: true }); });
-  let db = openStore(file);   // classic schema, with the foreign key
-  createUser(db, { id: 'u1', email: 'u@x.co', name: 'U', password: 'p' });
-  insertRecord(db, { id: 'tr1', userId: 'u1', kind: 'trips', data: '{"title":"T"}', updated: 'x' });
-  db.prepare('INSERT INTO shares VALUES(?,?,?,?,?)').run('h1', 'u1', 'tr1', 9e15, 'x');
-  assert.throws(() => db.prepare('INSERT INTO shares VALUES(?,?,?,?,?)').run('h2', 'u1', 'in-vault', 9e15, 'x'), /FOREIGN KEY/);
-  db.close();
-  for (let i = 0; i < 2; i++) {   // twice: the rebuild is idempotent
-    db = openStore(file, { tripsInVault: true });
-    assert.equal(db.prepare('SELECT count(*) AS n FROM shares').get().n, 1);
-    db.close();
-  }
-  db = openStore(file, { tripsInVault: true });
-  db.prepare('INSERT INTO shares VALUES(?,?,?,?,?)').run('h2', 'u1', 'in-vault', 9e15, 'x');
-  assert.equal(db.prepare("SELECT count(*) AS n FROM pragma_foreign_key_list('shares') WHERE \"table\"='records'").get().n, 0);
-  assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='shares_trip_owner'").get());
-  db.close();
+test('the shares table has a foreign key to records only when trips live in SQL storage', async t => {
+  const shape = async (tripsInVault) => {
+    const db = openStore({ memory: true, tripsInVault });
+    t.after(() => db.close());
+    await createUser(db, { id: 'u1', email: 'u@x.co', name: 'U', password: 'p' });
+    await insertRecord(db, { id: 'tr1', userId: 'u1', kind: 'trips', data: '{"title":"T"}', updated: 'x' });
+    await createShare(db, { tokenHash: 'h1', userId: 'u1', tripId: 'tr1', expires: 9e15, created: 'x' });
+    const fks = await db.all("SELECT confrelid::regclass::text AS target FROM pg_constraint WHERE contype='f' AND conrelid='shares'::regclass");
+    assert.equal((await db.one('SELECT expires FROM shares WHERE token_hash=$1', ['h1'])).expires, 9e15, 'BIGINT epoch values come back as numbers');
+    assert.ok(await db.one("SELECT 1 FROM pg_indexes WHERE indexname='shares_trip_owner'"));
+    return { db, targets: fks.map(r => r.target).sort() };
+  };
+  const classic = await shape(false);
+  assert.deepEqual(classic.targets, ['records', 'users']);
+  await assert.rejects(createShare(classic.db, { tokenHash: 'h2', userId: 'u1', tripId: 'in-vault', expires: 9e15, created: 'x' }), /foreign key/i);
+  const vaulted = await shape(true);
+  assert.deepEqual(vaulted.targets, ['users']);
+  await createShare(vaulted.db, { tokenHash: 'h2', userId: 'u1', tripId: 'in-vault', expires: 9e15, created: 'x' });
+  assert.equal((await vaulted.db.one('SELECT count(*) AS n FROM shares')).n, 2);
 });
 
 /* ---- one-time copy tool ---- */
-test('copy tool: dry run writes nothing, --apply copies once, keeps ids/versions/owners, never touches SQLite', async () => {
-  const db = openStore(':memory:');
-  createUser(db, { id: 'u1', email: 'u1@x.co', name: 'U1', password: 'p' }); createUser(db, { id: 'u2', email: 'u2@x.co', name: 'U2', password: 'p' });
-  insertRecord(db, { id: 'a1', userId: 'u1', kind: 'trips', data: '{"title":"A1"}', updated: '2026-01-01T00:00:00.000Z' });
-  insertRecord(db, { id: 'a2', userId: 'u1', kind: 'trips', data: '{"title":"A2"}', updated: '2026-01-02T00:00:00.000Z' });
-  insertRecord(db, { id: 'b1', userId: 'u2', kind: 'trips', data: '{"title":"B1"}', updated: '2026-01-03T00:00:00.000Z' });
-  insertRecord(db, { id: 'p1', userId: 'u1', kind: 'places', data: '{"title":"Place"}', updated: '2026-01-04T00:00:00.000Z' });
-  db.prepare("UPDATE records SET version=5 WHERE id='a1'").run();
-  const before = JSON.stringify(db.prepare('SELECT * FROM records ORDER BY id').all());
+test('copy tool: dry run writes nothing, --apply copies once, keeps ids/versions/owners, never touches the source rows', async (t) => {
+  const db = openStore({ memory: true }); t.after(() => db.close());
+  await createUser(db, { id: 'u1', email: 'u1@x.co', name: 'U1', password: 'p' }); await createUser(db, { id: 'u2', email: 'u2@x.co', name: 'U2', password: 'p' });
+  await insertRecord(db, { id: 'a1', userId: 'u1', kind: 'trips', data: '{"title":"A1"}', updated: '2026-01-01T00:00:00.000Z' });
+  await insertRecord(db, { id: 'a2', userId: 'u1', kind: 'trips', data: '{"title":"A2"}', updated: '2026-01-02T00:00:00.000Z' });
+  await insertRecord(db, { id: 'b1', userId: 'u2', kind: 'trips', data: '{"title":"B1"}', updated: '2026-01-03T00:00:00.000Z' });
+  await insertRecord(db, { id: 'p1', userId: 'u1', kind: 'places', data: '{"title":"Place"}', updated: '2026-01-04T00:00:00.000Z' });
+  await db.query("UPDATE records SET version=5 WHERE id='a1'");
+  const before = JSON.stringify(await db.all('SELECT * FROM records ORDER BY id'));
   const fake = createFakeVault(), vaultTrips = createVaultTripStore({ vault: clientFor(fake) });
   assert.deepEqual(await copyTrips({ db, vaultTrips }), { found: 3, copied: 0, wouldCopy: 3, alreadyInVault: 0, failed: 0 });
   assert.equal(fake.requests.some(r => r.url.endsWith('/set')), false, 'dry run does not write');
@@ -278,8 +274,8 @@ test('copy tool: dry run writes nothing, --apply copies once, keeps ids/versions
   const a1 = await vaultTrips.find('a1', 'u1');
   assert.deepEqual({ ...a1 }, { id: 'a1', user_id: 'u1', kind: 'trips', data: '{"title":"A1"}', version: 5, updated: '2026-01-01T00:00:00.000Z' });
   assert.deepEqual((await vaultTrips.list('u1')).map(r => r.id), ['a2', 'a1']); assert.deepEqual((await vaultTrips.list('u2')).map(r => r.id), ['b1']);
-  assert.equal(JSON.stringify(db.prepare('SELECT * FROM records ORDER BY id').all()), before, 'SQLite is untouched');
+  assert.equal(JSON.stringify(await db.all('SELECT * FROM records ORDER BY id')), before, 'the source rows are untouched');
   fake.failures.push({ network: true }, { network: true }, { network: true });
   const failed = await copyTrips({ db, vaultTrips: createVaultTripStore({ vault: clientFor(createFakeVault(), { fetch: async () => { throw new TypeError('x'); } }) }), apply: true });
-  assert.equal(failed.failed, 3); db.close();
+  assert.equal(failed.failed, 3);
 });

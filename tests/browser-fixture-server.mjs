@@ -28,7 +28,7 @@ const fixtureResearch = async (input, _config, progress) => {
 };
 
 const server = createApp({
-  dbPath: path.join(directory, 'fixture.sqlite'),
+  memory: true,
   origin,
   ai: { provider: 'claude', apiKey: 'fixture-only', model: 'fixture-only', deepModel: 'fixture-only' },
   research: fixtureResearch,

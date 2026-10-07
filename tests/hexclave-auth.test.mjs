@@ -2,10 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomBytes, randomUUID, scrypt as scryptCallback } from 'node:crypto';
 import { promisify } from 'node:util';
-import { mkdtemp, rm } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { createHexclaveAuth } from '../server/hexclave/auth.mjs';
 import { createApp } from '../server/app.mjs';
 import * as store from '../server/store.mjs';
@@ -27,17 +23,7 @@ test('Hexclave server adapter verifies the request and carries verified email an
 });
 
 async function start(t,{legacy=false}={}) {
-  const dir=await mkdtemp(path.join(os.tmpdir(),'friday-hex-auth-'));
-  const dbPath=path.join(dir,'db.sqlite');
-  if(legacy){
-    const db=store.openStore(dbPath);
-    const password='legacy Friday password 123';
-    const salt=randomBytes(16).toString('hex'),key=(await scrypt(password,salt,64)).toString('hex');
-    store.createUser(db,{id:'legacy-owner',email:'legacy@example.com',name:'Legacy owner',password:`${salt}:${key}`});
-    store.insertRecord(db,{id:'legacy-trip',userId:'legacy-owner',kind:'trips',data:JSON.stringify({title:'Saved trip'}),updated:new Date().toISOString()});
-    db.close();
-  }
-  const server=createApp({dbPath,origin:appOrigin,env:{NODE_ENV:'production',APP_ORIGIN:appOrigin,AUTH_PROVIDER:'hexclave',HEXCLAVE_PROJECT_ID:projectId,HEXCLAVE_SECRET_SERVER_KEY:secretServerKey,AI_REVIEW_ADMIN_EMAILS:'reviewer@example.com'},hexclaveAuth:{configured:true,projectId,currentUser:async req=>{
+  const server=createApp({memory:true,origin:appOrigin,env:{NODE_ENV:'production',APP_ORIGIN:appOrigin,AUTH_PROVIDER:'hexclave',HEXCLAVE_PROJECT_ID:projectId,HEXCLAVE_SECRET_SERVER_KEY:secretServerKey,AI_REVIEW_ADMIN_EMAILS:'reviewer@example.com'},hexclaveAuth:{configured:true,projectId,currentUser:async req=>{
     const value=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');
     if(value==='revoked'||!value)return null;
     if(value==='restricted')return{id:'restricted-owner',email:'pending@example.com',name:'Pending user',emailVerified:false,restricted:true,restrictedReason:'email_not_verified'};
@@ -45,14 +31,20 @@ async function start(t,{legacy=false}={}) {
     if(value==='reviewer')return{id:'reviewer-hex-id',email:'reviewer@example.com',name:'Review',emailVerified:true,restricted:false};
     return{id:'owner-'+value,email:value+'@example.com',name:value,emailVerified:true,restricted:false};
   }}});
+  if(legacy){
+    const password='legacy Friday password 123';
+    const salt=randomBytes(16).toString('hex'),key=(await scrypt(password,salt,64)).toString('hex');
+    await store.createUser(server.db,{id:'legacy-owner',email:'legacy@example.com',name:'Legacy owner',password:`${salt}:${key}`});
+    await store.insertRecord(server.db,{id:'legacy-trip',userId:'legacy-owner',kind:'trips',data:JSON.stringify({title:'Saved trip'}),updated:new Date().toISOString()});
+  }
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
   const request=async(url,method='GET',data,token='',extraHeaders={})=>{
     const res=await fetch(base+url,{method,headers:{...(data!==undefined?{'Content-Type':'application/json',Origin:appOrigin}:{}),...(token?{Authorization:`Bearer ${token}`}:{}) ,...extraHeaders},body:data===undefined?undefined:JSON.stringify(data)});
     const result=(res.headers.get('content-type')||'').includes('json')?await res.json():await res.text();return{status:res.status,result};
   };
-  t.after(async()=>{await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});});
-  return{request,dbPath};
+  t.after(async()=>{await new Promise(resolve=>server.close(resolve));});
+  return{request,db:server.db};
 }
 
 test('Hexclave tokens are rechecked, restricted users stay outside private APIs, and review stays owner-scoped',async t=>{
@@ -92,13 +84,11 @@ test('enforced itinerary queries require an owner and saved results can only be 
 });
 
 test('legacy Friday data only links after the existing password is proved',async t=>{
-  const {request,dbPath}=await start(t,{legacy:true});
+  const {request,db}=await start(t,{legacy:true});
   assert.equal((await request('/api/auth/me','GET',undefined,'legacy')).result.legacyAccountAvailable,true);
   assert.equal((await request('/api/auth/link-legacy','POST',{password:'wrong'},'legacy')).status,401);
   const linked=await request('/api/auth/link-legacy','POST',{password:'legacy Friday password 123'},'legacy');
   assert.equal(linked.status,200);assert.equal(linked.result.user.id,'legacy-owner');
   assert.equal((await request('/api/trips','GET',undefined,'legacy')).result.records[0].data.title,'Saved trip');
-  const db=new DatabaseSync(dbPath);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM hexclave_identities').get().n,1);
-  db.close();
+  assert.equal((await db.one('SELECT COUNT(*) AS n FROM hexclave_identities')).n,1);
 });

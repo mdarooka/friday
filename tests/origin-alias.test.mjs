@@ -20,6 +20,6 @@ test('production CSRF accepts canonical and explicitly configured deployment ori
 
 test('trusted production origins must be exact bare origins', async () => {
   assert.throws(() => {
-    createApp({ dbPath: ':memory:', env: { NODE_ENV: 'production', APP_ORIGIN: 'https://fridaytravel.vercel.app', APP_ORIGIN_ALIASES: 'https://trusted.example/path' } });
+    createApp({ memory: true, env: { NODE_ENV: 'production', APP_ORIGIN: 'https://fridaytravel.vercel.app', APP_ORIGIN_ALIASES: 'https://trusted.example/path' } });
   }, /bare origins/);
 });

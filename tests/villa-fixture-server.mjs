@@ -1,4 +1,4 @@
-/* Disposable, clearly synthetic demo for a browser QA session. Uses a temp SQLite file and fake Google/AI providers. */
+/* Disposable, clearly synthetic demo for a browser QA session. Uses a temp PGlite directory and fake Google/AI providers. */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
 import os from 'node:os';
@@ -8,13 +8,13 @@ import { createApp } from '../server/app.mjs';
 import { openStore, closeStore, createUser, findUserByEmail, insertVilla } from '../server/store.mjs';
 
 const dir = await mkdtemp(path.join(os.tmpdir(), 'friday-villa-qa-'));
-const dbPath = path.join(dir, 'villa-demo.sqlite');
+const dbPath = path.join(dir, 'villa-demo-pglite');
 const email = 'villa-admin@example.test';
 const password = 'Friday-Villa-QA-Only-2026';
 const salt = randomBytes(16).toString('hex');
-const db = openStore(dbPath);
-createUser(db, { id: randomUUID(), email, name: 'QA Villa Admin', password: `${salt}:${scryptSync(password, salt, 64).toString('hex')}` });
-const owner = findUserByEmail(db, email);
+const db = openStore({ dataDir: dbPath });
+await createUser(db, { id: randomUUID(), email, name: 'QA Villa Admin', password: `${salt}:${scryptSync(password, salt, 64).toString('hex')}` });
+const owner = await findUserByEmail(db, email);
 const created = new Date().toISOString();
 const villaData = {
   name: 'QA Villa · Synthetic Demo', description: 'A fixture-only stay used for browser QA. This is not a real property.', city: 'Alibaug', address: 'Synthetic demo coordinates',
@@ -25,8 +25,8 @@ const villaData = {
     { id: 'fixture-table', name: 'QA Table · Synthetic', description: 'Fixture-only host-curated restaurant.', lat: 18.642, lng: 72.874, category: 'restaurants', mapsUrl: 'https://maps.google.com/?q=QA+Table' },
   ],
 };
-insertVilla(db, { id: '12345678-1234-4abc-8abc-123456789abc', ownerId: owner.id, status: 'published', data: JSON.stringify(villaData), created, updated: created });
-closeStore(db);
+await insertVilla(db, { id: '12345678-1234-4abc-8abc-123456789abc', ownerId: owner.id, status: 'published', data: JSON.stringify(villaData), created, updated: created });
+await closeStore(db);
 
 const fixturePlace = (id, title, lat, lng) => ({ id, googlePlaceId: id, title, address: `${title} · QA fixture`, url: `https://maps.google.com/?q=${encodeURIComponent(title)}`, sourceUrl: `https://maps.google.com/?q=${encodeURIComponent(title)}`, location: { latitude: lat, longitude: lng }, rating: 4.8 });
 const demoPlaces = Object.assign(async () => null, {
@@ -43,7 +43,7 @@ const demoResearch = async ({ prompt }) => {
   return { text: JSON.stringify({ days: Array.from({ length: requestedDays }, (_, index) => ({ stops: ids[index] ? [ids[index]] : [] })) }) };
 };
 const server = createApp({
-  root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), dbPath,
+  root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), dataDir: dbPath,
   env: { ITINERARY_PROVIDER: 'local', AUTH_REQUIRED: 'false', VILLA_ADMIN_EMAILS: email, GOOGLE_PLACES_API_KEY: 'fixture-only-key', ANTHROPIC_API_KEY: 'fixture-only-key', AI_MODEL: 'fixture-only-model' },
   places: demoPlaces, ai: { apiKey: 'fixture-only-key', model: 'fixture-only-model', provider: 'claude' }, villaResearch: demoResearch,
 });

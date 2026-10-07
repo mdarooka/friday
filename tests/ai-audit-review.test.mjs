@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DatabaseSync } from 'node:sqlite';
 import { startApp, signUp } from './helpers.mjs';
 
 test('AI conversation events are owner-scoped, replayable, and review access is allowlisted', async t => {
@@ -53,7 +52,7 @@ test('AI conversation events are owner-scoped, replayable, and review access is 
 });
 
 test('AI conversation review pagination keeps equal-time events with reused IDs across owners and conversations', async t => {
-  const { request, dbPath } = await startApp(t, {
+  const { request, db } = await startApp(t, {
     env: { AUTH_REQUIRED: 'true', AI_REVIEW_ADMIN_EMAILS: 'pagereviewer@example.com' }
   });
   const owner = await signUp(request, 'PageOwner');
@@ -68,9 +67,7 @@ test('AI conversation review pagination keeps equal-time events with reused IDs 
   ]) assert.equal((await postEvent(cookie, ownerId, conversationId)).status, 200);
 
   // Force a tie so paging must use stable owner/conversation tie breakers beyond event ID.
-  const db = new DatabaseSync(dbPath);
-  db.prepare('UPDATE ai_conversation_events SET created=?').run('2026-10-06T12:00:00.000Z');
-  db.close();
+  await db.query('UPDATE ai_conversation_events SET created=$1', ['2026-10-06T12:00:00.000Z']);
 
   assert.equal((await request('/api/admin/ai-conversations?conversationId=bad%2Fid', 'GET', undefined, { cookie: reviewer.cookie })).status, 422);
   const first = await request('/api/admin/ai-conversations?limit=2', 'GET', undefined, { cookie: reviewer.cookie });

@@ -24,15 +24,15 @@ export function resolveTripStorage(env = process.env) {
 function sqliteTripStore(db) {
   return {
     mode: 'sqlite',
-    find: async (id, userId) => store.findRecord(db, id, userId, 'trips'),
-    findId: async (id, userId) => store.findTripId(db, id, userId),
-    list: async userId => store.listRecords(db, userId, 'trips'),
-    insert: async ({ id, userId, data, updated }) => { store.insertRecord(db, { id, userId, kind: 'trips', data, updated }); },
-    updateIfVersion: async ({ id, userId, data, updated, version }) => store.updateRecordIfVersion(db, { id, userId, kind: 'trips', data, updated, version }),
-    overwrite: async ({ id, userId, data, updated }) => store.overwriteRecord(db, { id, userId, data, updated }).changes,
-    delete: async (id, userId) => store.deleteRecord(db, id, userId, 'trips').changes,
+    find: async (id, userId) => await store.findRecord(db, id, userId, 'trips'),
+    findId: async (id, userId) => await store.findTripId(db, id, userId),
+    list: async userId => await store.listRecords(db, userId, 'trips'),
+    insert: async ({ id, userId, data, updated }) => { await store.insertRecord(db, { id, userId, kind: 'trips', data, updated }); },
+    updateIfVersion: async ({ id, userId, data, updated, version }) => await store.updateRecordIfVersion(db, { id, userId, kind: 'trips', data, updated, version }),
+    overwrite: async ({ id, userId, data, updated }) => (await store.overwriteRecord(db, { id, userId, data, updated })).changes,
+    delete: async (id, userId) => (await store.deleteRecord(db, id, userId, 'trips')).changes,
     /* A shared link's trip: { trip_id, expires, data } or undefined. */
-    findShare: async tokenHash => store.findShare(db, tokenHash)
+    findShare: async tokenHash => await store.findShare(db, tokenHash)
   };
 }
 
@@ -43,7 +43,7 @@ function vaultTripStore(db, vault) {
     mode: 'hexclave',
     // The share row lives in SQLite; the trip it points at lives in the vault and is looked up under the share's owner.
     async findShare(tokenHash) {
-      const share = store.findShareLink(db, tokenHash);
+      const share = await store.findShareLink(db, tokenHash);
       if (!share) return undefined;
       const trip = await trips.find(share.trip_id, share.user_id);
       return trip ? { trip_id: share.trip_id, expires: share.expires, data: trip.data } : undefined;

@@ -1,24 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { createApp } from '../server/app.mjs';
 import { vaultModeOptions } from './fake-vault.mjs';
 const origin='http://localhost:4871';
 async function fixture(t,options={}) {
-  const dir=await mkdtemp(path.join(os.tmpdir(),'friday-test-'));
-  const server=createApp({dbPath:path.join(dir,'db.sqlite'),origin,...options,...vaultModeOptions(options)});
+  const server=createApp({memory:true,origin,...options,...vaultModeOptions(options)});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
-  t.after(async()=>{await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});});
+  t.after(async()=>{await new Promise(resolve=>server.close(resolve));});
   const request=async(url,method='GET',data,cookie='',headers={},redirect='follow')=>{
     const res=await fetch(base+url,{method,redirect,headers:{...(data?{'Content-Type':'application/json',Origin:origin}:{}),Cookie:cookie,...headers},body:data?JSON.stringify(data):undefined});
     const result=(res.headers.get('content-type')||'').includes('application/json')?await res.json():await res.text();
     return {status:res.status,result,cookie:res.headers.get('set-cookie')?.split(';')[0],headers:res.headers};
-  };request.dbPath=path.join(dir,'db.sqlite');return request;
+  };request.db=server.db;return request;
 }
 async function signup(request,name='A') {
   const res=await request('/api/auth/signup','POST',{name,email:`${name}@example.com`,password:'long test password 123'});
@@ -110,7 +105,7 @@ test('profile edits preserve airport removals and enquiries persist',async t=>{
   await request('/api/profile','PATCH',{city:'San Francisco'},a.cookie);
   assert.deepEqual((await request('/api/auth/me','GET',undefined,a.cookie)).result.user.profile.airports,['SFO']);
   assert.equal((await request('/api/commissions','POST',{name:'A',email:'a@example.com',message:'A thoughtful trip'})).status,201);
-  const db=new DatabaseSync(request.dbPath);assert.equal(db.prepare('SELECT count(*) AS n FROM enquiries').get().n,1);db.close();
+  assert.equal((await request.db.one('SELECT count(*) AS n FROM enquiries')).n,1);
 });
 test('trip sharing is explicit, read-only, sanitized, owner-controlled, revocable, and expires',async t=>{
   const request=await fixture(t),a=await signup(request,'ShareOwner'),b=await signup(request,'ShareOther');
@@ -122,9 +117,9 @@ test('trip sharing is explicit, read-only, sanitized, owner-controlled, revocabl
   assert.deepEqual(shared.result.trip,{title:'Kyoto',destination:'Japan',startDate:'2026-11-01',endDate:'2026-11-03',days:[{title:'Temple',date:'2026-11-01',notes:'Walk slowly',items:[{title:'Garden',time:'10:00',notes:'',address:'',url:'https://example.com/',openingHours:'',rating:'',reviews:'',photos:[]}]}]});
   assert.equal(JSON.stringify(shared.result).includes('private'),false);assert.equal(JSON.stringify(shared.result).includes('secret'),false);
   assert.equal((await request('/api/trips/'+trip.id+'/share','DELETE',{},b.cookie)).status,404);
-  const db=new DatabaseSync(request.dbPath),tokenHash=createHash('sha256').update(token).digest('hex');
-  assert.equal(db.prepare('SELECT count(*) AS n FROM shares WHERE token_hash=?').get(token).n,0);
-  db.prepare('UPDATE shares SET expires=0 WHERE token_hash=?').run(tokenHash);db.close();
+  const tokenHash=createHash('sha256').update(token).digest('hex');
+  assert.equal((await request.db.one('SELECT count(*) AS n FROM shares WHERE token_hash=$1',[token])).n,0);
+  await request.db.query('UPDATE shares SET expires=0 WHERE token_hash=$1',[tokenHash]);
   assert.equal((await request('/api/shared/'+token)).status,404);
   const replacement=await request('/api/trips/'+trip.id+'/share','POST',{},a.cookie);const nextToken=new URL(replacement.result.share.url,'http://localhost').searchParams.get('share');
   assert.equal((await request('/api/trips/'+trip.id+'/share','DELETE',{},a.cookie)).status,200);
@@ -145,8 +140,7 @@ test('trip share previews are server-rendered and share use is counted in SQLite
   assert.equal(human.result.includes('PRIVATE conversation'),false);
   const bot=await request('/app.html?share='+token,'GET',undefined,'',{'User-Agent':'WhatsApp/2.24.1'});assert.equal(bot.status,200);
   assert.equal((await request('/api/shared/'+token+'/whatsapp-click','POST',{},'')).status,200);
-  const db=new DatabaseSync(request.dbPath);
-  const counts=Object.fromEntries(db.prepare('SELECT event_type,count(*) AS n FROM trip_share_events GROUP BY event_type').all().map(row=>[row.event_type,row.n]));db.close();
+  const counts=Object.fromEntries((await request.db.all('SELECT event_type,count(*) AS n FROM trip_share_events GROUP BY event_type')).map(row=>[row.event_type,row.n]));
   assert.equal(counts.trip_share_link_created,1);assert.equal(counts.trip_share_link_opened,1);assert.equal(counts.trip_share_preview_bot,1);assert.equal(counts.trip_share_whatsapp_clicked,1);
   const plainTrip=(await request('/api/trips','POST',{data:{title:'No cover',destination:'India',days:[]}},owner.cookie)).result.record;
   const plainShare=await request('/api/trips/'+plainTrip.id+'/share','POST',{},owner.cookie),plainToken=new URL(plainShare.result.share.url,origin).searchParams.get('share');

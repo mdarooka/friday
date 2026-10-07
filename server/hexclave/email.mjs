@@ -19,7 +19,7 @@ export function createHexclaveEmailService({ db, store, env = process.env, fetch
     if (!configured) return row;
     const dedupeKey = row.dedupe_key;
     const attemptedAt = new Date().toISOString();
-    if (!store.claimEmailOutbox(db, dedupeKey, attemptedAt, includeBlocked)) return store.getEmailOutboxByKey(db, dedupeKey);
+    if (!await store.claimEmailOutbox(db, dedupeKey, attemptedAt, includeBlocked)) return await store.getEmailOutboxByKey(db, dedupeKey);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
@@ -41,18 +41,18 @@ export function createHexclaveEmailService({ db, store, env = process.env, fetch
         }),
       });
       if (!response.ok) throw new Error(`Hexclave email endpoint returned ${response.status}`);
-      store.setEmailOutboxStatus(db, dedupeKey, 'provider_accepted', new Date().toISOString());
+      await store.setEmailOutboxStatus(db, dedupeKey, 'provider_accepted', new Date().toISOString());
     } catch {
       // Even a timeout or provider error may follow acceptance. Never retry automatically.
-      store.setEmailOutboxStatus(db, dedupeKey, 'delivery_unknown', new Date().toISOString());
+      await store.setEmailOutboxStatus(db, dedupeKey, 'delivery_unknown', new Date().toISOString());
     } finally { clearTimeout(timeout); }
-    return store.getEmailOutboxByKey(db, dedupeKey);
+    return await store.getEmailOutboxByKey(db, dedupeKey);
   }
 
   async function send({ dedupeKey, kind, to, subject, html, text = '' }) {
     if (!dedupeKey || !kind || !to || !subject || !html) throw new TypeError('A dedupe key, recipient, subject and body are required.');
     const now = new Date().toISOString();
-    const record = store.createEmailOutbox(db, {
+    const record = await store.createEmailOutbox(db, {
       id: dedupeKey,
       dedupeKey,
       kind,
@@ -63,26 +63,26 @@ export function createHexclaveEmailService({ db, store, env = process.env, fetch
       created: now,
       updated: now,
     });
-    const row = store.getEmailOutboxByKey(db, dedupeKey);
+    const row = await store.getEmailOutboxByKey(db, dedupeKey);
     if (record.changes === 0 || !configured) return row;
     return deliver(row);
   }
 
-  function queueUnaddressed({ dedupeKey, kind, subject, html, text = '' }) {
+  async function queueUnaddressed({ dedupeKey, kind, subject, html, text = '' }) {
     const now = new Date().toISOString();
-    store.createEmailOutbox(db, { id: dedupeKey, dedupeKey, kind, recipient: '', subject, content: JSON.stringify({ html, text }), status: 'blocked', created: now, updated: now });
-    return store.getEmailOutboxByKey(db, dedupeKey);
+    await store.createEmailOutbox(db, { id: dedupeKey, dedupeKey, kind, recipient: '', subject, content: JSON.stringify({ html, text }), status: 'blocked', created: now, updated: now });
+    return await store.getEmailOutboxByKey(db, dedupeKey);
   }
 
   async function drainPending({ limit = 100 } = {}) {
     if (!configured) throw new Error('Hexclave email delivery is not configured.');
-    const rows = store.listPendingEmailOutbox(db, limit);
-    const results = await Promise.all(rows.map(row => {
+    const rows = await store.listPendingEmailOutbox(db, limit);
+    const results = await Promise.all(rows.map(async row => {
       if (row.kind === 'commission_notification' && !row.recipient) {
         const recipient = String(env.FRIDAY_ENQUIRY_EMAIL || '').trim().toLowerCase();
         if (!validAddress(recipient)) return row;
-        store.setEmailOutboxRecipient(db, row.dedupe_key, recipient, new Date().toISOString());
-        row = store.getEmailOutboxByKey(db, row.dedupe_key);
+        await store.setEmailOutboxRecipient(db, row.dedupe_key, recipient, new Date().toISOString());
+        row = await store.getEmailOutboxByKey(db, row.dedupe_key);
       }
       if (!validAddress(row.recipient)) return row;
       return deliver(row, true);

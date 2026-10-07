@@ -1,22 +1,17 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import { createApp } from '../server/app.mjs';
 import { vaultModeOptions } from './fake-vault.mjs';
 
 export const origin = 'http://localhost:4871';
 
 /**
- * Start the app on a random port with a temp database. `env` replaces process.env for the app, so tests never depend on
- * the machine's configuration. Returns { base, request, server, dbPath }; cleanup is registered on `t`.
+ * Start the app on a random port with a in-memory PostgreSQL (PGlite) database, one per app. `env` replaces process.env for the app, so tests never depend on
+ * the machine's configuration. Returns { base, request, server, db }; cleanup is registered on `t`.
  */
 export async function startApp(t, { env = {}, ...options } = {}) {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'friday-test-'));
-  const dbPath = path.join(dir, 'db.sqlite');
-  const server = createApp({ dbPath, origin, env: { ITINERARY_PROVIDER: 'local', ...env }, ...options, ...vaultModeOptions({ ...options, env: { ITINERARY_PROVIDER: 'local', ...env } }) });
+  const server = createApp({ memory: true, origin, env: { ITINERARY_PROVIDER: 'local', ...env }, ...options, ...vaultModeOptions({ ...options, env: { ITINERARY_PROVIDER: 'local', ...env } }) });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
-  t.after(async () => { await new Promise((resolve) => server.close(resolve)); await rm(dir, { recursive: true, force: true }); });
+  t.after(async () => { await new Promise((resolve) => server.close(resolve)); });
   /* JSON request; POSTs carry the app's own Origin unless `headers.Origin` says otherwise. */
   const request = async (url, method = 'GET', data, { cookie = '', headers = {}, raw } = {}) => {
     const post = method !== 'GET' && method !== 'HEAD';
@@ -29,7 +24,7 @@ export async function startApp(t, { env = {}, ...options } = {}) {
     const result = type.includes('json') ? await res.json() : await res.text();
     return { status: res.status, result, headers: res.headers, cookie: res.headers.get('set-cookie')?.split(';')[0] };
   };
-  return { base, request, server, dbPath };
+  return { base, request, server, db: server.db };
 }
 
 export async function signUp(request, name = 'A', extra = {}) {

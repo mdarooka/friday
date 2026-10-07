@@ -9,13 +9,13 @@ import { startApp } from './helpers.mjs';
 const config = { HEXCLAVE_PROJECT_ID: 'project-test', HEXCLAVE_SECRET_SERVER_KEY: 'server-secret-test' };
 
 test('Hexclave email service stores the outbox before send and never repeats a sent message', async t => {
-  const db = openStore(':memory:');
+  const db = openStore({ memory: true });
   t.after(() => db.close());
   let sends = 0;
   const email = createHexclaveEmailService({ db, store, env: config, fetch: async (url, options) => {
     sends++;
     assert.equal(url, 'https://api.hexclave.com/api/v1/emails/send-email');
-    assert.equal(db.prepare('SELECT status FROM email_outbox WHERE dedupe_key=?').get('test:receipt').status, 'sending');
+    assert.equal((await db.one('SELECT status FROM email_outbox WHERE dedupe_key=$1', ['test:receipt'])).status, 'sending');
     assert.equal(options.headers['X-Hexclave-Secret-Server-Key'], config.HEXCLAVE_SECRET_SERVER_KEY);
     const body = JSON.parse(options.body);
     assert.deepEqual(body.emails, ['traveler@example.com']);
@@ -31,7 +31,7 @@ test('Hexclave email service stores the outbox before send and never repeats a s
 });
 
 test('ambiguous Hexclave delivery is stored as unknown and is not blindly retried', async t => {
-  const db = openStore(':memory:');
+  const db = openStore({ memory: true });
   t.after(() => db.close());
   let sends = 0;
   const email = createHexclaveEmailService({ db, store, env: config, fetch: async () => { sends++; throw new Error('socket closed after write'); } });
@@ -42,12 +42,12 @@ test('ambiguous Hexclave delivery is stored as unknown and is not blindly retrie
 });
 
 test('explicit drain rehydrates blocked messages after configuration and concurrent drains claim only once', async t => {
-  const db = openStore(':memory:');
+  const db = openStore({ memory: true });
   t.after(() => db.close());
   const pending = createHexclaveEmailService({ db, store, env: {} });
   await pending.send({ dedupeKey: 'test:blocked', kind: 'receipt', to: 'traveler@example.com', subject: 'Friday', html: '<p>Saved</p>' });
   pending.enquiryNotification({ id: 'commission-1', data: { name: 'Avery', email: 'avery@example.com', shape: 'A quiet week in Sicily' } });
-  assert.equal(store.getEmailOutboxByKey(db, 'test:blocked').status, 'blocked');
+  assert.equal((await store.getEmailOutboxByKey(db, 'test:blocked')).status, 'blocked');
 
   let sends = 0;
   const configured = createHexclaveEmailService({ db, store, env: { ...config, FRIDAY_ENQUIRY_EMAIL: 'studio@example.com' }, fetch: async () => {
@@ -57,29 +57,29 @@ test('explicit drain rehydrates blocked messages after configuration and concurr
   }});
   const [first, second] = await Promise.all([configured.drainPending(), configured.drainPending()]);
   assert.equal(sends, 2);
-  assert.equal(store.getEmailOutboxByKey(db, 'test:blocked').status, 'provider_accepted');
-  assert.equal(store.getEmailOutboxByKey(db, 'test:blocked').recipient, 'traveler@example.com');
-  assert.equal(store.getEmailOutboxByKey(db, 'commission:commission-1:notification').recipient, 'studio@example.com');
-  assert.match(JSON.parse(store.getEmailOutboxByKey(db, 'commission:commission-1:notification').content).text, /A quiet week in Sicily/);
+  assert.equal((await store.getEmailOutboxByKey(db, 'test:blocked')).status, 'provider_accepted');
+  assert.equal((await store.getEmailOutboxByKey(db, 'test:blocked')).recipient, 'traveler@example.com');
+  assert.equal((await store.getEmailOutboxByKey(db, 'commission:commission-1:notification')).recipient, 'studio@example.com');
+  assert.match(JSON.parse((await store.getEmailOutboxByKey(db, 'commission:commission-1:notification')).content).text, /A quiet week in Sicily/);
   assert.equal(first.accepted + second.accepted, 2);
   assert.equal((await configured.drainPending()).selected, 0);
 });
 
-test('newsletter storage records consent and never turns commission enquiries into subscribers', t => {
-  const db = openStore(':memory:');
+test('newsletter storage records consent and never turns commission enquiries into subscribers', async t => {
+  const db = openStore({ memory: true });
   t.after(() => db.close());
   const consentAt = new Date().toISOString();
-  store.upsertNewsletterSubscriber(db, { email: 'reader@example.com', consentAt, source: 'website', created: consentAt });
-  assert.equal(store.getNewsletterSubscriber(db, 'reader@example.com').status, 'subscribed');
-  assert.equal(store.getNewsletterSubscriber(db, 'reader@example.com').consent_at, consentAt);
-  assert.equal(store.getNewsletterSubscriber(db, 'traveler@example.com'), undefined);
-  assert.equal(store.unsubscribeNewsletterSubscriber(db, 'reader@example.com'), 1);
-  assert.equal(store.getNewsletterSubscriber(db, 'reader@example.com').status, 'unsubscribed');
-  assert.equal(store.unsubscribeNewsletterSubscriber(db, 'reader@example.com'), 0);
+  await store.upsertNewsletterSubscriber(db, { email: 'reader@example.com', consentAt, source: 'website', created: consentAt });
+  assert.equal((await store.getNewsletterSubscriber(db, 'reader@example.com')).status, 'subscribed');
+  assert.equal((await store.getNewsletterSubscriber(db, 'reader@example.com')).consent_at, consentAt);
+  assert.equal(await store.getNewsletterSubscriber(db, 'traveler@example.com'), undefined);
+  assert.equal(await store.unsubscribeNewsletterSubscriber(db, 'reader@example.com'), 1);
+  assert.equal((await store.getNewsletterSubscriber(db, 'reader@example.com')).status, 'unsubscribed');
+  assert.equal(await store.unsubscribeNewsletterSubscriber(db, 'reader@example.com'), 0);
 });
 
 test('newsletter signup confirmation includes a verifiable self-serve unsubscribe link', async t => {
-  const db = openStore(':memory:');
+  const db = openStore({ memory: true });
   t.after(() => db.close());
   let sent;
   const email = createHexclaveEmailService({ db, store, env: { ...config, APP_ORIGIN: 'https://friday.example' }, fetch: async (_url, options) => { sent = JSON.parse(options.body); return new Response(null, { status: 202 }); } });

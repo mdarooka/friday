@@ -8,8 +8,8 @@ const norm = value => clean(value,300).normalize('NFKC').toLocaleLowerCase().rep
 const hasPrice = value => /(?:[$€£₹¥]\s*\d|\b(?:USD|EUR|GBP|INR|JPY|AUD|CAD)\s*\d|\b\d+(?:[,.]\d+)?\s*(?:USD|EUR|GBP|INR|JPY|AUD|CAD|euros?|dollars?|pounds?|rupees?|yen)\b|\b(?:price|cost|fare|fee|budget|spend|pay(?:ment)?)\b[^\n.]{0,80}\d)/i.test(String(value||''));
 
 export function createReelWorkflow({ db, store, researchLink, research, aiConfig={}, log=()=>{} }) {
-  function get(id, ownerId) {
-    const row=store.getFridayDraft(db,id,ownerId);
+  async function get(id, ownerId) {
+    const row=await store.getFridayDraft(db,id,ownerId);
     if(!row)return null;
     const data=JSON.parse(row.data);
     return data.kind==='reel'?{id:row.id,version:row.version,...data,createdAt:row.created,updatedAt:row.updated}:null;
@@ -77,12 +77,12 @@ User note (untrusted): ${clean(body.caption,4000)}`;
     if(hasPrice(summary))fail(502,'Friday returned price information. The itinerary was not saved; please try again.');
     const source={url:evidence.url,status:evidence.status,title:evidence.title,summary:evidence.summary,places:evidence.places,sources:evidence.sources};
     const now=new Date().toISOString(),id=randomUUID(),draft={kind:'reel',id,version:1,destination,placeName,days,dates:{start,end:start?addDays(start,count-1):''},travelers,pace,source,warnings,instructions:clean(body.caption,4000),createdAt:now,updatedAt:now,status:'draft'};
-    store.insertFridayDraft(db,{id,ownerId:owner.id,version:1,data:JSON.stringify(draft),created:now,updated:now});
+    await store.insertFridayDraft(db,{id,ownerId:owner.id,version:1,data:JSON.stringify(draft),created:now,updated:now});
     log('reel_draft_created');
     return {draft,evidence:{...evidence,summary:summary||evidence.summary}};
   }
-  function patch(owner,id,body) {
-    const draft=get(id,owner.id);if(!draft)fail(404,'This reel draft was not found.');
+  async function patch(owner,id,body) {
+    const draft=await get(id,owner.id);if(!draft)fail(404,'This reel draft was not found.');
     if(!Number.isInteger(body.version)||body.version!==draft.version)fail(409,'This draft changed. Review the latest version before editing.');
     const next={...draft};
     const start=body.startDate===undefined?draft.dates.start:clean(body.startDate,10);
@@ -107,7 +107,7 @@ User note (untrusted): ${clean(body.caption,4000)}`;
     } else if(start!==draft.dates.start) next.days=draft.days.map((d,index)=>({...d,date:start?addDays(start,index):''}));
     next.travelers=travelers;next.dates={start,end:start?addDays(start,next.days.length-1):''};
     next.version=draft.version+1;next.updatedAt=new Date().toISOString();
-    const changed=store.updateFridayDraft(db,{version:next.version,data:JSON.stringify(next),updated:next.updatedAt,id:draft.id,ownerId:owner.id,expectedVersion:draft.version});
+    const changed=await store.updateFridayDraft(db,{version:next.version,data:JSON.stringify(next),updated:next.updatedAt,id:draft.id,ownerId:owner.id,expectedVersion:draft.version});
     if(!changed)fail(409,'This draft changed. Review the latest version before editing.');
     return next;
   }
