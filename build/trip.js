@@ -40,6 +40,7 @@ function tripPage() {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${esc(TITLE)}</title>
 <meta name="description" content="${esc(DESCRIPTION)}">
+<meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#F4F1EA">
 <meta property="og:title" content="${esc(TITLE)}">
 <meta property="og:description" content="${esc(DESCRIPTION)}">
@@ -96,7 +97,7 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
 }
 
 function appAliasPage() {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="0;url=trip.html"><title>Friday · Your journey</title><script>location.replace('trip.html'+location.search+location.hash)</script></head><body><p><a href="trip.html">Continue to your Friday journey</a></p></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><meta http-equiv="refresh" content="0;url=trip.html"><title>Friday · Your journey</title><script>location.replace('trip.html'+location.search+location.hash)</script></head><body><p><a href="trip.html">Continue to your Friday journey</a></p></body></html>`;
 }
 
 /* The Sign in with ChatGPT redirect target. Static and secret-free: it only hands the authorization code (and state)
@@ -107,7 +108,7 @@ function chatgptCallbackPage() {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
+<meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <title>Connecting ChatGPT · Friday</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#fff;color:#1f1e1d;font:16px/1.5 Inter,system-ui,sans-serif}p{margin:0}a{color:#c15f3c}</style>

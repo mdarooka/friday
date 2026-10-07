@@ -8,6 +8,7 @@ Disallow: /admin.html
 Disallow: /admin
 Disallow: /admin-villas.html
 Disallow: /admin-villas
+Disallow: /chatgpt-callback.html
 Disallow: /api/
 Disallow: /.data/
 Sitemap: https://fridaytravel.vercel.app/sitemap.xml

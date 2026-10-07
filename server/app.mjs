@@ -24,7 +24,7 @@ import { createReelWorkflow } from './reel-workflow.mjs';
 import { createHexclaveAuth } from './hexclave/auth.mjs';
 import { createHexclaveEmailService } from './hexclave/email.mjs';
 import { briefingEmail, prepareBriefing } from './briefing.mjs';
-import { hostPolicy, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, visitorHost } from './canonical-host.mjs';
+import { ensureRobotsMeta, hostPolicy, isPrivateSurface, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, ROBOTS_NOINDEX, visitorHost } from './canonical-host.mjs';
 const scrypt = promisify(scryptCallback);
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = x => createHash('sha256').update(x).digest('hex');
@@ -249,6 +249,7 @@ export function createApp(options = {}) {
         production,
       });
       if (decision.robots) res.setHeader('X-Robots-Tag', decision.robots);
+      else if (isPrivateSurface(url.pathname, url.search)) res.setHeader('X-Robots-Tag', ROBOTS_NOINDEX);
       if (decision.action === 'redirect') {
         res.writeHead(308, { Location: decision.location, 'Cache-Control': 'public, max-age=86400', 'X-Robots-Tag': decision.robots });
         res.end();
@@ -274,7 +275,11 @@ export function createApp(options = {}) {
         if (!full.startsWith(realRoot+path.sep) || !(await stat(full)).isFile()) fail(404,'Not found.');
         const types={'.html':'text/html','.txt':'text/plain','.xml':'application/xml','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2'};
         let content=await readFile(full);
-        if (relative.endsWith('.html')) content = Buffer.from(rewritePublicHtml(content.toString('utf8'), origin));
+        if (relative.endsWith('.html')) {
+          let html = rewritePublicHtml(content.toString('utf8'), origin);
+          if (isPrivateSurface('/' + relative, url.search)) html = ensureRobotsMeta(html);
+          content = Buffer.from(html);
+        }
         else if (relative === 'sitemap.xml') content = Buffer.from(rewriteSitemapOrigins(content.toString('utf8'), origin));
         else if (relative === 'robots.txt') content = Buffer.from(rewriteRobotsSitemap(content.toString('utf8'), origin));
         if (relative==='app.html') {
@@ -299,7 +304,7 @@ export function createApp(options = {}) {
               const meta=`<meta property="og:title" content="${attr(title)}"><meta property="og:description" content="${attr(description)}"><meta property="og:type" content="website"><meta property="og:url" content="${attr(pageUrl)}"><meta property="og:image" content="${attr(imageUrl)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${attr(title)}"><meta name="twitter:description" content="${attr(description)}"><meta name="twitter:image" content="${attr(imageUrl)}">`;
               if(method==='GET'&&!req.headers['user-agent']?.match(/WhatsApp|facebookexternalhit|Facebot|Twitterbot|Slackbot|Discordbot|TelegramBot|LinkedInBot|Googlebot/i)) await store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_link_opened',created:new Date().toISOString()});
               else if(method==='GET') await store.recordTripShareEvent(db,{id:randomUUID(),tokenHash,eventType:'trip_share_preview_bot',created:new Date().toISOString()});
-              content=Buffer.from(content.toString('utf8').replace('</head>',`${meta}</head>`));
+              content=Buffer.from(ensureRobotsMeta(content.toString('utf8').replace('</head>',`${meta}</head>`)));
             }
           }
         }
@@ -372,7 +377,7 @@ export function createApp(options = {}) {
         if(!subscriber||subscriber.consent_at!==consentAt||subscriber.status!=='subscribed')invalid();
         if(method==='GET'||method==='HEAD'){
           const escapedToken=token.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-          const page=`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribe from Friday</title><body><main><h1>Unsubscribe from Friday emails?</h1><p>Confirm below to stop newsletter emails for ${address.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}.</p><button id="confirm" type="button">Unsubscribe</button><p id="status" role="status"></p></main><script>document.querySelector('#confirm').addEventListener('click',async()=>{const b=document.querySelector('#confirm'),s=document.querySelector('#status');b.disabled=true;try{const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${escapedToken}'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Please try again.');s.textContent='You are unsubscribed.';b.hidden=true;}catch(e){s.textContent=e.message;b.disabled=false;}})</script></body></html>`;
+          const page=`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Unsubscribe from Friday</title><body><main><h1>Unsubscribe from Friday emails?</h1><p>Confirm below to stop newsletter emails for ${address.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}.</p><button id="confirm" type="button">Unsubscribe</button><p id="status" role="status"></p></main><script>document.querySelector('#confirm').addEventListener('click',async()=>{const b=document.querySelector('#confirm'),s=document.querySelector('#status');b.disabled=true;try{const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${escapedToken}'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Please try again.');s.textContent='You are unsubscribed.';b.hidden=true;}catch(e){s.textContent=e.message;b.disabled=false;}})</script></body></html>`;
           res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(method==='HEAD'?undefined:page);return;
         }
         await store.unsubscribeNewsletterSubscriber(db,address,new Date().toISOString());

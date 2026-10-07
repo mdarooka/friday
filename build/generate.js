@@ -24,7 +24,7 @@ const page = (file, opts) => {
   const privatePage = file === 'admin.html' || file === 'admin-villas.html';
   if (!privatePage) publicPages.push(file);
   const extraScripts = [...(privatePage ? [] : ['assets/js/guide-analytics.js']), ...(opts.extraScripts || [])];
-  written.push(write(file, layout({ ...opts, canonical: privatePage ? null : file, extraScripts })));
+  written.push(write(file, layout({ ...opts, canonical: privatePage ? null : file, robots: privatePage ? 'noindex, nofollow' : null, extraScripts })));
 };
 
 /* ========================================================== 1. Home */
