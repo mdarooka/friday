@@ -1949,10 +1949,25 @@
         (mem.length ? '<ul>' + mem.map((m) => '<li><span>' + esc(m.text) + '</span><button class="fx-icon-btn" type="button" data-mem="' + esc(m.id) + '" aria-label="Forget: ' + esc(m.text) + '">' + icon('x', 16) + '</button></li>').join('') + '</ul>' : '<p class="fx-mem__none">Add details you want Friday to remember.</p>') + '</div></section>' +
         '<section class="fx-account"><div class="fx-prefs__head"><h2 class="fx-h2">Connections</h2></div><p class="fx-hint">Connect Google services only when you choose.</p><button class="fx-btn fx-btn--line" type="button" data-act="connections">Manage connections</button></section>' +
         chatgptCard() +
+        (FT.backend && FT.backend.user ? '<section class="fx-account fx-data-account" aria-labelledby="fx-data-h"><div class="fx-prefs__head"><h2 class="fx-h2" id="fx-data-h">Your data</h2></div><p class="fx-hint">Download a JSON copy of Friday data saved to this account, or ask the Friday team to delete your account.</p><div class="fx-prefs__btns"><button class="fx-btn fx-btn--line" type="button" data-act="export-data">Download my data</button><button class="fx-btn fx-btn--line fx-data-delete" type="button" data-act="delete-account-request">Delete my account</button></div><p class="fx-hint" data-privacy-request-status role="status">Checking your request status…</p></section>' : '') +
         (FT.backend && FT.backend.user ? '<section class="fx-account"><p class="fx-eyebrow">Signed in</p><p>' + esc((FT.backend && FT.backend.user && (FT.backend.user.name || FT.backend.user.email)) || '') + '</p><button class="fx-btn fx-btn--line" type="button" data-act="signout">Sign out</button></section>' : '<section class="fx-account"><p class="fx-eyebrow">Local planner</p><p class="fx-hint">Your trips are saved in this browser. Auth is optional until the website is complete.</p><button class="fx-btn fx-btn--line" type="button" data-act="signin">Sign in or create account</button></section>') +
         '</div></div></div>';
+      refreshPrivacyRequestStatus(el);
     },
   };
+  function refreshPrivacyRequestStatus(el) {
+    const status = $('[data-privacy-request-status]', el);
+    const deleteAction = $('[data-act="delete-account-request"]', el);
+    if (!status || !FT.backend || !FT.backend.user || !FT.backend.dataRequests) return;
+    FT.backend.dataRequests().then((result) => {
+      if (!status.isConnected) return;
+      const request = (result.requests || []).find((item) => item.status !== 'completed');
+      if (!request) { status.textContent = 'No account deletion request is waiting.'; return; }
+      if (deleteAction) { deleteAction.disabled = true; deleteAction.textContent = 'Deletion requested'; }
+      const due = new Date(request.due_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      status.textContent = request.status === 'account_deletion_pending' ? 'Your Friday data has been deleted. Sign-in account removal is still being completed.' : 'Deletion requested. The Friday team aims to complete it by ' + due + '. You can keep using your account until deletion is complete.';
+    }).catch((error) => { if (status.isConnected) status.textContent = error.message || 'Could not check your request status.'; });
+  }
   /* "Use your ChatGPT plan" (assets/js/trip-chatgpt.js). Shown only when the server has a Sign in with ChatGPT client id. */
   function chatgptCard() {
     const cg = FT.chatgpt;
@@ -1969,7 +1984,22 @@
     if (FT.chatgpt && FT.chatgpt.onChange) FT.chatgpt.onChange(() => { if (route.name === 'preferences' && !prefsEditing) pages.preferences.render(); });
     delegate(el, 'click', '[data-act]', (e, b) => {
       const a = b.dataset.act;
-      if (a === 'home-city') homeCityModal();
+      if (a === 'export-data') {
+        b.disabled = true;
+        FT.backend.exportData().then((blob) => {
+          const link = document.createElement('a'), url = URL.createObjectURL(blob);
+          link.href = url; link.download = 'friday-data-' + new Date().toISOString().slice(0, 10) + '.json';
+          document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }).catch((error) => toast(error.message || 'Could not download your data.')).finally(() => { b.disabled = false; });
+      }
+      else if (a === 'delete-account-request') {
+        confirmDlg('The Friday team will review and complete deletion within 30 days. This removes your saved trips, preferences, memories, imports, planner chats, linked quote and callback requests, share links, Google connection tokens, and your Friday sign-in account. Newsletter choices and information we must retain by law may be kept; backup copies may remain for up to 30 days. Continue?', { title: 'Request account deletion', okLabel: 'Request deletion', cancelLabel: 'Keep my account', danger: true }).then((ok) => {
+          if (!ok) return;
+          b.disabled = true;
+          FT.backend.createDeletionRequest().then(() => { toast('Deletion request sent. You can see its status here.'); refreshPrivacyRequestStatus(el); }).catch((error) => toast(error.message || 'Could not submit your request.')).finally(() => { b.disabled = false; });
+        });
+      }
+      else if (a === 'home-city') homeCityModal();
       else if (a === 'chatgpt-connect') {
         b.disabled = true;
         FT.chatgpt.connect().then(() => toast('ChatGPT connected'), (err) => { if (!err || err.code !== 'cancelled') toast('Could not connect ChatGPT'); }).then(() => { if (route.name === 'preferences' && !prefsEditing) pages.preferences.render(); });

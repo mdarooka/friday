@@ -12,7 +12,7 @@ function setup(fetch=async()=>{throw new Error('unexpected fetch')},options={}) 
   db.query("INSERT INTO users(id,email,name,password) VALUES('alice','alice@example.com','Alice','x'),('bob','bob@example.com','Bob','x')").catch(()=>{});
   const handle=createGoogleIntegration({db,origin,clientId:'client.apps.googleusercontent.com',clientSecret:'secret-server-side',encryptionKey:key,fetch,now:()=>new Date('2026-10-05T12:00:00.000Z'),...options});
   const call=(path,method='GET',body={},user='alice',url)=>handle({path,method,body,user:{id:user},url});
-  return {db,call};
+  return {db,call,handle};
 }
 const json=(body,status=200)=>({ok:status>=200&&status<300,status,json:async()=>body});
 async function connect(call,kind='gmail') {
@@ -43,6 +43,23 @@ test('OAuth state is owner-bound, one-use, PKCE protected, and stores encrypted 
   assert.ok(stored.startsWith('v1.'));assert.equal(stored.includes('long-refresh-secret'),false);
   const replay=await call('/api/integrations/google/callback','GET',{},'alice',`${origin}/api/integrations/google/callback?state=${state}&code=good`);
   assert.equal(replay.status,400);assert.equal(seen.length,3);
+});
+
+test('account deletion revokes each configured Google refresh token before local removal',async()=>{
+  const requests=[];const {db,call,handle}=setup(async(url,options)=>{
+    requests.push({url:String(url),options});
+    if(String(url)==='https://oauth2.googleapis.com/token')return json({access_token:'access',refresh_token:'refresh-secret',scope:'https://www.googleapis.com/auth/calendar.events.readonly'});
+    if(String(url)==='https://oauth2.googleapis.com/revoke')return json({},200);
+    throw new Error(`unexpected ${url}`);
+  });
+  const {state}=await connect(call,'calendar');
+  await call('/api/integrations/google/callback','GET',{},'alice',`${origin}/api/integrations/google/callback?state=${state}&code=ok`);
+  const stored=(await db.one('SELECT refresh_token FROM google_connections WHERE user_id=$1',['alice'])).refresh_token;
+  assert.notEqual(stored,'refresh-secret');
+  await handle.revokeUserConnections('alice');
+  const revoke=requests.find(item=>item.url==='https://oauth2.googleapis.com/revoke');
+  assert.equal(new URLSearchParams(revoke.options.body).get('token'),'refresh-secret');
+  assert.ok(await db.one('SELECT user_id FROM google_connections WHERE user_id=$1',['alice']));
 });
 
 test('Gmail OAuth performs initial sync using actual travel dates and preserves clarification evidence',async()=>{

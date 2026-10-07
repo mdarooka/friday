@@ -51,6 +51,17 @@ export function createGoogleIntegration({db,origin,clientId,clientSecret,encrypt
     return tokens.access_token;
   };
   const listStatus=async userId=>(await store.listGoogleConnections(db,userId)).map(r=>({kind:r.kind,connected:true,scopes:JSON.parse(r.scopes),connectedAt:r.connected_at}));
+  const revokeUserConnections=async userId=>{
+    const rows=await store.listGoogleRefreshTokens(db,userId);
+    if(!key||!rows.length)return;
+    for(const row of rows){
+      const refresh=unseal(row.refresh_token);
+      let response;
+      try{response=await fetcher('https://oauth2.googleapis.com/revoke',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({token:refresh}),signal:AbortSignal.timeout(15000)});}
+      catch{throw Object.assign(new Error('Google connection revocation could not be confirmed. Retry account deletion.'),{status:502});}
+      if(!response.ok&&response.status!==400)throw Object.assign(new Error('Google connection revocation could not be confirmed. Retry account deletion.'),{status:502});
+    }
+  };
   const checkTrip=async(userId,tripId)=>{
     if(!tripId)return null;
     const row=await findTripId(userId,tripId);
@@ -135,7 +146,7 @@ export function createGoogleIntegration({db,origin,clientId,clientSecret,encrypt
     }
     return {imported:events.length,events};
   };
-  return async function handleGoogle({path,method,body={},user,url}) {
+  const handleGoogle=async function({path,method,body={},user,url}) {
     const userId=typeof user==='string'?user:user?.id;if(!path?.startsWith('/api/integrations/google/'))return null;
     if(!userId)return fail(401,'Please sign in.');
     const requestUrl=url instanceof URL?url:new URL(url||'http://localhost'+path);
@@ -156,6 +167,8 @@ export function createGoogleIntegration({db,origin,clientId,clientSecret,encrypt
     }
     return null;
   };
+  handleGoogle.revokeUserConnections=revokeUserConnections;
+  return handleGoogle;
 }
 
 function findBody(payload,mimeType) {

@@ -130,6 +130,11 @@ test('trip store: layout, index maintenance, tombstones, version check, isolatio
   // an index entry whose record is gone or foreign is skipped, not an error
   await vault.set('user:alice:trips', JSON.stringify(['t2', 'ghost', 'b1']));
   assert.deepEqual((await trips.list('alice')).map(r => r.id), ['t2']);
+  await trips.deleteOwner('carol');
+  assert.deepEqual(JSON.parse(await vault.get('user:carol:trips')), []);
+  const erased=JSON.parse(await vault.get('trip:c1'));
+  assert.equal(erased.deleted,true);assert.equal(erased.data,null);assert.equal(erased.userId,'deleted');
+  assert.deepEqual(await trips.list('carol'),[]);
 });
 
 /* ---- the app on the vault ---- */
@@ -158,6 +163,25 @@ test('vault mode: trips CRUD through the API, 409 on stale versions, isolation, 
   assert.deepEqual(JSON.parse(await vault.get(`user:${a.result.user.id}:trips`)), []);
   assert.equal((await request('/api/trips/' + id, 'GET', undefined, { cookie: a.cookie })).status, 404);
   assert.equal((await request('/api/trips', 'GET', undefined, { cookie: a.cookie })).result.records.length, 0);
+});
+
+test('vault account deletion clears trip content, share events, and owner index', async t => {
+  const { request, db, vault } = await startVaultApp(t);
+  const owner = await signUp(request, 'EraseVaultOwner');
+  const created = await request('/api/trips', 'POST', { data: trip('Private vault trip') }, { cookie: owner.cookie });
+  const tripId = created.result.record.id;
+  const share = await request('/api/trips/' + tripId + '/share', 'POST', {}, { cookie: owner.cookie });
+  assert.equal(share.status, 201);
+  const deletion = await request('/api/account/data-requests', 'POST', {}, { cookie: owner.cookie });
+  assert.equal(deletion.status, 201);
+  const completed = await request('/api/admin/data-requests/' + deletion.result.request.id + '/complete', 'POST', {}, { cookie: owner.cookie });
+  assert.equal(completed.status, 200);
+  assert.equal(completed.result.request.status, 'completed');
+  const tombstone = JSON.parse(await vault.get('trip:' + tripId));
+  assert.equal(tombstone.deleted, true); assert.equal(tombstone.data, null); assert.equal(tombstone.userId, 'deleted');
+  assert.deepEqual(JSON.parse(await vault.get('user:' + owner.result.user.id + ':trips')), []);
+  assert.equal((await db.one('SELECT COUNT(*) AS count FROM trip_share_events')).count, 0);
+  assert.equal((await request('/api/trips', 'GET', undefined, { cookie: owner.cookie })).status, 401);
 });
 
 test('vault mode: shares for a vault trip work, expire, and are removed with the trip', async t => {

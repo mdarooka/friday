@@ -224,4 +224,7 @@
   FT.backend.respondShared=function(token,data){return request('/api/shared/'+encodeURIComponent(token)+'/responses','POST',data);};
   FT.backend.shareResponses=function(tripId){var t=state.trips.find(function(x){return x.id===tripId||x.serverId===tripId;});if(!t)return Promise.reject(new Error('Journey not found.'));return request('/api/trips/'+(t.serverId||t.id)+'/share/responses');};
   FT.backend.clearShareResponses=function(tripId){var t=state.trips.find(function(x){return x.id===tripId||x.serverId===tripId;});if(!t)return Promise.reject(new Error('Journey not found.'));return request('/api/trips/'+(t.serverId||t.id)+'/share/responses','DELETE',{});};
+  FT.backend.dataRequests=function(){return request('/api/account/data-requests');};
+  FT.backend.createDeletionRequest=function(){return request('/api/account/data-requests','POST',{});};
+  FT.backend.exportData=function(){return fetch('/api/account/export',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(function(response){if(!response.ok)return response.json().then(function(body){throw new Error(body.error||'Could not download your data.');});return response.blob();});};
 })();
