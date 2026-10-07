@@ -104,7 +104,7 @@ test('callback phone patterns use the same current-browser validation on contact
   const contact = await readFile(new URL('../contact.html', import.meta.url), 'utf8');
   const integrations = await readFile(new URL('../assets/js/trip-integrations.js', import.meta.url), 'utf8');
   const contactPattern = contact.match(/id="callback-phone"[^>]*pattern="([^"]+)"/);
-  const plannerPattern = integrations.match(/pattern=\\?"([^"]+)\\?"/);
+  const plannerPattern = integrations.match(/form\.querySelector\('\[name=\"phone\"\]'\)\.pattern = '([^']+)'/);
   assert.ok(contactPattern, 'contact phone input has a pattern');
   assert.ok(plannerPattern, 'planner phone input has a pattern');
   const patterns = [contactPattern[1], JSON.parse('"' + plannerPattern[1] + '"')];
