@@ -387,7 +387,8 @@
   }
 
   FT.integrations = { reviewImport: reviewImport, openConnections: openConnections, openFridayPlan: openFridayPlan, requestCallback: openCallbackRequest, shouldUseFridayPlan: function (text) { return /\b(villas?|(?:travel\s+)?packages?)\b/i.test(text || '') || /\b(my|existing|upcoming|these|the)\s+(bookings?|reservations?|confirmations?)\b/i.test(text || '') || /\b(plan|work around|use)\b.{0,80}\b(bookings?|reservations?|confirmations?)\b/i.test(text || ''); }, shouldDecline: function (text) { var s = String(text || ''); if (/\b(trip|travel|booking|villa|package|hotel|reservation|itinerary|visa|airport|flight|destination|nights?)\b/i.test(s)) return false; return /\b(write|generate|debug|review|explain|build|fix|compose|draft)\b.{0,60}\b(code|python|javascript|typescript|sql|program|script|software|app|poem|essay|short story|recipe)\b|\b(homework help|help with homework|solve (this )?(equation|math problem)|political debate|stock price|medical diagnosis)\b/i.test(s); }, connectionStatus: connectionStatus, checkFare: checkFare, openFareWatch: openFareWatch, openFareWatches: openFareWatches, editMemory: editMemory, openMemories: openMemories };
-  if (doc.querySelector('[data-app]')) {
+  var shareToken = new URLSearchParams(window.location.search).get('share');
+  if (doc.querySelector('[data-app]') && !shareToken) {
     var callbackCta = doc.createElement('button');
     callbackCta.type = 'button'; callbackCta.className = 'fx-btn fx-btn--ink fx-planner-callback';
     callbackCta.textContent = 'Call me back'; callbackCta.setAttribute('aria-label', 'Ask Friday to call you back');

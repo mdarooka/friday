@@ -86,6 +86,27 @@ test('callback analytics sends one privacy-safe event with source attribution', 
   assert.equal(serialized.includes('token=secret'), false);
 });
 
+test('planner callback button is omitted on shared-trip links but remains in the planner', async () => {
+  const integrations = await readFile(new URL('../assets/js/trip-integrations.js', import.meta.url), 'utf8');
+  function load(search) {
+    const buttons = [];
+    const document = {
+      body: { appendChild: button => buttons.push(button) },
+      querySelector: selector => selector === '[data-app]' ? {} : null,
+      createElement: () => ({ setAttribute() {}, addEventListener() {} }),
+    };
+    class Observer { observe() {} }
+    vm.runInNewContext(integrations, {
+      window: { location: { search }, FridayTrip: {} }, document,
+      URLSearchParams, MutationObserver: Observer,
+    });
+    return buttons;
+  }
+
+  assert.equal(load('?share=shared-trip-token').length, 0);
+  assert.equal(load('').length, 1);
+});
+
 test('generated contact page and planner include callback form and analytics script', async () => {
   const contact = await readFile(new URL('../contact.html', import.meta.url), 'utf8');
   const planner = await readFile(new URL('../trip.html', import.meta.url), 'utf8');
