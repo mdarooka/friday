@@ -24,6 +24,7 @@ import { createReelWorkflow } from './reel-workflow.mjs';
 import { createHexclaveAuth } from './hexclave/auth.mjs';
 import { createHexclaveEmailService } from './hexclave/email.mjs';
 import { briefingEmail, prepareBriefing } from './briefing.mjs';
+import { hostPolicy, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, visitorHost } from './canonical-host.mjs';
 const scrypt = promisify(scryptCallback);
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = x => createHash('sha256').update(x).digest('hex');
@@ -87,18 +88,22 @@ export function createApp(options = {}) {
   const root = options.root || defaultRoot;
   const env = options.env || process.env;
   const production = env.NODE_ENV === 'production';
-  const configuredOrigin = options.origin || env.APP_ORIGIN || (env.PUBLIC_SITE_ORIGIN ? env.PUBLIC_SITE_ORIGIN.replace(/\/$/, '') : (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined)));
+  const configuredOrigin = options.origin || env.APP_ORIGIN || (env.PUBLIC_SITE_ORIGIN ? String(env.PUBLIC_SITE_ORIGIN).replace(/\/$/, '') : undefined);
   if (production && !configuredOrigin) throw new Error('APP_ORIGIN must be set to the exact public origin (for example https://friday.example) when NODE_ENV=production.');
   const origin = configuredOrigin || 'http://localhost:4871';
-  // Exact, explicitly configured aliases support a direct deployment URL alongside the canonical public site.
-  // Never infer production trust from Host, X-Forwarded-Host, or VERCEL_URL request data.
+  // APP_ORIGIN is the one public origin. APP_ORIGIN_ALIASES lists internal origins that may
+  // write, such as the direct Hexclave Deploy URL. Never trust Host, X-Forwarded-Host, or a
+  // preview URL for writes. Redirects use the visitor host only to decide whether to send
+  // the browser to APP_ORIGIN; the Location is never taken from the request.
   const trustedWriteOrigins = new Set([origin, ...String(env.APP_ORIGIN_ALIASES || '').split(',').map(value => value.trim()).filter(Boolean)]);
   for (const value of trustedWriteOrigins) {
     let parsed;
     try { parsed = new URL(value); } catch { throw new Error(`Invalid trusted application origin: ${value}`); }
     if (!['https:', 'http:'].includes(parsed.protocol) || parsed.origin !== value) throw new Error(`Trusted application origins must be bare origins: ${value}`);
   }
-  const secure = new URL(origin).protocol === 'https:';
+  const canonicalUrl = new URL(origin);
+  const internalHosts = new Set([...trustedWriteOrigins].map(value => new URL(value).host.toLowerCase()).filter(host => host !== canonicalUrl.host.toLowerCase()));
+  const secure = canonicalUrl.protocol === 'https:';
   const loopback = value => ['localhost','127.0.0.1','::1','[::1]'].includes(String(value||'').toLowerCase());
   const hexclaveAuth = options.hexclaveAuth || (env.AUTH_PROVIDER==='local'&&!production
     ? { configured:false, projectId:null, currentUser:async()=>null }
@@ -235,6 +240,25 @@ export function createApp(options = {}) {
     const send=(status,data,extra)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...extra});res.end(JSON.stringify(data));};
     try {
       const url = new URL(req.url,origin), method=req.method;
+      const decision = hostPolicy({
+        publicHost: visitorHost({ hostHeader: req.headers.host, forwardedHost: req.headers['x-forwarded-host'], trustProxy, internalHosts }),
+        canonicalOrigin: canonicalUrl.origin,
+        internalHosts,
+        pathname: url.pathname,
+        search: url.search,
+        production,
+      });
+      if (decision.robots) res.setHeader('X-Robots-Tag', decision.robots);
+      if (decision.action === 'redirect') {
+        res.writeHead(308, { Location: decision.location, 'Cache-Control': 'public, max-age=86400', 'X-Robots-Tag': decision.robots });
+        res.end();
+        return;
+      }
+      if (url.pathname === '/index.html' && ['GET','HEAD'].includes(method)) {
+        res.writeHead(308, { Location: `/${url.search}`, 'Cache-Control': 'public, max-age=86400' });
+        res.end();
+        return;
+      }
       if (!url.pathname.startsWith('/api/')) {
         if (!['GET','HEAD'].includes(method)) fail(405,'Method not allowed.');
         // Decode first, then refuse anything that could climb out of the root: dot segments (including ones hidden as %2e or
@@ -250,6 +274,9 @@ export function createApp(options = {}) {
         if (!full.startsWith(realRoot+path.sep) || !(await stat(full)).isFile()) fail(404,'Not found.');
         const types={'.html':'text/html','.txt':'text/plain','.xml':'application/xml','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2'};
         let content=await readFile(full);
+        if (relative.endsWith('.html')) content = Buffer.from(rewritePublicHtml(content.toString('utf8'), origin));
+        else if (relative === 'sitemap.xml') content = Buffer.from(rewriteSitemapOrigins(content.toString('utf8'), origin));
+        else if (relative === 'robots.txt') content = Buffer.from(rewriteRobotsSitemap(content.toString('utf8'), origin));
         if (relative==='app.html') {
           const sharedToken=url.searchParams.get('share')||'';
           if (/^[a-f0-9]{64}$/.test(sharedToken)) {

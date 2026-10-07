@@ -181,7 +181,7 @@ function Footer() {
 /* ------------------------------------------------------------ the shell */
 
 function layout({ title, description, body, active, lightHead, canonical, extraStyles = [], extraScripts = [] }) {
-  const canonicalHref = canonical ? publicUrl(canonical, SITE_ORIGIN) : null;
+  const canonicalHref = canonical && SITE_ORIGIN ? publicUrl(canonical, SITE_ORIGIN) : null;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -198,7 +198,8 @@ function layout({ title, description, body, active, lightHead, canonical, extraS
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="A coastal travel scene with Friday’s thoughtful journeys message">
 <meta name="twitter:card" content="summary_large_image">
-${canonicalHref ? `<link rel="canonical" href="${esc(canonicalHref)}">\n<meta property="og:url" content="${esc(canonicalHref)}">` : ''}
+<meta name="twitter:image" content="${esc(SOCIAL_IMAGE)}">
+${canonicalHref ? `<link rel="canonical" href="${esc(canonicalHref)}">\n<meta property="og:url" content="${esc(canonicalHref)}">\n<meta name="twitter:url" content="${esc(canonicalHref)}">` : ''}
 ${FONT_LINKS}
 <link rel="stylesheet" href="assets/css/friday.css">
 ${extraStyles.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')}

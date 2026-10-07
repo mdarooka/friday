@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { sitemapXml, robotsTxt } = require('../build/site-metadata.js');
+const { siteOrigin, publicUrl, sitemapXml, robotsTxt } = require('../build/site-metadata.js');
 const source = (await readFile(new URL('../assets/js/friday-analytics.js', import.meta.url), 'utf8')) + '\n' + (await readFile(new URL('../assets/js/guide-analytics.js', import.meta.url), 'utf8'));
 const guide = await readFile(new URL('../kerala-guide.html', import.meta.url), 'utf8');
 
@@ -53,7 +53,12 @@ test('Kerala guide answers the researched questions and has canonical/social met
 
 test('sitemap generation emits an absolute guide URL when an origin is configured; robots leaves guides crawlable', () => {
   const map = sitemapXml(['index.html', 'kerala-guide.html'], 'https://friday.example');
+  assert.match(map, /<loc>https:\/\/friday\.example\/<\/loc>/);
   assert.match(map, /<loc>https:\/\/friday\.example\/kerala-guide\.html<\/loc>/);
+  assert.equal(publicUrl('index.html', 'https://friday.example'), 'https://friday.example/');
+  assert.equal(publicUrl('about.html', 'https://friday.example'), 'https://friday.example/about.html');
+  assert.equal(siteOrigin({ VERCEL_URL: 'friday-travel-peach.vercel.app', VERCEL_PROJECT_PRODUCTION_URL: 'friday-travel-peach.vercel.app' }), 'https://fridaytravel.vercel.app');
+  assert.equal(siteOrigin({ APP_ORIGIN: 'https://fridaytravel.vercel.app/path' }), 'https://fridaytravel.vercel.app');
   const robots = robotsTxt('https://friday.example');
   assert.match(robots, /Sitemap: https:\/\/friday\.example\/sitemap\.xml/);
   assert.match(robots, /Disallow: \/trip\.html/);
@@ -68,7 +73,10 @@ test('production metadata uses Friday’s canonical domain when no build origin 
   assert.equal(metadata.siteOrigin({}), 'https://fridaytravel.vercel.app');
   const sitemap = await readFile(new URL('../sitemap.xml', import.meta.url), 'utf8');
   const robots = await readFile(new URL('../robots.txt', import.meta.url), 'utf8');
+  assert.match(sitemap, /<loc>https:\/\/fridaytravel\.vercel\.app\/<\/loc>/);
+  assert.doesNotMatch(sitemap, /\/index\.html/);
   assert.match(sitemap, /https:\/\/fridaytravel\.vercel\.app\/field-notes\.html/);
+  assert.match(sitemap, /https:\/\/fridaytravel\.vercel\.app\/villa\.html/);
   assert.match(robots, /Sitemap: https:\/\/fridaytravel\.vercel\.app\/sitemap\.xml/);
 });
 
