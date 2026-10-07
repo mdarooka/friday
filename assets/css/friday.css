@@ -1058,3 +1058,42 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
   .rail { grid-auto-columns: 78vw; }
   .foot__grid { grid-template-columns: 1fr; }
 }
+
+/* Mobile tap areas for the public site and team forms. trip.html has body.fx,
+   so this shared Friday stylesheet deliberately leaves the planner untouched. */
+@media (max-width: 720px) {
+  body:not(.fx) :is(
+    button,
+    [role="button"],
+    input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea,
+    .btn,
+    .skip,
+    .nav__link,
+    .menu__link,
+    .burger,
+    .wordmark,
+    .scrollcue,
+    .foot__list a,
+    .foot__bar a,
+    .help-item .help-email,
+    .chip,
+    .villa-back,
+    .villa-chip,
+    .villa-text-button,
+    .villa-submission__actions button,
+    .villa-curated-row [data-remove-curated],
+    .partner-consent,
+    .villa-owner-form__consent,
+    .field__label:has(> input[type="checkbox"])
+  ) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  body:not(.fx) :is(.foot__list a, .foot__bar a) {
+    display: inline-flex;
+    align-items: center;
+  }
+}
