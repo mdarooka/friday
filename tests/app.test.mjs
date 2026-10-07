@@ -73,6 +73,15 @@ test('cross-origin writes, private source paths, and missing provider fail safel
   assert.equal((await request('/api/capabilities')).result.research,false);
   assert.equal((await request('/api/research','POST',{prompt:'Kyoto',tripId:'bad'},a.cookie)).status,503);
 });
+test('public guide, robots and sitemap files are served while backend source stays private',async t=>{
+  const request=await fixture(t);
+  const guide=await request('/kerala-guide.html');
+  assert.equal(guide.status,200);assert.match(guide.headers.get('content-type'),/text\/html/);assert.match(guide.result,/Kerala Travel Guide/);
+  const robots=await request('/robots.txt');
+  assert.equal(robots.status,200);assert.match(robots.headers.get('content-type'),/text\/plain/);assert.match(robots.result,/Disallow: \/api\//);assert.doesNotMatch(robots.result,/Disallow: \/kerala-guide/);
+  const sitemap=await request('/sitemap.xml');
+  assert.equal(sitemap.status,200);assert.match(sitemap.headers.get('content-type'),/application\/xml/);assert.match(sitemap.result,/<urlset/);
+});
 test('Deep jobs persist progress, save drafts and do not overwrite manual edits',async t=>{
   let release;const gate=new Promise(resolve=>release=resolve);
   const request=await fixture(t,{ai:{apiKey:'test',model:'test'},research:async(input,config,progress)=>{

@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /trip.html
+Disallow: /trip
+Disallow: /app.html
+Disallow: /app
+Disallow: /admin.html
+Disallow: /admin
+Disallow: /admin-villas.html
+Disallow: /admin-villas
+Disallow: /api/
+Disallow: /.data/
