@@ -11,6 +11,8 @@
     });
   };
 
+  var QUOTE_REPLY_SLA_HOURS = 30;
+
   var safeUrl = function (url) {
     try {
       var u = new URL(url, location.href);
@@ -403,7 +405,7 @@
         var waitedMs = Math.max(0, Date.now() - new Date(q.createdAt).getTime());
         var waitedHours = Math.floor(waitedMs / 3600000);
         var waitedLabel = waitedHours < 1 ? 'Waiting less than an hour' : (waitedHours < 24 ? 'Waiting ' + waitedHours + 'h' : 'Waiting ' + Math.floor(waitedHours / 24) + 'd ' + (waitedHours % 24) + 'h');
-        waitingMarkup = '<div class="admin-quote-card__waiting">' + esc(waitedLabel) + (waitedMs > 86400000 ? ' <span class="admin-badge badge--overdue">Over 24h</span>' : '') + '</div><button class="btn admin-quote-card__reply" type="button" data-mark-quote-replied="' + esc(q.id) + '">Mark replied</button>';
+        waitingMarkup = '<div class="admin-quote-card__waiting">' + esc(waitedLabel) + (waitedMs > QUOTE_REPLY_SLA_HOURS * 60 * 60 * 1000 ? ' <span class="admin-badge badge--overdue">Over ' + QUOTE_REPLY_SLA_HOURS + 'h</span>' : '') + '</div><button class="btn admin-quote-card__reply" type="button" data-mark-quote-replied="' + esc(q.id) + '">Mark replied</button>';
       } else if (q.firstReplyAt) {
         waitingMarkup = '<div class="admin-quote-card__waiting">First reply · ' + esc(formatDate(q.firstReplyAt)) + '</div>';
       }

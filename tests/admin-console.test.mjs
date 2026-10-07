@@ -20,6 +20,9 @@ test('Admin console page and assets are served correctly', async t => {
   const jsRes = await request('/assets/js/admin.js');
   assert.equal(jsRes.status, 200);
   assert.match(jsRes.result, /FridayAdmin/);
+  assert.match(jsRes.result, /var QUOTE_REPLY_SLA_HOURS = 30;/);
+  assert.match(jsRes.result, /waitedMs > QUOTE_REPLY_SLA_HOURS \* 60 \* 60 \* 1000/);
+  assert.match(jsRes.result, /Over ' \+ QUOTE_REPLY_SLA_HOURS \+ 'h/);
 
   const authJsRes = await request('/assets/js/admin-auth.js');
   assert.equal(authJsRes.status, 200);
