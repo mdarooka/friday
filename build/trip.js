@@ -14,6 +14,10 @@
 const fs = require('fs');
 const path = require('path');
 const { FONT_LINKS, esc } = require('./templates');
+const { siteOrigin, publicUrl } = require('./site-metadata');
+
+/* Default share image; the server swaps in a destination or shared-trip card per request (server/social-meta.mjs). */
+const DEFAULT_SOCIAL_IMAGE = publicUrl('assets/images/friday-social.jpg', siteOrigin());
 
 const TITLE = 'Plan a trip · Friday';
 const DESCRIPTION = 'Friday’s trip planner: a conversation on the left, a living plan and map on the right.';
@@ -44,6 +48,11 @@ function tripPage() {
 <meta property="og:title" content="${esc(TITLE)}">
 <meta property="og:description" content="${esc(DESCRIPTION)}">
 <meta property="og:type" content="website">
+<meta property="og:image" content="${esc(DEFAULT_SOCIAL_IMAGE)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A coastal travel scene with Friday’s thoughtful journeys message">
+<meta name="twitter:card" content="summary_large_image">
 ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
 <link rel="stylesheet" href="assets/css/friday.css">
 <link rel="stylesheet" href="assets/css/trip.css">
@@ -62,10 +71,14 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
 <script src="assets/js/trip-app.js" defer></script>
 <script src="assets/js/trip-backend.js" defer></script>
 <script src="assets/js/trip-integrations.js" defer></script>
+<script src="assets/js/trip-prequote.js" defer></script>
 <script src="assets/js/trip-reel.js" defer></script>
 <script src="assets/js/trip-map.js" defer></script>
 <script src="assets/js/trip-chatgpt.js" defer></script>
 <script src="assets/js/trip-chat.js" defer></script>
+<script src="assets/js/trip-feedback.js" defer></script>
+<script src="assets/js/trip-confidence.js" defer></script>
+<script src="assets/js/trip-shared-map.js" defer></script>
 <script src="assets/js/trip-workspace.js" defer></script>
 <script src="assets/js/trip-villa.js" defer></script>
 <script src="assets/js/callback-analytics.js" defer></script>

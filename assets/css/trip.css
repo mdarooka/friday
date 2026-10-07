@@ -833,3 +833,9 @@ button[data-preview] { margin-bottom: 1rem; }
 @media (max-width: 640px) {
   .fx-planner-callback { right: max(14px, env(safe-area-inset-right)); bottom: max(84px, env(safe-area-inset-bottom)); }
 }
+
+/* Booking confidence strip */
+.fx-bk-conf { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .25rem; font-size: .75rem; }
+.fx-bk-conf__badge { padding: .1rem .5rem; border: 1px solid var(--rule); border-radius: 999px; color: var(--fg-mute); }
+.fx-bk-conf__badge--verified { border-color: var(--ochre); color: var(--ink); }
+.fx-bk-conf__ask { background: none; border: 0; padding: 0; font: inherit; color: var(--fg-soft); text-decoration: underline; cursor: pointer; }

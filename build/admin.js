@@ -158,6 +158,13 @@ function adminBody() {
           <p class="card__d">Send a one-time email to a traveller with a confirmed booking departing within seven days.</p>
           <div class="admin-table-container" data-admin-briefings></div>
         </section>
+        <section class="villa-admin__section">
+          <div class="villa-section-head">
+            <div><p class="eyebrow">Seven days out</p><h2 class="h3">Automatic briefings</h2></div>
+            <p class="admin-setup-note" data-auto-briefing-setup></p>
+          </div>
+          <div class="admin-table-container" data-admin-auto-briefings></div>
+        </section>
       </div>
 
       <!-- Tab 3: AI Conversation Review -->

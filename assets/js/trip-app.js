@@ -212,6 +212,15 @@
      ====================================================================== */
 
   FT.dest = (id) => (id && FT.DESTINATIONS && FT.DESTINATIONS[id]) || null;
+  /* The catalogue destination named by ?destination= (a guide's "Plan your trip" link), or null. Tolerates case and surrounding
+     whitespace; unknown ids and inherited keys such as "constructor" never match. */
+  FT.requestedDestination = () => {
+    let raw = '';
+    try { raw = new URLSearchParams(location.search || '').get('destination') || ''; } catch (e) { /* ignore */ }
+    const id = raw.trim();
+    const own = (key) => !!key && FT.DESTINATIONS && Object.prototype.hasOwnProperty.call(FT.DESTINATIONS, key) ? FT.dest(key) : null;
+    return own(id) || own(id.toLowerCase());
+  };
   FT.place = (destId, placeId) => {
     const d = FT.dest(destId);
     const p = d && d.places && d.places[placeId];
@@ -1382,8 +1391,7 @@
   pages.new = {
     render() {
       const el = pageEl('new');
-      const requestedDestination = new URLSearchParams(location.search || '').get('destination');
-      const presetDestination = requestedDestination && FT.dest(requestedDestination);
+      const presetDestination = FT.requestedDestination();
       const starterText = presetDestination ? (presetDestination.prompt || 'Plan a trip to ' + presetDestination.name) : '';
       const remembered = FT.memoryContext ? FT.memoryContext.list(state) : [];
       const showMemory = remembered.length > 0;
@@ -1428,7 +1436,8 @@
         delegate(el, 'click', '[data-open-prefs]', () => router.go('#/preferences'));
       }
       wirePrompt(el, remembered, showMemory);
-      if (!isNarrow()) { const ta = $('.fx-prompt__ta', el); if (ta) safeFocus(ta); }
+      // From a guide the traveller has already chosen a place, so focus the seeded prompt (caret at the end) on every screen size.
+      if (presetDestination || !isNarrow()) { const ta = $('.fx-prompt__ta', el); if (ta) { safeFocus(ta); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) { /* ignore */ } } }
     },
   };
 
@@ -1502,11 +1511,13 @@
       const planningText = FT.memoryContext ? FT.memoryContext.apply(text, applied) : text;
       const payload = { text: planningText, attachments: atts.map((a) => ({ name: a.name })) };
       const returning = state.trips.length > 0;
-      const requestedDestination = new URLSearchParams(location.search || '').get('destination');
-      const presetDestination = requestedDestination && FT.dest(requestedDestination);
+      const presetDestination = FT.requestedDestination();
       const trip = FT.trips.create(presetDestination ? { destId: presetDestination.id } : undefined);
       store.update((s) => { const created = s.trips.find((item) => item.id === trip.id); if (created) created.rememberedPreferences = applied; });
       if (FT.backend && FT.backend.user && FT.tripAnalytics && typeof FT.tripAnalytics.trackCreated === 'function') FT.tripAnalytics.trackCreated({ returning: returning, memory_shown: !!memoryShown, memory_applied_count: applied.length });
+      if (presetDestination) { // the guide hand-off is consumed: later "New trip" taps start blank. (guide analytics reads from_guide first, in trips.create)
+        try { const q = new URLSearchParams(location.search || ''); q.delete('destination'); q.delete('from_guide'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : '') + (location.hash || '')); } catch (e) { /* ignore */ }
+      }
       router.go('#/trip/' + trip.id);
       if (FT.chat && typeof FT.chat.send === 'function') {
         try { FT.chat.send(payload); } catch (err) { console.error(err); toast('The assistant hit a snag.'); }
@@ -1669,7 +1680,7 @@
         (g.t ? '<span class="fx-muted">' + esc(tripRangeLabel(g.t)) + '</span><a class="fx-link" href="#/trip/' + esc(g.t.id) + '">Open trip ' + icon('arrow-right', 14) + '</a>' : '') + '</div>' +
         '<ul class="fx-bk-list fx-card">' + g.items.sort((a, b) => (a.start || '').localeCompare(b.start || '')).map((b) => {
           const meta = [b.start ? fmtRange(b.start, b.end) : '', b.flightNumber ? 'Flight ' + b.flightNumber : '', b.startTime || b.endTime ? [b.startTime, b.endTime].filter(Boolean).join('–') : '', b.address, b.ref ? 'Ref ' + b.ref : ''].filter(Boolean).join(' · ');
-          return '<li class="fx-bk-row"><span class="fx-bk-row__ic">' + icon(typeIcon(b.type), 18) + '</span><div class="fx-bk-row__b"><p class="fx-bk-row__name">' + esc(b.name) + '</p><p class="fx-bk-row__meta">' + esc(((BOOKING_TYPES.find((x) => x.id === b.type) || {}).label || '') + (meta ? ' · ' + meta : '')) + '</p></div>' +
+          return '<li class="fx-bk-row"><span class="fx-bk-row__ic">' + icon(typeIcon(b.type), 18) + '</span><div class="fx-bk-row__b"><p class="fx-bk-row__name">' + esc(b.name) + '</p><p class="fx-bk-row__meta">' + esc(((BOOKING_TYPES.find((x) => x.id === b.type) || {}).label || '') + (meta ? ' · ' + meta : '')) + '</p>' + (FT.confidence ? FT.confidence.strip(b) : '') + '</div>' +
             '<span class="fx-bk-row__price">' + esc(b.price != null ? money(b.price, b.currency) : '') + '</span>' +
             '<label class="fx-bk-select"><input type="checkbox" data-plan-booking="' + esc(b.serverId || b.id) + '" aria-label="Use ' + esc(b.name) + ' to plan"></label><button class="fx-icon-btn" type="button" data-del="' + esc(b.id) + '" aria-label="Delete booking ' + esc(b.name) + '">' + icon('trash', 16) + '</button></li>';
         }).join('') + '</ul></section>').join('') + '</div>';
@@ -2133,7 +2144,7 @@
     }
     const shareToken=new URLSearchParams(location.search).get('share');
     if(shareToken&&FT.backend&&typeof FT.backend.shared==='function'){
-      try{const shared=await FT.backend.shared(shareToken);if(shared&&shared.trip){sharedTripView(main,shared.trip);return;}}
+      try{const shared=await FT.backend.shared(shareToken);if(shared&&shared.trip){sharedTripView(main,shared.trip);if(FT.sharedMap)FT.sharedMap.mount(main,shared.trip);if(FT.feedback)FT.feedback.mountShared(main,shareToken);return;}}
       catch(err){main.innerHTML='<section class="fx-shared"><p class="fx-eyebrow">A shared itinerary</p><h1 class="fx-h1">This link has expired.</h1><p class="fx-shared__note">Ask the person who shared it to create a new link.</p><a class="fx-btn fx-btn--ink" href="trip.html">Plan a trip</a></section>';const side=$('[data-side]');if(side)side.hidden=true;return;}
     }
 
@@ -2227,6 +2238,10 @@
     });
     window.addEventListener('resize', () => { if (!isNarrow() && drawerOpen) closeDrawer(); syncFrame(); });
 
+    // A guide link without #/new (or a bare ?destination=) should still land on the new-trip screen, even for travellers with trips.
+    if (FT.requestedDestination() && parseHash(location.hash).name === 'home') {
+      try { history.replaceState(null, '', location.pathname + location.search + '#/new'); } catch (e) { /* ignore */ }
+    }
     applyRoute(parseHash(location.hash));
     homeCityModal();
   }
