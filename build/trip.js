@@ -15,9 +15,10 @@ const fs = require('fs');
 const path = require('path');
 const { FONT_LINKS, esc } = require('./templates');
 const { siteOrigin, publicUrl } = require('./site-metadata');
+const { SITE_CARD_FILE, SITE_CARD_VERSION } = require('./social-cards');
 
 /* Default share image; the server swaps in a destination or shared-trip card per request (server/social-meta.mjs). */
-const DEFAULT_SOCIAL_IMAGE = publicUrl('assets/images/friday-social.jpg', siteOrigin());
+const DEFAULT_SOCIAL_IMAGE = `${publicUrl(SITE_CARD_FILE, siteOrigin())}?v=${SITE_CARD_VERSION}`;
 
 const TITLE = 'Plan a trip · Friday';
 const DESCRIPTION = 'Friday’s trip planner: a conversation on the left, a living plan and map on the right.';

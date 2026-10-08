@@ -46,7 +46,7 @@ test('generated guide pages carry their own absolute og:image, dimensions, alt a
     assert.equal(meta(html, 'twitter:image'), meta(html, 'og:image'));
   }
   const home = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(meta(home, 'og:image'), /friday-social\.jpg$/); // other pages keep the default
+  assert.match(meta(home, 'og:image'), /friday-social\.jpg\?v=\d+$/); // other pages keep the default
 });
 
 test('trip.html?destination= gets that destination\'s card, once, and unknown ids keep the defaults', async t => {
@@ -59,7 +59,7 @@ test('trip.html?destination= gets that destination\'s card, once, and unknown id
   for (const key of ['og:title', 'og:image', 'og:description', 'twitter:card']) assert.equal(count(goa, key), 1, key);
   for (const url of ['/trip.html?destination=atlantis', '/trip.html?destination=constructor', '/trip.html']) {
     const page = (await request(url)).result;
-    assert.match(meta(page, 'og:image'), /friday-social\.jpg$/, url);
+    assert.match(meta(page, 'og:image'), /friday-social\.jpg\?v=\d+$/, url);
   }
   assert.equal((await request('/assets/images/og/goa.jpg?v=1')).status, 200);
 });
@@ -85,7 +85,7 @@ test('expired, malformed and unknown share tokens fall back to the page defaults
   for (const token of ['f'.repeat(64), 'nope', '../etc', '<script>']) {
     const html = (await request(`/trip.html?share=${encodeURIComponent(token)}`)).result;
     assert.equal(meta(html, 'og:title'), 'Plan a trip · Friday', token);
-    assert.match(meta(html, 'og:image'), /friday-social\.jpg$/, token);
+    assert.match(meta(html, 'og:image'), /friday-social\.jpg\?v=\d+$/, token);
     assert.equal(html.includes(token), false, 'the token is never echoed into the page');
   }
 });

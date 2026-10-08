@@ -12,6 +12,8 @@ const clean = (value, max) => (typeof value === 'string' ? value.replace(/[\u000
 export const attr = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const absolute = (origin, path) => new URL(path, origin).href;
 const cardAbsolute = (key, origin) => cards.cardUrl(key, String(origin).replace(/\/+$/, ''));
+/** The site-wide card, for shared trips with no destination card of their own. */
+export const siteCardUrl = (origin) => `${String(origin).replace(/\/+$/, '')}/${cards.SITE_CARD_FILE}?v=${cards.SITE_CARD_VERSION}`;
 
 /** Meta for the planner opened on a catalogue destination (?destination=goa). Unknown ids → null (keep the defaults). */
 export function destinationMeta(rawId, origin) {
