@@ -12,6 +12,9 @@ const { guideFeedback } = require('./guide-feedback');
 const { siteOrigin, publicUrl, sitemapXml, robotsTxt } = require('./site-metadata');
 const PUBLIC_ORIGIN = siteOrigin();
 const { cardUrl } = require('./social-cards');
+const LW = require('./when-india-travels');
+/* The date the build treats as today (breaks that have ended are left out). FRIDAY_BUILD_DATE=YYYY-MM-DD pins it. */
+const BUILD_TODAY = /^\d{4}-\d{2}-\d{2}$/.test(process.env.FRIDAY_BUILD_DATE || '') ? process.env.FRIDAY_BUILD_DATE : require('./data/india-breaks').isoDay();
 /* Per-guide share card ({ image, alt }) for layout()'s `social` option: assets/images/og/<id>-guide.jpg, absolute and version-stamped. */
 const guideSocial = (id, alt) => ({ image: cardUrl(`${id}-guide`, PUBLIC_ORIGIN), alt });
 
@@ -79,6 +82,8 @@ const home = `
     </div>
   </div>
 </section>
+
+${LW.homeTeaser({ esc: T.esc, today: BUILD_TODAY })}
 
 <section class="section home-ai" id="how-friday-ai-works" aria-labelledby="home-ai-title">
   <div class="wrap">
@@ -168,7 +173,7 @@ const home = `
 </section>
 `;
 
-page('index.html', { title: 'Your travel designer', description: 'Friday is an AI travel designer from Bombay. Explore villas and sample packages, or shape a trip with Friday.', body: home });
+page('index.html', { title: 'Your travel designer', description: 'Friday is an AI travel designer from Bombay. Explore villas and sample packages, or shape a trip with Friday.', body: home, extraScripts: ['assets/js/when-india-travels.js'] });
 
 /* ======================================================== Destination guides */
 
@@ -271,22 +276,13 @@ ${PageHero({
 ${guideFeedback('kerala')}
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">Make Kerala<br>your own route.</h2><p class="lede" style="margin-top:1rem">Start with the places that interest you, then shape the pace and dates with Friday.</p></div>
-  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" href="trip.html?destination=kerala&amp;from_guide=kerala#/new">Plan your Kerala trip <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" href="contact.html?quote_path=guide&amp;destination=kerala">Ask Friday about a quote <span class="arrow">&rarr;</span></a></div>
+  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" href="trip.html?destination=kerala&amp;from_guide=kerala#/new">Plan your Kerala trip <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" href="contact.html?quote_path=guide&amp;destination=kerala">Ask Friday about a quote <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="callback" data-guide-destination="kerala" href="contact.html?topic=Kerala#callback-title">Talk to a designer <span class="arrow">&rarr;</span></a></div>
 </div></section>`;
 page('kerala-guide.html', {
   title: 'Kerala Travel Guide: Itineraries, Munnar & Backwaters',
   description: 'Plan a Kerala trip around the time you have, from Kochi and Munnar to Alleppey backwaters and the coast. Browse Friday’s curated places.',
   body: keralaGuide, canonical: 'kerala-guide.html',
   social: guideSocial('kerala', 'Friday’s Kerala guide: a slower way through Kerala, beside a layered green landscape'),
-});
-
-/* ======================================================== Kyoto guide */
-const { kyotoGuide } = require('./guides/kyoto');
-page('kyoto-guide.html', {
-  title: 'Kyoto Travel Guide: Itineraries, Stays & Bombay Notes',
-  description: 'Plan a Kyoto trip from Bombay: three itinerary arcs, a stay shortlist by neighbourhood, and practical notes on flights, visas and seasons.',
-  body: kyotoGuide({ PageHero, T, KYOTO: require('./trip-data/kyoto') }), canonical: 'kyoto-guide.html',
-  social: guideSocial('kyoto', 'Friday’s Kyoto guide: Kyoto, one slow day at a time, beside a layered autumn landscape'),
 });
 
 const { DESTINATIONS } = require('./trip-data');
@@ -446,7 +442,7 @@ ${PageHero({
 </div></section>
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Make the weekend yours</p><h2 class="h2">Two nights.<br>Your kind of quiet.</h2><p class="lede" style="margin-top:1rem">Tell Friday your dates, how you want to travel, and what a good stay feels like. We’ll check the details with you.</p></div>
-  <div class="c-5 c-md-12"><a class="btn" href="contact.html?from=mumbai-quiet-weekend">Ask Friday to plan this weekend <span class="arrow">&rarr;</span></a></div>
+  <div class="c-5 c-md-12"><a class="btn" href="contact.html?from=mumbai-quiet-weekend">Ask Friday to plan this weekend <span class="arrow">&rarr;</span></a><p style="margin-top:1.4rem"><a class="link" href="when-india-travels.html?region=MH">Planning around a long weekend? <span class="arrow">&rarr;</span></a></p></div>
 </div></section>`;
 page('mumbai-quiet-weekend.html', {
   title: 'Quiet 2-Night Weekend Breaks from Mumbai | Friday',
@@ -454,11 +450,26 @@ page('mumbai-quiet-weekend.html', {
   body: mumbaiQuietWeekend, canonical: 'mumbai-quiet-weekend.html',
 });
 
+/* ================================================ Long weekends & holidays */
+
+/* Guides a break suggestion can link to, from the guide registry (matched by the place's name). */
+const guideRegistry = [
+  ...GUIDES.map((g) => ({ file: g.file, label: DESTINATIONS[g.id].name, names: [g.id, DESTINATIONS[g.id].name.toLowerCase()] })),
+  { file: 'mumbai-quiet-weekend.html', label: 'quiet weekend', names: ['near bombay', 'near mumbai'] },
+];
+page(LW.PAGE, {
+  title: 'Long weekends & holidays from India',
+  description: 'The next long weekends, festival breaks and school holidays across India, with where a Friday designer would send you and what to watch for.',
+  body: LW.whenIndiaTravelsBody({ PageHero, esc: T.esc, today: BUILD_TODAY, guides: guideRegistry }), canonical: LW.PAGE,
+  extraScripts: ['assets/js/when-india-travels.js'],
+});
+
+
 page('partner.html', { title: 'List your villa', description: 'Introduce your villa to Friday for consideration in its collection of considered places to stay.', body: partnerBody(), active: 'partner.html', lightHead: true, extraStyles: ['assets/css/partner.css'], extraScripts: ['assets/js/partner.js'] });
 
 if (Villas.villasBody && Villas.villaBody && Villas.adminVillasBody) {
-  page('villas.html', { title: 'Friday Villas', description: 'Considered villas and places to stay, chosen with care.', body: Villas.villasBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
-  page('villa.html', { title: 'A Friday Villa', description: 'Explore a place to stay with Friday.', body: Villas.villaBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
+  page('villas.html', { title: 'Friday Villas', description: 'Considered villas and places to stay, chosen with care.', body: Villas.villasBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js', 'assets/js/native-page-analytics.js'] });
+  page('villa.html', { title: 'A Friday Villa', description: 'Explore a place to stay with Friday.', body: Villas.villaBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js', 'assets/js/native-page-analytics.js'] });
   page('admin-villas.html', { title: 'Villa submissions', description: 'Review villa owner introductions.', body: Villas.adminVillasBody(), lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
 }
 
@@ -1238,13 +1249,13 @@ ${PageHero({
   meta: [{ k: 'Explore', v: `${D.fieldNotes.length} notes` }, { k: 'Then', v: 'Plan with Friday' }],
 })}
 <section class="section section--flush-top"><div class="wrap">
-  ${D.fieldNotes.map((n, i) => `<article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
-    <div class="${i % 2 ? 'c-5 s-8' : 'c-5'} c-md-12" data-reveal="mask" style="order:${i % 2 ? 2 : 1}"><a href="note-${n.slug}.html" data-cursor="Read">${Plate(`ni-${n.slug}`, { ratio: 'l', scene: n.scene, tone: n.tone, svgRatio: 'landscape' })}</a></div>
+  ${[...D.fieldNotes, { href: LW.PAGE, place: 'India', title: 'When India travels', dek: 'The long weekends, festival breaks and school holidays ahead, region by region, with where a Friday designer would send you.', scene: 'dunes', tone: 'sand', cta: 'See the breaks', kind: 'Planning guide' }].map((n, i) => `<article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
+    <div class="${i % 2 ? 'c-5 s-8' : 'c-5'} c-md-12" data-reveal="mask" style="order:${i % 2 ? 2 : 1}"><a href="${n.href || `note-${n.slug}.html`}" data-cursor="Read">${Plate(`ni-${n.slug || 'when-india-travels'}`, { ratio: 'l', scene: n.scene, tone: n.tone, svgRatio: 'landscape' })}</a></div>
     <div class="${i % 2 ? 'c-6' : 'c-6 s-7'} c-md-12" style="order:${i % 2 ? 1 : 2}">
-      <p class="eyebrow eyebrow--accent">${T.esc(n.place)} &middot; Planning note</p>
-      <h2 class="h2" style="margin-top:.9rem" data-reveal><a href="note-${n.slug}.html" style="text-decoration:none">${T.esc(n.title)}</a></h2>
+      <p class="eyebrow eyebrow--accent">${T.esc(n.place)} &middot; ${n.kind || 'Planning note'}</p>
+      <h2 class="h2" style="margin-top:.9rem" data-reveal><a href="${n.href || `note-${n.slug}.html`}" style="text-decoration:none">${T.esc(n.title)}</a></h2>
       <p class="lede" style="margin-top:1.1rem" data-reveal>${T.esc(n.dek)}</p>
-      <p style="margin-top:1.6rem" data-reveal><a class="link" href="note-${n.slug}.html">Read the note <span class="arrow">&rarr;</span></a></p>
+      <p style="margin-top:1.6rem" data-reveal><a class="link" href="${n.href || `note-${n.slug}.html`}">${n.cta || 'Read the note'} <span class="arrow">&rarr;</span></a></p>
     </div>
   </article>`).join('')}
 </div></section>
@@ -1388,7 +1399,7 @@ ${PageHero({
 </section>
 
 `;
-page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true, extraScripts: ['assets/js/callback-analytics.js', 'assets/js/trip-prequote.js'] });
+page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true, extraScripts: ['assets/js/callback-analytics.js', 'assets/js/trip-prequote.js', 'assets/js/native-page-analytics.js'] });
 
 /* ======================================================= 12. Privacy and terms */
 
@@ -1415,7 +1426,7 @@ ${PageHero({
   <p>Friday saves the messages in your AI planning conversations, including what you send and Friday’s replies. A small team of people on Friday’s allowlist can read these saved messages to improve trip suggestions and service quality, and to prepare quotes you request. Chats have no automatic deletion period; they are removed when your account deletion request is completed. You can request deletion in Preferences under Your data, or email <a href="mailto:manavdarooka1@gmail.com">manavdarooka1@gmail.com</a> as a fallback. Copies in backups may remain for the period stated below.</p>
   <h2 class="h3" style="margin:2.5rem 0 .8rem">Who processes information</h2>
   <ul>
-    <li><strong>Hexclave</strong> hosts Friday’s website and server-side services, and provides account authentication, email delivery through its shared email service, and, if configured, encrypted trip storage in its Data Vault. The exact data region is not confirmed; data may be stored in India or abroad, with safeguards to protect it. On account pages where Friday’s Hexclave browser app runs, its current settings enable automatic usage analytics and session replay. Those records may include page visits, URLs, click locations, clicked text and links, and the page content shown during a replay, such as trip details and visible chat messages; the SDK masks form inputs by default. Hexclave Clickmaps can show aggregate patterns from these click events. When quote-request measurement is active, Hexclave Analytics receives a quote event with a request reference, the page category (enquiry, planner, villa or package), first-visit campaign source, medium and campaign, and the referring-site hostname; the event does not include your name, email, phone number or message text. The browser stores this attribution and a short event queue in local storage until cleared. The separate client that sends quote events turns off its own automatic analytics and replay capture. When you choose Google or Microsoft sign-in, that provider processes your sign-in and profile details.</li>
+    <li><strong>Hexclave</strong> hosts Friday’s website and server-side services, and provides account authentication, email delivery through its shared email service, and, if configured, encrypted trip storage in its Data Vault. The exact data region is not confirmed; data may be stored in India or abroad, with safeguards to protect it. On account pages where Friday’s Hexclave browser app runs, its current settings enable automatic usage analytics and session replay. Friday’s villa and contact pages also record page visits and clicks through Hexclave Analytics. Those records may include page visits, URLs, click locations, clicked text and links, and the page content shown during a replay, such as trip details and visible chat messages; the SDK masks form inputs by default. Hexclave Clickmaps can show aggregate patterns from these click events. When quote-request measurement is active, Hexclave Analytics receives a quote event with a request reference, the page category (enquiry, planner, villa or package), first-visit campaign source, medium and campaign, and the referring-site hostname; the event does not include your name, email, phone number or message text. The browser stores this attribution and a short event queue in local storage until cleared. The separate client that sends quote events turns off its own automatic analytics and replay capture. When you choose Google or Microsoft sign-in, that provider processes your sign-in and profile details.</li>
     <li><strong>Google</strong> provides the Gmail and Calendar APIs you choose to connect, Google Places search and details, and Google Fonts used to display the site. Opening a Google Maps link takes you to Google.</li>
     <li><strong>Anthropic</strong>, <strong>Perplexity</strong> and <strong>OpenAI</strong> process prompts or drafts only when the relevant AI feature and provider are configured or when you choose your own ChatGPT account.</li>
   </ul>

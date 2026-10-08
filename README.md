@@ -20,7 +20,7 @@ Hexclave provides Friday's sign-in and transactional email. Friday can run on He
 
 `hexclave.deploy.ts` defines two services. `web` is the public server built from the repository's Dockerfile; it listens on port 3000, runs as the non-root `node` user and keeps **no data on its own disk**. `database` is a private PostgreSQL 17 server built from `database/Dockerfile`, reachable only from services in the same project over TCP port 5432 (`minInstances: 0`, so it scales to zero and wakes on the first connection). Its data directory is `/data/postgres` on a 1 GB persistent volume (`pgdata`; disks can be grown later but never shrunk). `web` finds it through `DATABASE_HOST` (the `database` service hostname), `DATABASE_PORT`, `DATABASE_USER`, `DATABASE_NAME` and `DATABASE_PASSWORD`.
 
-**The database disk is a single volume on a single machine. It is not replicated and it is not a backup; a host failure can lose it.** Friday no longer ships backup or restore tooling. Take your own `pg_dump` exports to an encrypted, access-controlled off-site location, on a schedule you choose, before storing important data.
+**The database disk is a single volume on a single machine. It is not replicated and it is not a backup; a host failure can lose it.** A nightly encrypted off-site backup runs from GitHub Actions (see [Nightly database backup](#nightly-database-backup)); it is inactive until its secrets are set.
 
 **One-time secret:** set the `POSTGRES_PASSWORD` project secret in the Hexclave dashboard (Project Settings → Secrets) before the first deploy. Both services read it; the deploy has no default for it.
 
@@ -35,9 +35,51 @@ Vercel (`vercel.json`, project `friday-travel`) is only a reverse proxy: it serv
 3. To move to your own domain, attach and verify it on the public `web` service, set its exact HTTPS origin as `APP_ORIGIN` in `hexclave.deploy.ts`, and update `build/site-metadata.js` and `vercel.json`.
 4. From the repository root, run `npx @hexclave/cli@latest deploy --cloud-project-id 38c9a741-73e3-4e6a-9c1b-6438f1239457`.
 
-The Deploy app is in alpha, and its service region is not confirmed here (it may not be in India). Pick an encrypted, access-controlled off-site backup destination and retention period for your `pg_dump` exports; Friday does not choose or upload to a storage provider. Disk size can only be grown, not reduced.
+The Deploy app is in alpha, and its service region is not confirmed here (it may not be in India). Backups go to 30-day GitHub Actions artifacts, encrypted before upload (see below); copy them elsewhere if you need longer retention. Disk size can only be grown, not reduced.
 
 After the first deployment, write a test record, restart and redeploy the service, and confirm that the record remains. Take a `pg_dump` and test restoring it into a scratch database before storing important data. The public `/api/health` endpoint is available, and the Dockerfile includes a health check for it.
+
+### Nightly database backup
+
+Hexclave Deploy has no cron, so `.github/workflows/db-backup.yml` runs daily at 02:00 IST. It calls `GET /api/cron/db-backup` on `https://fridaytravel.vercel.app` (the web image bundles the PostgreSQL 17 `pg_dump`), encrypts the dump with AES-256 on the runner, and uploads only the `.dump.enc` file as an artifact kept for 30 days. The repository is public, so nothing but ciphertext is ever stored or logged.
+
+One-time setup:
+
+1. Generate two values with `openssl rand -base64 48`.
+2. Set the first as `FRIDAY_BACKUP_SECRET` both as a Hexclave project secret and as a GitHub Actions secret.
+3. Set the second as `BACKUP_PASSPHRASE` only as a GitHub Actions secret, and keep a copy offline. If it is lost, backups cannot be read.
+4. Redeploy Hexclave so the new image and secret go live.
+
+No backups are taken until the secrets are set and the new image is deployed. Run one by hand from Actions → Nightly database backup → Run workflow. GitHub disables scheduled workflows after 60 days without repository activity, so check the Actions tab occasionally.
+
+Restore (needs a PostgreSQL 17 client):
+
+```sh
+gh run download <run-id> -n friday-db-backup
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:BACKUP_PASSPHRASE -in friday-YYYY-MM-DD.dump.enc -out friday.dump
+pg_restore --clean --if-exists --no-owner -d <database-url> friday.dump
+```
+
+Restore into a scratch database first, and delete `friday.dump` afterwards because it is unencrypted.
+
+#### Weekly restore check
+
+`.github/workflows/backup-restore-check.yml` runs every Monday at 06:00 UTC (and on Run workflow). It checks that the newest nightly backup is less than 36 hours old, downloads and decrypts it, restores it into a scratch PostgreSQL 17 container, counts rows in the core tables (`users` must not be empty), and writes the timing and counts to the run's summary. The scratch container is removed afterwards.
+
+It fails, and so emails the person who last changed the schedule (GitHub's failure notice), when the backup is missing or stale, the decrypt fails, or the restore or a table check fails. The nightly backup fails the same way. For a faster alert, set `BACKUP_ALERT_WEBHOOK_URL` (optional) to an incoming-webhook URL from Slack, Discord or any service that accepts a JSON POST with `text` or `content`; both workflows post to it on failure and skip it when it is unset.
+
+Secrets used by the two workflows (Settings → Secrets and variables → Actions):
+
+- `FRIDAY_BACKUP_SECRET` and `BACKUP_PASSPHRASE`: the nightly backup needs both; the restore check needs `BACKUP_PASSPHRASE`.
+- `BACKUP_ALERT_WEBHOOK_URL`: optional.
+
+**First manual restore test (do this once, before you rely on backups):**
+
+1. Make sure a nightly backup exists: Actions → Nightly database backup → Run workflow, and wait for it to pass.
+2. Actions → Weekly backup restore check → Run workflow. Open the run; the summary shows "Restore test: OK" with the row counts. If it says FAILED, the summary lists what is wrong.
+3. To restore by hand (for example into a database you control), use the commands in the section above with `BACKUP_PASSPHRASE` set in your shell, and never into the live database.
+
+The check itself is `scripts/backup-restore-check.mjs`, covered by `tests/backup-restore-check.test.mjs`. Its table list is `REQUIRED_TABLES` in that file; update it when the schema changes.
 
 ### Self-managed Docker deployment
 

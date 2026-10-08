@@ -38,6 +38,7 @@ export function createItineraryService({ env = process.env, fetch: fetchImpl, lo
     /* A plan from a draft the user's own ChatGPT produced in their browser. It goes through the same catalog
        validation as the openai provider; an unusable draft falls back to the configured server provider. */
     async fromDraft(dest, request, draft) {
+      if (dest.freeform) throw Object.assign(new Error('A ChatGPT draft can only be validated for a catalog destination.'), { status: 422 });
       try {
         const { stops } = buildPrompt(dest, request, null);
         const drafts = validateDrafts(dest, draft, request, stops);
@@ -49,6 +50,13 @@ export function createItineraryService({ env = process.env, fetch: fetchImpl, lo
       }
     },
     async generate(dest, request) {
+      if (dest.freeform) {
+        // A place outside the catalog has no local fallback: only the OpenAI provider can plan it (Friday plans anywhere).
+        if (name !== 'openai') throw Object.assign(new Error('Planning a place outside Friday\u2019s guides needs the OpenAI itinerary provider, which is not configured.'), { status: 503 });
+        try { return { provider: primary.name, plan: await primary.generate(dest, request) }; } catch (err) {
+          throw Object.assign(new Error('The plan for ' + dest.name + ' could not be made: ' + scrub((err && err.message) || 'unknown error').slice(0, 200)), { status: 502 });
+        }
+      }
       try {
         const plan = await primary.generate(dest, request);
         return { provider: primary.name, plan };

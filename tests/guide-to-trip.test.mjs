@@ -50,7 +50,7 @@ test('every guide page links the planner with destination, from_guide and #/new,
   }
 });
 
-test('from_guide reaches trip analytics for kerala and kyoto, and unknown values are ignored', async () => {
+test('from_guide reaches trip analytics for kerala and goa, and unknown values are ignored', async () => {
   const source = await read('assets/js/guide-analytics.js');
   const events = [];
   const run = (search) => {
@@ -61,7 +61,7 @@ test('from_guide reaches trip analytics for kerala and kyoto, and unknown values
     return window.FridayGuideAnalytics;
   };
   const started = () => events.find((e) => e.name === 'trip_started').data;
-  for (const id of ['kerala', 'kyoto']) {
+  for (const id of ['kerala', 'goa']) {
     await run(`?destination=${id}&from_guide=${id}`).tripStarted({});
     assert.deepEqual([started().destination, started().from_guide], [id, true]);
   }

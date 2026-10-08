@@ -274,6 +274,14 @@
         if (villaStay) villaStay.checked = true;
       }
     }
+    /* ?topic= (for example from a When India travels "Call me back" link) is mentioned to the team with the callback request. */
+    const topic = (villaParams.get('topic') || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 200);
+    if (topic) {
+      $$('[data-callback-form]').forEach(form => {
+        const note = document.createElement('p'); note.className = 'card__d'; note.setAttribute('data-callback-topic', ''); note.textContent = 'We\u2019ll mention: ' + topic + '.';
+        form.insertBefore(note, form.firstChild);
+      });
+    }
     async function submit(form,endpoint) {
       const entries=new FormData(form),data=Object.fromEntries(entries);
       if(entries.has('composition'))data.composition=entries.getAll('composition');
@@ -289,7 +297,7 @@
       const button=form.querySelector('[type=submit]'),status=form.querySelector('[data-callback-status]');button.disabled=true;
       if(status)status.textContent='Sending your request…';
       try{
-        const entries=new FormData(form),data={name:entries.get('name'),phone:entries.get('phone'),bestTime:entries.get('bestTime'),entryPoint:form.dataset.entryPoint||'contact',...(villaContext?{villaId:villaContext.id}:{})};
+        const entries=new FormData(form),data={name:entries.get('name'),phone:entries.get('phone'),bestTime:entries.get('bestTime'),entryPoint:form.dataset.entryPoint||'contact',...(topic?{topic}:{}),...(villaContext?{villaId:villaContext.id}:{})};
         const response=await fetch('/api/callbacks',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
         const result=await response.json();if(!response.ok)throw new Error(result.error||'Your request could not be saved. Please try again.');
         if(window.FridayCallbackAnalytics)window.FridayCallbackAnalytics.track('contact',result.id);

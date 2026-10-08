@@ -219,8 +219,40 @@
     try { raw = new URLSearchParams(location.search || '').get('destination') || ''; } catch (e) { /* ignore */ }
     const id = raw.trim();
     const own = (key) => !!key && FT.DESTINATIONS && Object.prototype.hasOwnProperty.call(FT.DESTINATIONS, key) ? FT.dest(key) : null;
+    if (!id && typeof FT.parseRequestedPlace === 'function') { // a When India travels link names a place, not an id: a catalogue id or name there presets the destination too
+      const place = FT.parseRequestedPlace(location.search).toLowerCase();
+      const byName = place && FT.DESTINATIONS ? Object.keys(FT.DESTINATIONS).find((key) => String((FT.DESTINATIONS[key] || {}).name || '').toLowerCase() === place) : null;
+      return own(place) || own(byName);
+    }
     return own(id) || own(id.toLowerCase());
   };
+  /* BEGIN requested-place: ?place=<text> from a When India travels link: any place, not only the catalogue. Plain text, 80 characters at most. */
+  FT.parseRequestedPlace = (search) => {
+    let raw = '';
+    try { raw = new URLSearchParams(search || '').get('place') || ''; } catch (e) { return ''; }
+    return raw.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).trim();
+  };
+  /* END requested-place */
+  /* BEGIN requested-dates: ?start=YYYY-MM-DD&nights=n from a When India travels link. Self-contained so tests can load it alone.
+     Both must be valid (a real calendar date that is not in the past, and 1-30 nights); otherwise null and nothing is prefilled. */
+  FT.parseRequestedDates = (search, todayIso) => {
+    let q;
+    try { q = new URLSearchParams(search || ''); } catch (e) { return null; }
+    const start = String(q.get('start') || '').trim();
+    const nightsRaw = String(q.get('nights') || '').trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(start);
+    if (!m || !/^\d{1,2}$/.test(nightsRaw)) return null;
+    const ms = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+    const real = new Date(ms);
+    if (real.getUTCFullYear() !== +m[1] || real.getUTCMonth() !== +m[2] - 1 || real.getUTCDate() !== +m[3]) return null;
+    if (start < todayIso) return null;
+    const nights = parseInt(nightsRaw, 10);
+    if (nights < 1 || nights > 30) return null;
+    const e = new Date(ms + nights * 86400000);
+    const pad2 = (n) => (n < 10 ? '0' : '') + n;
+    return { start, end: e.getUTCFullYear() + '-' + pad2(e.getUTCMonth() + 1) + '-' + pad2(e.getUTCDate()), nights };
+  };
+  /* END requested-dates */
   FT.place = (destId, placeId) => {
     const d = FT.dest(destId);
     const p = d && d.places && d.places[placeId];
@@ -1374,6 +1406,10 @@
       const el = pageEl('new');
       const presetDestination = FT.requestedDestination();
       const starterText = presetDestination ? (presetDestination.prompt || 'Plan a trip to ' + presetDestination.name) : '';
+      const presetDates = FT.parseRequestedDates(location.search, today()); // When India travels hand-off (?start=&nights=, with or without a destination): say the dates in the box too
+      const presetPlace = presetDestination ? '' : FT.parseRequestedPlace(location.search);
+      const datesText = presetDates ? 'We are thinking ' + fmtRange(presetDates.start, presetDates.end) + ' (' + presetDates.nights + ' night' + (presetDates.nights === 1 ? '' : 's') + ').' : '';
+      const datesNote = presetPlace ? 'Plan a trip to ' + presetPlace + '.' + (datesText ? ' ' + datesText : '') : presetDates ? (presetDestination ? ' ' + datesText : datesText + ' Where should we go?') : '';
       const remembered = FT.memoryContext ? FT.memoryContext.list(state) : [];
       const showMemory = true;
       const renderMemory = () => {
@@ -1394,7 +1430,7 @@
         '<form class="fx-prompt" data-prompt novalidate>' +
         '<div class="fx-prompt__chips" data-chips></div>' +
         '<label class="sr" for="fx-prompt-ta">Describe your trip</label>' +
-        '<textarea class="fx-prompt__ta" id="fx-prompt-ta" rows="2" placeholder="Tell Friday where you’d like to go, or paste a reel link…" maxlength="1200">' + esc(starterText) + '</textarea>' +
+        '<textarea class="fx-prompt__ta" id="fx-prompt-ta" rows="2" placeholder="Tell Friday where you’d like to go, or paste a reel link…" maxlength="1200">' + esc(starterText + datesNote) + '</textarea>' +
         renderMemory() +
         '<div class="fx-prompt__row">' +
         '<button class="fx-icon-btn" type="button" data-act="attach" aria-label="Attach an image" title="Attach an image">' + icon('image', 18) + '</button>' +
@@ -1498,10 +1534,16 @@
       const returning = state.trips.length > 0;
       const presetDestination = FT.requestedDestination();
       const trip = FT.trips.create(presetDestination ? { destId: presetDestination.id } : undefined);
-      store.update((s) => { const created = s.trips.find((item) => item.id === trip.id); if (created) created.rememberedPreferences = applied; });
+      store.update((s) => {
+        const created = s.trips.find((item) => item.id === trip.id);
+        if (!created) return;
+        created.rememberedPreferences = applied;
+        const dates = FT.parseRequestedDates(location.search, today()); // the When India travels hand-off: dates and length of the break, with or without a destination
+        if (dates) { created.prefs = Object.assign({}, created.prefs, { dates: { start: dates.start, end: dates.end }, days: dates.nights + 1 }); }
+      });
       if (FT.backend && FT.backend.user && FT.tripAnalytics && typeof FT.tripAnalytics.trackCreated === 'function') FT.tripAnalytics.trackCreated({ returning: returning, memory_shown: !!memoryShown, memory_applied_count: applied.length });
-      if (presetDestination) { // the guide hand-off is consumed: later "New trip" taps start blank. (guide analytics reads from_guide first, in trips.create)
-        try { const q = new URLSearchParams(location.search || ''); q.delete('destination'); q.delete('from_guide'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : '') + (location.hash || '')); } catch (e) { /* ignore */ }
+      if (presetDestination || FT.parseRequestedDates(location.search, today()) || FT.parseRequestedPlace(location.search)) { // the guide / break hand-off is consumed: later "New trip" taps start blank. (guide analytics reads from_guide first, in trips.create)
+        try { const q = new URLSearchParams(location.search || ''); q.delete('destination'); q.delete('from_guide'); q.delete('start'); q.delete('nights'); q.delete('place'); q.delete('from'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : '') + (location.hash || '')); } catch (e) { /* ignore */ }
       }
       router.go('#/trip/' + trip.id);
       if (FT.chat && typeof FT.chat.send === 'function') {
@@ -2401,6 +2443,9 @@
 
     // A guide link without #/new (or a bare ?destination=) should still land on the new-trip screen, even for travellers with trips.
     if (FT.requestedDestination() && parseHash(location.hash).name === 'home') {
+      try { history.replaceState(null, '', location.pathname + location.search + '#/new'); } catch (e) { /* ignore */ }
+    } else if ((FT.parseRequestedDates(location.search, today()) || FT.parseRequestedPlace(location.search)) && parseHash(location.hash).name === 'home') {
+      // a When India travels link (?start=&nights=, or ?place=) lands on the new-trip screen too
       try { history.replaceState(null, '', location.pathname + location.search + '#/new'); } catch (e) { /* ignore */ }
     }
     applyRoute(parseHash(location.hash));
