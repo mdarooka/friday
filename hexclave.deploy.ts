@@ -41,6 +41,8 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         FRIDAY_ENQUIRY_EMAIL: "manavdarooka1@gmail.com",
         FRIDAY_WHATSAPP_NUMBER: secret("FRIDAY_WHATSAPP_NUMBER", ""),
         QUOTE_ADMIN_EMAILS: "manavdarooka1@gmail.com",
+        // Team accounts that manage villa inventory (comma-separated); empty grants no access.
+        VILLA_ADMIN_EMAILS: secret("VILLA_ADMIN_EMAILS", ""),
         AI_PROVIDER: "claude",
         AI_MODEL: "claude-sonnet-5-5",
         // Empty defaults keep optional integrations off until their keys are supplied.
@@ -51,6 +53,8 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         ANTHROPIC_API_KEY: secret("ANTHROPIC_API_KEY", ""),
         FRIDAY_BRIEFING_AUTOSEND: "dry-run",
         FRIDAY_CRON_SECRET: secret("FRIDAY_CRON_SECRET", ""),
+        // Bearer secret for GET /api/cron/db-backup (the nightly GitHub Actions backup); empty keeps the route off.
+        FRIDAY_BACKUP_SECRET: secret("FRIDAY_BACKUP_SECRET", ""),
       },
     },
     // Private PostgreSQL, reachable only from other services in this project (raw TCP). It scales to zero, so the web

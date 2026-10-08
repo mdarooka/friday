@@ -27,6 +27,13 @@ export function createItineraryService({ env = process.env, fetch: fetchImpl, lo
   return {
     name,
     async generate(dest, request) {
+      if (dest.freeform) {
+        // A place outside the catalog has no local fallback: only Claude can plan it (Friday plans anywhere).
+        if (name !== 'claude') throw Object.assign(new Error('Planning a place outside Friday\u2019s guides needs the Claude itinerary provider, which is not configured.'), { status: 503 });
+        try { return { provider: primary.name, plan: await primary.generate(dest, request) }; } catch (err) {
+          throw Object.assign(new Error('The plan for ' + dest.name + ' could not be made: ' + scrub((err && err.message) || 'unknown error').slice(0, 200)), { status: 502 });
+        }
+      }
       try {
         const plan = await primary.generate(dest, request);
         return { provider: primary.name, plan };

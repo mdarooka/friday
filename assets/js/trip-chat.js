@@ -325,7 +325,10 @@
       return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: signal });
     }, 45000).then(function (r) { if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); });
   }
+  /* A plan already made for a destination outside the catalogue (see freeformFlow), handed to planFlow-style callers once. */
+  var preplanned = {};
   function requestPlan(d, o, turn, trip) {
+    if (d && preplanned[d.id]) { var ready = preplanned[d.id]; delete preplanned[d.id]; return Promise.resolve(ready); }
     var local = function () { return buildPlan(d, o); };
     return backendAvailable().then(function (up) {
       if (!up) return local();
@@ -1059,7 +1062,7 @@
       }
     }
     if (!did && !dname) {
-      return reply(turn, 'Where would you like to go? In this preview I can plan ' + curatedNames() + '.',
+      return reply(turn, 'Where would you like to go? Name any place, in India or abroad, and I will plan it with you. I know ' + curatedNames() + ' in the most detail.',
         order().map(function (id) { var dd = DEST(id); return dd ? { label: dd.prompt || ('Plan a trip to ' + dd.name), dest: id } : null; }));
     }
     if (!did) return respondGeneric(turn, trip, text, q);
@@ -1176,7 +1179,7 @@
     };
   }
   function honestText(name) {
-    return "I do not have detailed place suggestions for **" + name + "** yet. Detailed suggestions are currently available for " + curatedNames() + '. Pick one and I will build it with you.';
+    return "I could not draft a plan for **" + name + "** just now. I know " + curatedNames() + " in the most detail, and you can try **" + name + "** again in a moment, or talk with a Friday travel designer, who plans trips anywhere.";
   }
   function respondGeneric(turn, trip, text, q) {
     var name = trip.destName, replied = trip.prefs && trip.prefs.types && trip.prefs.types.length;
@@ -1194,6 +1197,23 @@
     }
     return reply(turn, honestText(name), curatedChips());
   }
+  /* A destination outside the catalogue: Friday still plans it. The server asks OpenAI for a plan over real, named places
+     (POST /api/itineraries with the place name) and returns the small catalogue that describes them; the catalogue
+     enriches the six places we know in detail, it does not limit where a traveller can go. Resolves to { dest, plan } or null. */
+  function freeformPlan(name, o, turn, trip) {
+    return backendAvailable().then(function (up) {
+      if (!up) return null;
+      var body = { destination: name, types: o.types, days: clamp(Math.round(o.days || 4), 1, 21), pace: 'normal', conversationId: turn && turn.threadId, tripId: trip && (trip.serverId || trip.id), messageId: turn && turn.msgId, ownerId: turn && turn.ownerId };
+      if (o.dates && o.dates.start) body.dates = { start: o.dates.start };
+      return postJson('api/itineraries', body).then(function (j) {
+        var cat = j && j.plan && j.plan.catalog;
+        if (!cat || !cat.places || !cat.areas) return null;
+        var dest = clone(cat);
+        var plan = adoptPlan(dest, j.plan, o);
+        return plan ? { dest: dest, plan: plan } : null;
+      });
+    }).catch(function () { return null; });
+  }
   function genericFlow(turn, b, trip) {
     var am = ansOf(b, 'month'), at = ansOf(b, 'types'), ad = ansOf(b, 'duration');
     var types = at && at.val && at.val.types || [];
@@ -1204,9 +1224,21 @@
     if (at && !at.decided && types.length) mem.push('Likes ' + types.map(lcfirst).join(' and ') + ' trips');
     if (ad && !ad.decided) mem.push('Likes trips of around ' + days + ' days');
     addMemory(mem);
-    return tick(turn, 0).then(function () { setThinking(turn, true); return tick(turn, 700); })
-      .then(function () { return say(turn, honestText(trip.destName)); })
-      .then(function () { suggest(turn, curatedChips()); });
+    trip = getTrip(trip.id);
+    var dates = trip.prefs && trip.prefs.dates && trip.prefs.dates.start ? { start: trip.prefs.dates.start } : null;
+    var planOpts = { types: types.length ? types : ['Considered & relaxed'], days: days, dates: dates };
+    var made = null;
+    return tick(turn, 0).then(function () { setThinking(turn, true); return freeformPlan(trip.destName, planOpts, turn, trip); })
+      .then(function (res) { made = res; return tick(turn, 300); })
+      .then(function () {
+        if (!made) { return say(turn, honestText(trip.destName)).then(function () { suggest(turn, curatedChips()); }); }
+        var dest = made.dest, plan = made.plan;
+        if (FT.DESTINATIONS) FT.DESTINATIONS[dest.id] = dest;
+        FT.store.update(function (s) { var t = s.trips.filter(function (x) { return x.id === trip.id; })[0]; if (!t) return; t.destId = dest.id; t.destName = dest.name; t.catalog = clone(dest); });
+        return tool(turn, 'Created plan with ' + countItems(plan) + ' stops', null, 350)
+          .then(function () { applyPlan(turn, plan, 'Created a ' + plan.days.length + '-day plan for ' + dest.name, countItems(plan)); return tick(turn, 300); })
+          .then(function () { return say(turn, 'Here is a first draft for **' + dest.name + '**. I chose the places from my own knowledge, so check them against current information before you rely on them. Tell me your exact dates, a slower pace or what to add, and I will reshape it. Friday can confirm prices and availability when you are ready.'); });
+      });
   }
   function foodCtx(d, ids, kind) {
     var c = {};

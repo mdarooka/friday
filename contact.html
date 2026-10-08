@@ -116,6 +116,24 @@
             <p class="card__d" data-callback-status role="status" aria-live="polite"></p>
           </form>
         </section>
+        <section class="destination-request" aria-labelledby="contact-destination-title" style="border:1px solid var(--rule);padding:clamp(1.25rem,3vw,2rem);margin-bottom:2rem">
+  <p class="eyebrow">Ask for a place</p>
+  <h2 class="h3" id="contact-destination-title" style="margin-top:.6rem">Request a destination.</h2>
+  <p class="card__d" style="margin:.5rem 0 1rem">Tell Friday where you would like to see a journey. The team reads every request and replies with what is possible. Add an email address or a phone number so we can reply.</p>
+  <form class="form destination-form" data-destination-form novalidate>
+    <div class="grid" style="gap:1rem var(--gap)">
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="contact-destination-destination">Destination</label><input class="field__input" id="contact-destination-destination" name="destination" type="text" maxlength="120" required placeholder="A country, region or place"></div>
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="contact-destination-month">When, if you know</label><input class="field__input" id="contact-destination-month" name="month" type="text" maxlength="40" placeholder="A month, season or flexible"></div>
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="contact-destination-group">How many travel</label><select class="field__select" id="contact-destination-group" name="groupSize"><option value="">Not sure yet</option><option>Two</option><option>Three to five</option><option>Six or more</option></select></div>
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="contact-destination-name">Your name</label><input class="field__input" id="contact-destination-name" name="name" type="text" maxlength="100" required autocomplete="name"></div>
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="contact-destination-email">Email</label><input class="field__input" id="contact-destination-email" name="email" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com"></div>
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="contact-destination-phone">Phone number</label><input class="field__input" id="contact-destination-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="10 digits or +91" maxlength="18"></div>
+    </div>
+    <div class="field"><label class="field__label" for="contact-destination-notes">Anything else? (optional)</label><textarea class="field__area" id="contact-destination-notes" name="notes" maxlength="1000"></textarea></div>
+    <button class="btn btn--solid" type="submit">Send request <span class="arrow">&rarr;</span></button>
+    <p class="card__d" data-destination-status role="status" aria-live="polite"></p>
+  </form>
+</section>
         <form class="form" id="quote" data-commission novalidate>
           <div class="grid" style="gap:2.1rem var(--gap)">
             <div class="c-6 c-sm-12 field">
@@ -208,7 +226,7 @@
       <div class="foot__links">
       <div class="foot__col">
       <p class="foot__h">Explore</p>
-      <ul class="foot__list"><li><a href="villas.html">Villas</a></li><li><a href="departures.html">Packages</a></li><li><a href="guides.html">Travel guides</a></li><li><a href="kerala-guide.html">Kerala guide</a></li><li><a href="kyoto-guide.html">Kyoto guide</a></li><li><a href="goa-guide.html">Goa guide</a></li><li><a href="rajasthan-guide.html">Rajasthan guide</a></li><li><a href="field-notes.html">Field Notes</a></li><li><a href="trip.html">Plan a trip</a></li></ul>
+      <ul class="foot__list"><li><a href="villas.html">Villas</a></li><li><a href="departures.html">Packages</a></li><li><a href="guides.html">Travel guides</a></li><li><a href="kerala-guide.html">Kerala guide</a></li><li><a href="goa-guide.html">Goa guide</a></li><li><a href="rajasthan-guide.html">Rajasthan guide</a></li><li><a href="when-india-travels.html">When India travels</a></li><li><a href="field-notes.html">Field Notes</a></li><li><a href="trip.html">Plan a trip</a></li></ul>
     </div>
       <div class="foot__col">
       <p class="foot__h">Your trip</p>
@@ -241,5 +259,6 @@
 <script src="assets/js/guide-analytics.js"></script>
 <script src="assets/js/callback-analytics.js"></script>
 <script src="assets/js/trip-prequote.js"></script>
+<script src="assets/js/native-page-analytics.js"></script>
 </body>
 </html>

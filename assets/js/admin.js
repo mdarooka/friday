@@ -436,14 +436,16 @@
       var snap = q.snapshot || {};
       var isCallback = q.kind === 'callback';
       var isVillaEnquiry = q.kind === 'villa_enquiry';
+      var isDestination = q.kind === 'destination_request';
       var villaName = isVillaEnquiry ? q.villa && q.villa.name : q.villaName;
-      var dest = isCallback ? (villaName ? 'Villa: ' + villaName : ((q.tripContext && (q.tripContext.name || q.tripContext.destination)) || 'Call me back')) : (isVillaEnquiry ? 'Villa: ' + (villaName || 'Friday stay') : (snap.destination || 'Unspecified destination'));
+      var dest = isCallback ? (villaName ? 'Villa: ' + villaName : ((q.tripContext && (q.tripContext.name || q.tripContext.destination)) || 'Call me back')) : (isVillaEnquiry ? 'Villa: ' + (villaName || 'Friday stay') : (isDestination ? 'Destination request: ' + (q.destination || '') : (snap.destination || 'Unspecified destination')));
       var dates = isCallback ? esc(q.phone || '') + ' · ' + esc(q.bestTime || 'time not set') : ((snap.dates && (snap.dates.start || snap.dates.end))
         ? (snap.dates.start || '') + ' &ndash; ' + (snap.dates.end || '')
         : 'Dates flexible');
       var qInfo = q.quote;
-      var amountDisplay = isCallback ? 'Callback request' : (isVillaEnquiry ? 'Villa enquiry' : (qInfo ? esc(qInfo.currency) + ' ' + Number(qInfo.amount).toFixed(2) : 'Unquoted'));
+      var amountDisplay = isCallback ? 'Callback request' : (isDestination ? 'Destination request' : isVillaEnquiry ? 'Villa enquiry' : (qInfo ? esc(qInfo.currency) + ' ' + Number(qInfo.amount).toFixed(2) : 'Unquoted'));
       var villaMeta = isVillaEnquiry ? [q.villa && q.villa.city, q.villa && q.villa.guests ? 'Sleeps up to ' + q.villa.guests : ''].filter(Boolean).map(esc).join(' · ') : '';
+      var destMeta = isDestination ? ([q.month, q.groupSize ? q.groupSize + ' travelling' : ''].filter(Boolean).map(esc).join(' · ') || 'Dates and group size not given') : '';
       var isOpen = !isCallback && !isVillaEnquiry && q.status === 'pending' && !q.firstReplyAt;
       var waitingMarkup = '';
       if (isOpen) {
@@ -457,11 +459,11 @@
 
       return '<div class="admin-quote-card' + (isSel ? ' is-selected' : '') + (isCallback && q.status === 'done' ? ' is-done' : '') + '" data-open-quote="' + esc(q.id) + '">' +
         '<div class="admin-quote-card__head">' +
-        '<span class="admin-quote-card__client">' + esc(isCallback || isVillaEnquiry ? (q.name || q.customerEmail || 'Guest') : (q.customerEmail || 'Guest')) + '</span>' +
-        (isCallback ? '<span class="admin-badge">Callback' + (q.status === 'done' ? ' · done' : '') + '</span>' : (isVillaEnquiry ? '<span class="admin-badge">Villa enquiry</span>' : badge(q.status))) +
+        '<span class="admin-quote-card__client">' + esc(isCallback || isVillaEnquiry || isDestination ? (q.name || q.customerEmail || 'Guest') : (q.customerEmail || 'Guest')) + '</span>' +
+        (isCallback ? '<span class="admin-badge">Callback' + (q.status === 'done' ? ' · done' : '') + '</span>' : (isDestination ? '<span class="admin-badge">Destination</span>' : (isVillaEnquiry ? '<span class="admin-badge">Villa enquiry</span>' : badge(q.status)))) +
         '</div>' +
         '<h4 class="admin-quote-card__dest">' + esc(dest) + '</h4>' +
-        '<div class="admin-quote-card__meta">' + (isCallback ? dates + ' · ' + esc(q.entryPoint || '') + (q.checklist ? ' · checklist ' + esc(q.checklist.done + '/' + q.checklist.total) : '') : (isVillaEnquiry ? villaMeta : dates + ' · ' + esc(snap.travelers || 1) + ' travellers')) + '</div>' +
+        '<div class="admin-quote-card__meta">' + (isCallback ? dates + ' · ' + esc(q.entryPoint || '') + (q.checklist ? ' · checklist ' + esc(q.checklist.done + '/' + q.checklist.total) : '') : (isDestination ? destMeta : isVillaEnquiry ? villaMeta : dates + ' · ' + esc(snap.travelers || 1) + ' travellers')) + '</div>' +
         '<div class="admin-quote-card__amount">' + amountDisplay + '</div>' + waitingMarkup +
         '</div>';
     }).join('');
@@ -484,7 +486,15 @@
     dom.quoteDrawer.hidden = false;
     dom.quoteNote.textContent = '';
     dom.quotePreviewBox.hidden = true;
-    dom.quoteForm.hidden = q.kind === 'callback' || q.kind === 'villa_enquiry';
+    dom.quoteForm.hidden = q.kind === 'callback' || q.kind === 'villa_enquiry' || q.kind === 'destination_request';
+    if (q.kind === 'destination_request') {
+      var dr = q;
+      dom.quoteTitle.textContent = 'Destination request';
+      dom.quoteSummaryInfo.innerHTML = '<p><strong>Destination:</strong> ' + esc(dr.destination || '') + '</p><p><strong>Name:</strong> ' + esc(dr.name || '') + '</p>' + (dr.customerEmail ? '<p><strong>Email:</strong> <a href="mailto:' + esc(dr.customerEmail) + '">' + esc(dr.customerEmail) + '</a></p>' : '') + (dr.phone ? '<p><strong>Phone:</strong> <a href="tel:' + esc(dr.phone) + '">' + esc(dr.phone) + '</a></p>' : '') + (dr.month ? '<p><strong>When:</strong> ' + esc(dr.month) + '</p>' : '') + (dr.groupSize ? '<p><strong>Who is travelling:</strong> ' + esc(dr.groupSize) + '</p>' : '') + (dr.notes ? '<p><strong>Notes:</strong> ' + esc(dr.notes) + '</p>' : '') + '<p><strong>Received:</strong> ' + esc(formatDate(dr.createdAt)) + '</p>';
+      dom.quoteNote.textContent = 'Contact this traveler about the destination. This request is saved for the Friday team and is not a quote email to send.';
+      renderQuotes(state.quotes);
+      return;
+    }
     if (q.kind === 'villa_enquiry') {
       var v = q.villa || {}, data = q.data || {};
       var composition = Array.isArray(data.composition) ? data.composition.join(', ') : (data.composition || '');
