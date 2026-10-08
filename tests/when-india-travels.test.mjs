@@ -345,20 +345,131 @@ test('?region=MH preselects Maharashtra, then the remembered choice, then All; c
   assert.doesNotMatch(source, /\/api\/|fetch\(|auth\/me/);
 });
 
-test('the homepage teaser starts national and swaps to the saved region', async () => {
-  const index = await read('index.html');
-  const source = await read('assets/js/when-india-travels.js');
-  const national = B.nextBreak(buildToday, 'all');
-  assert.ok(index.includes('data-wit-teaser'));
-  assert.ok(index.includes(national.name) && index.includes(national.suggestions[0].place));
-  assert.doesNotMatch(index.match(/data-wit-teaser[^]*?<\/section>/)[0], /top pick|destination=/);
-  const plain = runScript(source, { home: true });
-  assert.equal(plain.slots['[data-wit-teaser-break]'].textContent, '');
-  const saved = runScript(source, { home: true, stored: 'west-bengal' });
-  const expected = B.nextBreak(buildToday, 'west-bengal');
-  assert.equal(saved.slots['[data-wit-teaser-break]'].textContent, expected.name);
-  assert.equal(saved.slots['[data-wit-teaser-place]'].textContent, expected.suggestions[0].place);
-  assert.equal(saved.slots['[data-wit-teaser-link]'].attrs.href, 'when-india-travels.html?region=west-bengal');
+const indexHtml = await read('index.html');
+const sourceJs = await read('assets/js/when-india-travels.js');
+const homeSection = (page) => page.match(/<section class="section section--tight home-breaks"[^]*?<\/section>/)[0];
+const cardsIn = (section) => [...section.matchAll(/<li class="wit-card-item" data-wit-card data-regions="([^"]*)" data-end="([^"]*)">\s*<a class="wit-card" href="([^"]*)">([^]*?)<\/li>/g)];
+const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escHtml = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+test('the homepage section renders from the data: heading, lede, link, and one card per upcoming break', () => {
+  const section = homeSection(indexHtml);
+  const upcoming = B.upcomingBreaks(buildToday);
+  assert.match(section, /<p class="eyebrow">When India travels<\/p>/);
+  assert.match(section, /<h2 class="h2" id="home-breaks-title">When India<br><em>travels\.<\/em><\/h2>/);
+  assert.match(section, /<p class="lede">The long weekends, festival breaks and school holidays coming up, and the places that suit each one\.<\/p>/);
+  assert.match(section, /<a class="link" data-wit-teaser-link href="when-india-travels\.html">See every break <span class="arrow">&rarr;<\/span><\/a>/);
+  assert.doesNotMatch(section, /style="(?!--i)|top pick|destination=/);
+  const cards = cardsIn(section);
+  assert.equal(cards.length, upcoming.length);
+  assert.ok(upcoming.length > 3, 'all upcoming breaks, not just three');
+  cards.forEach((m, i) => {
+    const brk = upcoming[i];
+    assert.equal(m[1], brk.regions.join(' '));
+    assert.equal(m[2], brk.endDate);
+    assert.equal(m[3], `when-india-travels.html#${brk.id}`);
+    assert.ok(html.includes(`id="${brk.id}"`), `${brk.id} has an anchor on the page`);
+    assert.match(m[4], /<p class="eyebrow eyebrow--accent wit-card__dates">[^<]+ · \d+ nights?<\/p>/);
+    assert.match(m[4], new RegExp(`<h3 class="h3 wit-card__t">${escapeRe(escHtml(brk.name))}</h3>`));
+    assert.ok(m[4].includes(`First idea: <span>${escHtml(brk.suggestions[0].place)}</span>`));
+    assert.match(m[4], /<p class="wit-card__note">[^<]*[.!?]<\/p>/);
+    assert.doesNotMatch(m[4], /<p class="wit-card__note">[^<]*[.!?]\s+\S/, 'one sentence only');
+  });
+  assert.ok(cards.every((m, i) => i === 0 || upcoming[i - 1].startDate <= upcoming[i].startDate), 'date order');
+  const dates = (id) => cards[upcoming.findIndex((b) => b.id === id)][4].match(/wit-card__dates">([^<]*)</)[1];
+  if (buildToday.startsWith('2026')) assert.equal(dates('dussehra-2026'), '17–20 Oct · 3 nights');
+});
+
+test('past breaks are left out of the homepage section at build time', () => {
+  const LW = require('../build/when-india-travels.js');
+  const later = '2026-11-13';
+  const ids = cardsIn(LW.homeTeaser({ esc: escHtml, today: later })).map((m) => m[3].split('#')[1]);
+  assert.deepEqual(ids, B.upcomingBreaks(later).map((b) => b.id));
+  for (const gone of ['dussehra-2026', 'durga-puja-2026', 'diwali-2026', 'kali-puja-2026']) assert.ok(!ids.includes(gone), `${gone} is past`);
+  assert.ok(ids.includes('guru-nanak-2026'));
+  assert.equal(LW.homeTeaser({ esc: escHtml, today: '2030-01-01' }), '');
+});
+
+test('the carousel markup is a scroll-snap row of links, with labelled arrow buttons that are hidden without JS', async () => {
+  const css = await read('assets/css/friday.css');
+  const section = homeSection(indexHtml);
+  assert.match(section, /data-wit-carousel role="group" aria-roledescription="carousel" aria-label="Upcoming breaks"/);
+  assert.match(section, /<ul class="wit-track" data-wit-track>/);
+  assert.match(section, /<div class="wit-nav" data-wit-nav hidden>/);
+  assert.match(section, /<button class="wit-nav__btn" type="button" data-wit-prev aria-label="Previous breaks" disabled>/);
+  assert.match(section, /<button class="wit-nav__btn" type="button" data-wit-next aria-label="Next breaks">/);
+  assert.ok(cardsIn(section).every((m) => m[0].includes('<a class="wit-card" href=')), 'each card is a link');
+  assert.match(css, /\.wit-track \{[^}]*overflow-x: auto;[^}]*scroll-snap-type: x mandatory;[^}]*scrollbar-width: none;/);
+  assert.match(css, /\.wit-card-item \{[^}]*scroll-snap-align: start;/);
+  assert.match(css, /\.home-breaks__grid \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 2fr\);[^}]*gap: clamp\(2rem, 5vw, 5rem\);/);
+  assert.match(css, /\.wit-card \{[^}]*border: 1px solid rgba\(21, 20, 15, \.14\);[^}]*border-radius: 14px;[^}]*background: rgba\(255, 255, 255, \.35\);/);
+  assert.match(css, /\.wit-card__dates \{[^}]*white-space: nowrap;/);
+  assert.match(css, /flex-basis: calc\(\(100% - var\(--wit-gap\)\) \/ 1\.15\)/);
+});
+
+function runCarousel({ stored = null, today = buildToday, reduced = false } = {}) {
+  const el = (attrs = {}) => {
+    const a = { ...attrs };
+    return { hidden: false, disabled: false, attrs: a, listeners: {}, getAttribute: (n) => (n in a ? a[n] : null), setAttribute(n, v) { a[n] = String(v); }, addEventListener(type, fn) { this.listeners[type] = fn; } };
+  };
+  const cards = cardsIn(homeSection(indexHtml)).map((m, i) => Object.assign(el({ 'data-regions': m[1], 'data-end': m[2] }), { offsetLeft: i * 300, offsetWidth: 280, id: m[3].split('#')[1], closest() { return this; } }));
+  const track = Object.assign(el(), { scrollLeft: 0, clientWidth: 900, scrollWidth: cards.length * 300, scrolled: [], scrollBy(o) { this.scrolled.push(o); }, scrollTo(o) { this.scrolledTo = o; } });
+  const prev = Object.assign(el(), { disabled: true }), next = el(), nav = Object.assign(el(), { hidden: true }), link = el({ href: 'when-india-travels.html' });
+  const parts = { '[data-wit-track]': track, '[data-wit-prev]': prev, '[data-wit-next]': next, '[data-wit-nav]': nav, '[data-wit-teaser-link]': link };
+  const teaser = { querySelector: (sel) => parts[sel] || null, querySelectorAll: (sel) => (sel === '[data-wit-card]' ? cards : []) };
+  const data = JSON.parse(html.match(/<script type="application\/json" id="wit-data">(.*?)<\/script>/s)[1]);
+  const storage = new Map(stored ? [['friday.breaks-region.v1', stored]] : []);
+  const FakeDate = class extends Date { constructor(...args) { super(...(args.length ? args : [`${today}T12:00:00`])); } };
+  vm.runInNewContext(sourceJs, {
+    document: { body: el(), getElementById: (id) => (id === 'wit-data' ? { textContent: JSON.stringify(data) } : null), querySelectorAll: () => [], querySelector: (sel) => (sel === '[data-wit-teaser]' ? teaser : null) },
+    window: { addEventListener() {}, matchMedia: () => ({ matches: reduced }) },
+    URLSearchParams, Date: FakeDate, Array, Object, String, JSON,
+    location: { search: '', pathname: '/' }, history: { replaceState() {} },
+    localStorage: { getItem: (k) => (storage.has(k) ? storage.get(k) : null), setItem() {} },
+  });
+  return { cards, track, prev, next, nav, link, visible: () => cards.filter((c) => !c.hidden).map((c) => c.id) };
+}
+
+test('carousel script: with nothing saved every upcoming break shows; a saved state shows its breaks plus national ones in date order', () => {
+  const all = runCarousel();
+  assert.deepEqual(all.visible(), B.upcomingBreaks(buildToday).map((b) => b.id));
+  assert.equal(all.nav.hidden, false);
+  assert.equal(all.link.attrs.href, 'when-india-travels.html');
+  const wb = runCarousel({ stored: 'west-bengal' });
+  const expected = B.upcomingBreaks(buildToday, { region: 'west-bengal' }).map((b) => b.id);
+  assert.deepEqual(wb.visible(), expected);
+  assert.ok(expected.length < all.visible().length);
+  assert.ok(expected.includes('dussehra-2026') && expected.includes('durga-puja-2026') && !expected.includes('navratri-2026-gj'));
+  assert.equal(wb.link.attrs.href, 'when-india-travels.html?region=west-bengal');
+  assert.equal(runCarousel({ stored: 'all' }).visible().length, all.visible().length);
+});
+
+test('carousel script: breaks that ended after the build are hidden by date', () => {
+  const ids = runCarousel({ today: '2026-11-13' }).visible();
+  assert.ok(!ids.includes('dussehra-2026') && !ids.includes('diwali-2026') && ids.includes('guru-nanak-2026'));
+  assert.deepEqual(ids, B.upcomingBreaks('2026-11-13').map((b) => b.id));
+});
+
+test('carousel script: arrows scroll one card and disable at each end; reduced motion is respected; focus keeps the card in view', () => {
+  const run = runCarousel();
+  assert.equal(run.prev.disabled, true);
+  assert.equal(run.next.disabled, false);
+  run.next.listeners.click();
+  assert.equal(JSON.stringify(run.track.scrolled[0]), JSON.stringify({ left: 300, behavior: 'smooth' }));
+  run.track.scrollLeft = 600;
+  run.track.listeners.scroll();
+  assert.equal(run.prev.disabled, false);
+  run.prev.listeners.click();
+  assert.equal(JSON.stringify(run.track.scrolled[1]), JSON.stringify({ left: -300, behavior: 'smooth' }));
+  run.track.scrollLeft = run.track.scrollWidth - run.track.clientWidth;
+  run.track.listeners.scroll();
+  assert.equal(run.next.disabled, true);
+  run.track.scrollLeft = 0;
+  run.track.listeners.focusin({ target: run.cards[4] });
+  assert.equal(run.track.scrolledTo.left, 4 * 300 + 280 - 900);
+  const calm = runCarousel({ reduced: true });
+  calm.next.listeners.click();
+  assert.equal(calm.track.scrolled[0].behavior, 'auto');
 });
 
 test('When India travels is linked from the footer, field notes, the Mumbai guide, the guides and the homepage, not the top nav', async () => {
