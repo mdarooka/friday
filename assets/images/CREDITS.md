@@ -13,3 +13,25 @@ Generated art (the `Plate()` prints and `assets/illustrations/`) is made in the 
 - Downloaded: 2026-10-08
 - Attribution: not legally required under the Unsplash License. Credited here as a courtesy and for the record.
 - Used in: `index.html` hero, via `Photo()` in `build/templates.js` (`HOME_HERO_PHOTO` in `build/generate.js`).
+
+## Home page offering card: Packages
+
+- Files: `offering-packages-suitcases-640.jpg`, `offering-packages-suitcases-1000.jpg`, `offering-packages-suitcases-1600.jpg` (resized JPEGs of one photo; 1600 px wide is the largest kept)
+- Photo: "Stack of vintage suitcases" (Unsplash title: "A pile of luggage stacked on top of a suitcase")
+- Source page: https://unsplash.com/photos/a-pile-of-luggage-stacked-on-top-of-a-suitcase-6VFqT6vPY78 (Unsplash id 6VFqT6vPY78; original: https://images.unsplash.com/photo-1637043398520-4dec20e83d63, 6706 x 4473)
+- Photographer: engin akyurt, https://unsplash.com/@enginakyurt
+- Licence: Unsplash License, https://unsplash.com/license (free commercial use; not an Unsplash+ photo; checked on the photo page 2026-10-08)
+- Downloaded: 2026-10-08
+- Attribution: not legally required under the Unsplash License. Credited here as a courtesy and for the record.
+- Used in: `index.html`, the Packages card in `section#offerings`, via `Photo()` in `build/templates.js` (`OFFERING_PACKAGES_PHOTO` in `build/generate.js`). Replaces `assets/illustrations/friday-package-parcel.svg` on that card.
+
+## Home page offering card: Friday AI
+
+- Files: `offering-ai-map-640.jpg`, `offering-ai-map-1000.jpg`, `offering-ai-map-1600.jpg` (resized JPEGs of one photo; 1600 px wide is the largest kept)
+- Photo: "Map under window light and deep shadow" (Unsplash title: "Green and blue map")
+- Source page: https://unsplash.com/photos/green-and-blue-map-rCx_m5bcDgk (Unsplash id rCx_m5bcDgk; original: https://images.unsplash.com/photo-1553903148-895cebaaab4b, 3872 x 2592)
+- Photographer: Aubrey Odom, https://unsplash.com/@octoberroses
+- Licence: Unsplash License, https://unsplash.com/license (free commercial use; not an Unsplash+ photo; checked on the photo page 2026-10-08)
+- Downloaded: 2026-10-08
+- Attribution: not legally required under the Unsplash License. Credited here as a courtesy and for the record.
+- Used in: `index.html`, the Friday AI card in `section#offerings`, via `Photo()` in `build/templates.js` (`OFFERING_AI_PHOTO` in `build/generate.js`). Replaces `assets/illustrations/friday-folded-itinerary-map.svg` on that card.
