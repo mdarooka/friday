@@ -8,6 +8,7 @@ export const origin = 'http://localhost:4871';
  * the machine's configuration. Returns { base, request, server, db }; cleanup is registered on `t`.
  */
 export async function startApp(t, { env = {}, ...options } = {}) {
+  options = { airportFetch: async () => { throw new Error('geocoder disabled in tests'); }, ...options };
   const server = createApp({ memory: true, origin, env: { ITINERARY_PROVIDER: 'local', ...env }, ...options, ...vaultModeOptions({ ...options, env: { ITINERARY_PROVIDER: 'local', ...env } }) });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;

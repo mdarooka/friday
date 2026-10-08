@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as store from './store.mjs';
 import { openStore, saveItinerary, getItinerary, ITINERARY_ID } from './store.mjs';
-import { metros, findMetro } from './airports.mjs';
+import { airportData, createAirportLookup, isKnownAirport as knownAirportCode, titleCaseCity } from './airports.mjs';
 import { research, researchLink, checkFareAlert } from './ai.mjs';
 import { createGoogleIntegration } from './google.mjs';
 import { createGooglePlacesIntegration } from './places.mjs';
@@ -44,12 +44,11 @@ const str = (v,name,max=1000,required=false) => {
 const email = v => { const e = str(v,'email',254,true).toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) fail(422,'Please enter a valid email.'); return e; };
 const indianPhone = value => { const digits = typeof value === 'string' ? value.replace(/[\s()-]/g, '') : ''; const match = /^(?:\+?91)?([6-9]\d{9})$/.exec(digits); if (!match) fail(422,'Enter a valid 10-digit Indian mobile number, with or without +91.'); return '+91' + match[1]; };
 const kinds = new Set(['trips','places','lists','bookings','memories','alerts','imports']);
-const supportedAirports = new Set(metros.flatMap(metro=>metro.airports));
 const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(+new Date(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0,10) === value;
 function fareFields(data) {
   const origin=typeof data.origin==='string'?data.origin.trim().toUpperCase():'';
   const destination=typeof data.destination==='string'?data.destination.trim():'';
-  const isKnownAirport=value=>/^[A-Z]{3}$/.test(value)&&supportedAirports.has(value);
+  const isKnownAirport=knownAirportCode;
   if (!isKnownAirport(origin) || !destination || destination.length>120 || /[\u0000-\u001f\u007f]/.test(destination) || (/^[A-Za-z]{3}$/.test(destination)&&!isKnownAirport(destination)) || !validDate(data.departDate || data.startDate)) fail(422,'Choose a supported departure airport, destination, and valid departure date.');
   const depart = data.departDate || data.startDate, back = data.returnDate || data.endDate || '';
   if (back && (!validDate(back) || back < depart)) fail(422,'Choose a valid return date after departure.');
@@ -179,6 +178,7 @@ export function createApp(options = {}) {
   const hasConfiguredRestrictions = allConfiguredAdminEmails.size > 0;
   const villaResearchFn=options.villaResearch||researchFn;
   const google=options.google||createGoogleIntegration({db,origin,findTripId:(userId,tripId)=>trips.findId(tripId,userId),clientId:env.GOOGLE_CLIENT_ID,clientSecret:env.GOOGLE_CLIENT_SECRET,encryptionKey:env.GOOGLE_TOKEN_KEY,fetch:options.fetch});
+  const airportLookup=createAirportLookup({fetch:options.airportFetch||globalThis.fetch});
   const places=options.places||createGooglePlacesIntegration({apiKey:env.GOOGLE_PLACES_API_KEY,fetch:options.fetch});
   const googleOAuthConfigured=options.google?true:!!(env.GOOGLE_CLIENT_ID&&env.GOOGLE_CLIENT_SECRET&&/^[a-f0-9]{64}$/i.test(env.GOOGLE_TOKEN_KEY||''));
   const placesConfigured=options.places?true:!!env.GOOGLE_PLACES_API_KEY;
@@ -390,7 +390,7 @@ export function createApp(options = {}) {
         await store.updateAiConversationEvent(db,{eventKey:audit.eventKey,ownerId:user.id,conversationId:audit.conversationId,content:auditContent(content),status,updated:new Date().toISOString()});
       };
       if (p==='/api/health') {allow('GET','HEAD');return send(200,{ok:true,itineraryProvider:itineraries.name,knowledge:{sources:knowledge.sources,chars:knowledge.chars}});}
-      if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));const whatsappRaw=String(env.FRIDAY_WHATSAPP_NUMBER||'').trim();const whatsappNumber=/^\+?[0-9\s().-]+$/.test(whatsappRaw)?whatsappRaw.replace(/\D/g,''):'';return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportMetroCount:metros.length,whatsappNumber:/^\d{8,15}$/.test(whatsappNumber)?whatsappNumber:'',chatgpt:publicChatgpt(chatgpt)});}
+      if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));const whatsappRaw=String(env.FRIDAY_WHATSAPP_NUMBER||'').trim();const whatsappNumber=/^\+?[0-9\s().-]+$/.test(whatsappRaw)?whatsappRaw.replace(/\D/g,''):'';return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportCount:airportData().length,whatsappNumber:/^\d{8,15}$/.test(whatsappNumber)?whatsappNumber:'',chatgpt:publicChatgpt(chatgpt)});}
       if (p==='/api/newsletter/unsubscribe') {
         allow('GET','HEAD','POST');
         const token=method==='POST'?(typeof body.token==='string'?body.token:''):url.searchParams.get('token')||'';
@@ -418,8 +418,16 @@ export function createApp(options = {}) {
         return send(200,{ok:true});
       }
       if (p==='/api/airports' && method==='GET') {
-        const q=(url.searchParams.get('q')||'').toLowerCase().trim();
-        return send(200,{metros:metros.filter(m=>[m.city,...m.aliases].some(s=>s.toLowerCase().includes(q))).slice(0,10)});
+        rate('airports:'+ip,60);
+        const q=(url.searchParams.get('q')||'').trim();
+        if(q.length>80)fail(422,'Please enter a shorter city name.');
+        return send(200,{places:q?await airportLookup.lookup(q):[]});
+      }
+      if (p==='/api/airports/search' && method==='GET') {
+        rate('airports:'+ip,60);
+        const q=(url.searchParams.get('q')||'').trim();
+        if(q.length>80)fail(422,'Please enter a shorter search.');
+        return send(200,{airports:airportLookup.search(q)});
       }
       if (p==='/api/villas') {
         allow('GET','HEAD');
@@ -1193,11 +1201,18 @@ export function createApp(options = {}) {
         const old=JSON.parse(user.profile); const profile={...old};
         for (const key of ['city','airlines','avoidAirlines','hotels','budget','business','other','notifications']) if (body[key]!==undefined) profile[key]=str(body[key],key,2000);
         if(body.city!==undefined || body.airports!==undefined) {
-          const metro=findMetro(profile.city), suggested=metro?.airports||[];
+          const cityChanged=body.city!==undefined && profile.city.trim().toLowerCase()!==String(old.city||'').trim().toLowerCase();
+          let places=null,chosen=null;
+          if(body.city!==undefined && profile.city) {
+            places=await airportLookup.lookup(profile.city);
+            const exact=places.find(place=>place.city.toLowerCase()===profile.city.toLowerCase());
+            chosen=exact||places[0]||null;
+            profile.city=exact?.city||titleCaseCity(profile.city);
+          }
           if(body.airports!==undefined) {
-            if(!Array.isArray(body.airports)||body.airports.some(a=>!suggested.includes(a)))fail(422,'Choose departure airports from the suggested group.');
-            profile.airports=[...new Set(body.airports)];
-          } else if(body.city!==undefined && body.city.trim().toLowerCase()!==String(old.city||'').trim().toLowerCase()) profile.airports=suggested;
+            if(!Array.isArray(body.airports)||body.airports.length>6||body.airports.some(a=>typeof a!=='string'||!knownAirportCode(a.trim().toUpperCase())))fail(422,'Choose departure airports from the airport list.');
+            profile.airports=[...new Set(body.airports.map(a=>a.trim().toUpperCase()))];
+          } else if(cityChanged) profile.airports=(chosen?.airports||[]).map(a=>a.code);
           profile.onboarded=true;
         }
         await store.updateUserProfile(db,user.id,JSON.stringify(profile));
