@@ -482,9 +482,7 @@ ${PageHero({
   eyebrow: 'About Friday',
   title: 'A travel designer<br>for the way you go.',
   lede: 'Friday is a travel designer from Bombay and a Kusum Travels brand, with 22 years of travel experience behind it. Begin with a villa, a sample journey, or an idea you want to shape into a trip.',
-  meta: [{ k: 'Experience', v: D.brand.experience }, { k: 'Brand', v: D.brand.parentName }],
-  seed: 'about-friday', scene: 'terraces', tone: 'moss', seedReveal: 'fade',
-  heroImage: 'assets/images/about-queens-necklace.svg',
+  background: 'assets/images/about-queens-necklace.svg', backgroundFade: true,
 })}
 <section class="section section--tight"><div class="wrap">
   <div class="about-intro" data-reveal>

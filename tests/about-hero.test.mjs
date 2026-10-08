@@ -5,14 +5,13 @@ import { readFile, stat } from 'node:fs/promises';
 const page = name => readFile(new URL(`../${name}`, import.meta.url), 'utf8');
 const hero = html => html.match(/<div class="phero__art"[^>]*>[\s\S]*?<\/div><\/div>/)?.[0] ?? '';
 
-test('About page hero uses the Queens Necklace image inside the panorama plate', async () => {
-  const art = hero(await page('about.html'));
-  assert.match(art, /<div class="plate plate--ratio-w"><img [^>]*src="assets\/images\/about-queens-necklace\.svg"/);
-  assert.match(art, /alt=""/);
-  assert.match(art, /width="1600" height="700"/);
-  assert.match(art, /fetchpriority="high"/);
-  assert.doesNotMatch(art, /loading="lazy"/);
-  assert.doesNotMatch(art, /<svg/);
+test('About page hero paints the Queens Necklace as a faded full-bleed background', async () => {
+  const html = await page('about.html');
+  const bg = html.match(/<div class="phero-bg phero-bg--fade" style="([^"]*)">/);
+  assert.ok(bg, 'expected a faded background hero');
+  assert.match(bg[1], /linear-gradient\(to bottom,var\(--paper\)[^)]*\),url\('assets\/images\/about-queens-necklace\.svg'\)/);
+  assert.equal(hero(html), '', 'no separate art plate under the text');
+  assert.doesNotMatch(html, /class="phero__side"/, 'no Experience/Brand meta block');
   assert.ok((await stat(new URL('../assets/images/about-queens-necklace.svg', import.meta.url))).size > 0);
 });
 

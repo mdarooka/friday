@@ -1160,3 +1160,13 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
 @media (max-width: 800px) {
   .phero-bg { background-size: 190% auto; background-position: 38% bottom; padding-bottom: 72vw; }
 }
+/* A 1600x700 panorama whose sky is not paper: a paper gradient (set inline with the art, as the first layer),
+   sized to the art and pinned to the same bottom edge, fades the top of the scene into the page. */
+.phero-bg--fade {
+  background-size: 100% 43.75vw, 100% auto;
+  background-position: center bottom, center bottom;
+  padding-bottom: clamp(14rem, 36vw, 40rem);
+}
+@media (max-width: 800px) {
+  .phero-bg--fade { background-size: 100% 83.125vw, 190% auto; background-position: center bottom, 38% bottom; padding-bottom: 76vw; }
+}
