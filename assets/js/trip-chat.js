@@ -1678,6 +1678,16 @@
     }
     return el;
   }
+  /* Stay ideas saved before commute notes existed: work out the previous base from the plan (or the card before). */
+  function ensureCommute(d, trip, b, groupIndex) {
+    var group = (b.groups || [])[groupIndex];
+    if (!d || !group || group.commute || !group.from || group.from < 2) return group;
+    var day = trip && trip.plan && trip.plan.days && trip.plan.days[group.from - 2];
+    var prev = day && day.area ? day.area : groupIndex > 0 && b.groups[groupIndex - 1].from ? b.groups[groupIndex - 1].area : '';
+    var mins = prev && prev !== group.area ? commuteMins(d, prev, group.area) : null;
+    if (mins != null) group.commute = { from: prev, mins: mins };
+    return group;
+  }
   /* When the route moves to a new area, say how far it is from the last base and let the traveller
      decide: a short hop suggests keeping one hotel, a long one suggests moving, and either can be overridden. */
   function commuteNote(d, trip, group, groupIndex) {
@@ -1725,7 +1735,7 @@
           '</div></div></article>';
       }).join('');
       if (!cards) return '';
-      var place = areaLabel(d, group.area) || group.area, note = group.from ? commuteNote(d, trip, group, groupIndex) : null;
+      var place = areaLabel(d, group.area) || group.area, note = group.from ? commuteNote(d, trip, ensureCommute(d, trip, b, groupIndex), groupIndex) : null;
       return '<section class="ch-stayideas__group"><div class="ch-stayideas__heading"><span>' + esc(days + when) + '</span><h3>Stay ideas near ' + esc(place) + '</h3></div>' +
         (note ? note.html : '') + (note && note.hideCards ? '' : '<div class="ch-stayideas__grid">' + cards + '</div>') + '</section>';
     }).join('');
@@ -2083,7 +2093,7 @@
         break;
       }
       case 'stay-choice': if (b && b.t === 'stay-ideas' && r.ctx && r.ctx.trip && r.ctx.trip.destId === b.destId) {
-        var choiceGroup = (b.groups || [])[+el.dataset.stayGroup], choice = el.dataset.choice;
+        var choiceGroup = ensureCommute(DEST(b.destId), r.ctx.trip, b, +el.dataset.stayGroup), choice = el.dataset.choice;
         if (choiceGroup && choiceGroup.commute && (choice === 'keep' || choice === 'change')) { choiceGroup.choice = choice; touch(b); persist(r.ctx.trip.id); resync(r); }
         break;
       }
