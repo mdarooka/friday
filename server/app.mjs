@@ -1026,7 +1026,7 @@ export function createApp(options = {}) {
         allow('POST');
         if(hexclaveSelected&&!user)fail(401,'Please sign in before planning a trip.');
         rate('itinerary:'+(user?user.id:ip),20);
-        const parsed=parseItineraryRequest(body);
+        const parsed=parseItineraryRequest(body,{freeform:true}); // Friday plans anywhere: a place outside the catalog is planned by OpenAI
         if(parsed.error)fail(parsed.status,parsed.error);
         let out;
         const audit=await startAiAudit(body.conversationId,'itinerary_generation',{request:{...parsed.value,source:body.source||itineraries.name},messageId:body.messageId},body.tripId,body.ownerId);

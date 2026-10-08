@@ -155,6 +155,7 @@ function Footer() {
         { label: 'Kyoto guide', href: 'kyoto-guide.html' },
         { label: 'Goa guide', href: 'goa-guide.html' },
         { label: 'Rajasthan guide', href: 'rajasthan-guide.html' },
+        { label: 'When India travels', href: 'when-india-travels.html' },
         { label: 'Field Notes', href: 'field-notes.html' },
         { label: 'Plan a trip', href: 'trip.html' },
       ])}
@@ -234,8 +235,9 @@ ${extraScripts.map((src) => `<script src="${esc(src)}"></script>`).join('\n')}
 /* ------------------------------------------------------- shared sections */
 
 /** Interior page masthead. */
-function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedReveal = 'mask' }) {
-  return `<section class="phero wrap">
+function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedReveal = 'mask', background }) {
+  /* background: a decorative illustration painted behind the hero, full bleed (its sky must start at page paper). */
+  return `${background ? `<div class="phero-bg" style="background-image:url('${esc(background)}')">` : ''}<section class="phero wrap">
     <div class="phero__grid">
       <div class="phero__title">
         ${eyebrow(eb)}
@@ -245,7 +247,7 @@ function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedRevea
       ${meta ? `<div class="phero__side"><div class="stack stack--sm" data-reveal>${meta.map((m) => `<div><p class="eyebrow">${m.k}</p><p class="phero__meta-value">${m.v}</p></div>`).join('')}</div></div>` : ''}
     </div>
     ${seed ? `<div class="phero__art" style="margin-top:clamp(2.4rem,5vw,4.5rem)"${seedReveal ? ` data-reveal="${esc(seedReveal)}"` : ''}>${Plate(seed, { ratio: 'w', scene, tone, svgRatio: 'panorama' })}</div>` : ''}
-  </section>`;
+  </section>${background ? '</div>' : ''}`;
 }
 
 /** Closing call — appears at the foot of every interior page. */
