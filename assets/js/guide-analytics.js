@@ -14,7 +14,7 @@
     var id = A.uuid();
     return A.track(name, Object.assign({ event_id: id }, data), id);
   }
-  var GUIDES = ['kerala', 'kyoto', 'goa', 'rajasthan'];
+  var GUIDES = ['kerala', 'goa', 'rajasthan'];
   function guideDestinationFromPath(pathname) {
     var match = String(pathname || '').match(/^\/([a-z0-9-]+)-guide(?:\.html)?$/);
     return match && GUIDES.indexOf(match[1]) !== -1 ? match[1] : null;

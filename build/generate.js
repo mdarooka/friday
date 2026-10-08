@@ -280,15 +280,6 @@ page('kerala-guide.html', {
   social: guideSocial('kerala', 'Friday’s Kerala guide: a slower way through Kerala, beside a layered green landscape'),
 });
 
-/* ======================================================== Kyoto guide */
-const { kyotoGuide } = require('./guides/kyoto');
-page('kyoto-guide.html', {
-  title: 'Kyoto Travel Guide: Itineraries, Stays & Bombay Notes',
-  description: 'Plan a Kyoto trip from Bombay: three itinerary arcs, a stay shortlist by neighbourhood, and practical notes on flights, visas and seasons.',
-  body: kyotoGuide({ PageHero, T, KYOTO: require('./trip-data/kyoto') }), canonical: 'kyoto-guide.html',
-  social: guideSocial('kyoto', 'Friday’s Kyoto guide: Kyoto, one slow day at a time, beside a layered autumn landscape'),
-});
-
 const { DESTINATIONS } = require('./trip-data');
 const { GUIDES, guideFiles, renderDestinationGuide } = require('./destination-guides');
 GUIDES.filter((guide) => guide.id !== 'kerala').forEach((guide) => {

@@ -22,7 +22,6 @@ const DESTINATION_CARDS = {
 };
 const GUIDES = {
   kerala: { headline: 'A slower way through Kerala.', description: 'Itineraries, Munnar and the backwaters, from Kochi to the coast.' },
-  kyoto: { headline: 'Kyoto, one slow day at a time.', description: 'Temples, tea houses and quiet streets, with a plan to start from.' },
 };
 
 const cardKeys = () => [...Object.keys(DESTINATION_CARDS), ...Object.keys(GUIDES).map((id) => `${id}-guide`)];
