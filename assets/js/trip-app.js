@@ -1758,6 +1758,7 @@
       '<p class="fx-hint">Paste the text of a booking confirmation. Friday reads it here, then you review the details before anything is saved.</p>' +
       '<div class="fx-field"><label class="fx-label" for="pb-text">Paste the confirmation email</label><textarea class="fx-input" id="pb-text" name="text" rows="9" maxlength="20000" placeholder="Subject, dates and confirmation number help most"></textarea></div>' +
       '<div class="fx-field"><label class="fx-label" for="pb-trip">Trip</label><select class="fx-input" id="pb-trip" name="trip"><option value="">No trip</option>' + trips.map((t) => '<option value="' + esc(t.id) + '"' + (t.id === initialTrip ? ' selected' : '') + '>' + esc(t.title) + '</option>').join('') + '</select></div>' +
+      '<p class="fx-hint" data-forward hidden></p>' +
       '<p class="fx-error" role="alert" hidden></p><p class="fx-hint" data-by-hand hidden><button type="button" class="fx-link" data-by-hand-btn>Add it by hand</button></p>';
     const q = (n) => $('[name="' + n + '"]', body);
     const err = $('.fx-error', body), byHand = $('[data-by-hand]', body);
@@ -1767,6 +1768,19 @@
       modal({ title: 'Paste confirmation', body, actions: [{ label: 'Done' }, { label: 'Account settings', primary: true, onClick: (close) => { close(); window.location.hash = '#/preferences'; } }] });
       return;
     }
+    // Forwarding address for the chosen trip. The server returns none until the inbound mail address is configured.
+    const forwardLine = $('[data-forward]', body);
+    const showForward = (tid) => {
+      forwardLine.hidden = true;
+      if (!tid) return;
+      FT.backend.request('/api/trips/' + encodeURIComponent(tid) + '/forward-address').then((r) => {
+        if (!r || !r.address || q('trip').value !== tid) return;
+        forwardLine.innerHTML = 'Or forward the booking email to <strong>' + esc(r.address) + '</strong>. It shows in this trip’s bookings after you refresh, with its dates marked to check.';
+        forwardLine.hidden = false;
+      }).catch(() => {});
+    };
+    q('trip').addEventListener('change', () => showForward(q('trip').value || ''));
+    showForward(q('trip').value || '');
     let busy = false;
     modal({
       title: 'Paste confirmation',

@@ -29,6 +29,7 @@ import { createHexclaveEmailService } from './hexclave/email.mjs';
 import { briefingEmail, prepareBriefing } from './briefing.mjs';
 import { extractBooking, htmlToText, jsonLdObjects } from './booking-extraction.mjs';
 import { carryVerification, verifyBooking } from './booking-confidence.mjs';
+import { forwardAddressFor, forwardTokenFromRecipient, inboundSecretMatches, newForwardToken, saveForwardedBooking } from './forward-booking.mjs';
 import { quoteDigestMode, digestRecipient, runQuoteDigest, startQuoteDigestLoop } from './quote-digest.mjs';
 import { PREQUOTE_ITEMS, issueChecklist, saveChecklist, getChecklist } from './prequote-checklist.mjs';
 import { briefingAutosendMode, runBriefingSweep, startBriefingLoop, REQUIRED_DRY_RUN_DAYS } from './briefing-scheduler.mjs';
@@ -348,7 +349,7 @@ export function createApp(options = {}) {
       /* Liveness does not touch the database, so the container stays healthy while a scaled-to-zero database service wakes up. */
       if (url.pathname==='/api/health' && ['GET','HEAD'].includes(method)) return send(200,{ok:true,itineraryProvider:itineraries.name,knowledge:{sources:knowledge.sources,chars:knowledge.chars}});
       await startup;
-      if (!['GET','HEAD'].includes(method) && url.pathname!=='/api/cron/briefings' && url.pathname!=='/api/cron/quote-digest' && url.pathname!=='/api/cron/guide-feedback-digest') {
+      if (!['GET','HEAD'].includes(method) && url.pathname!=='/api/cron/briefings' && url.pathname!=='/api/cron/quote-digest' && url.pathname!=='/api/cron/guide-feedback-digest' && url.pathname!=='/api/inbound/trip-email') {
         // Production accepts only explicitly configured origins. Elsewhere (127.0.0.1, a LAN address, a dev proxy) an Origin that matches the
         // Host the browser used is also fine.
         const from=req.headers.origin;
@@ -1172,6 +1173,33 @@ export function createApp(options = {}) {
         await store.upsertNewsletterSubscriber(db,{email:address,consentAt:created,source:'website',created});
         const confirmation=await emailService.subscriptionConfirmation({id,email:address,consentAt:created});
         return send(201,{id,saved:true,delivery:confirmation?.status||'blocked'});
+      }
+      // Inbound mail provider (not a browser): the shared secret is the only sign-in. Off unless FRIDAY_INBOUND_SECRET is set.
+      if(p==='/api/inbound/trip-email'){
+        allow('POST');
+        const expectedSecret=env.FRIDAY_INBOUND_SECRET||'';
+        if(!expectedSecret)fail(404,'Not found.');
+        if(!inboundSecretMatches(req.headers['x-friday-inbound-secret'],expectedSecret))fail(401,'Not allowed.');
+        const token=forwardTokenFromRecipient(body.to);
+        if(!token)return send(202,{status:'ignored'});
+        rate('inbound:'+token,120);
+        const link=await store.findForwardAddress(db,token);
+        if(!link||!(await trips.find(link.trip_id,link.owner_id)))return send(202,{status:'ignored'});
+        for(const field of ['subject','from','text','html','date','message-id']){if(body[field]!==undefined&&typeof body[field]!=='string')fail(422,'The email fields must be text.');}
+        if(!body.text&&!body.html)fail(422,'The email has no text to read.');
+        const result=await saveForwardedBooking({db,ownerId:link.owner_id,tripId:link.trip_id,message:{subject:body.subject,from:body.from,text:body.text,html:body.html,date:body.date,messageId:body['message-id']}});
+        return send(202,{status:result.status});
+      }
+      // The owner's own forwarding address for one trip. Null until TRIP_INBOUND_DOMAIN is set, so the page shows nothing before it works.
+      const forwardAddressRoute=p.match(/^\/api\/trips\/([a-f0-9-]{36})\/forward-address$/i);
+      if(forwardAddressRoute){
+        allow('GET');if(!user)fail(401,'Please sign in.');
+        const tripId=forwardAddressRoute[1];await getRecord(tripId,user.id,'trips');
+        const domain=(env.TRIP_INBOUND_DOMAIN||'').trim();
+        if(!domain)return send(200,{address:null});
+        let row=await store.forwardTokenFor(db,user.id,tripId);
+        if(!row){await store.createForwardToken(db,{token:newForwardToken(),ownerId:user.id,tripId,created:new Date().toISOString()});row=await store.forwardTokenFor(db,user.id,tripId);}
+        return send(200,{address:forwardAddressFor(row.token,domain)});
       }
       if(!user) fail(401,'Please sign in.');
       if(p==='/api/alerts/check'&&method==='POST') {
