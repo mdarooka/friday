@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { ensureRobotsMeta, hostPolicy, isPrivateSurface, PRIVATE_API_PREFIXES, PRIVATE_PAGES, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, hiddenRobotsTxt, visitorHost } from '../server/canonical-host.mjs';
+import { createHash } from 'node:crypto';
+import { ensureRobotsMeta, hostPolicy, isPrivateSurface, isPublicProxyRequest, PROXY_HEADER, PRIVATE_API_PREFIXES, PRIVATE_PAGES, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, hiddenRobotsTxt, visitorHost } from '../server/canonical-host.mjs';
 import { startApp } from './helpers.mjs';
 
 const canonical = 'https://fridaytravel.vercel.app';
@@ -49,41 +50,36 @@ test('served metadata is rebased onto the configured origin and external images 
   assert.equal(hiddenRobotsTxt(canonical), 'User-agent: *\nDisallow: /\nSitemap: https://fridaytravel.vercel.app/sitemap.xml\n');
 });
 
-function headerCovers(source, path) {
-  if (source === path) return true;
-  if (source.endsWith('/:path*')) {
-    const base = source.slice(0, -'/:path*'.length);
-    return path === base || path.startsWith(`${base}/`);
-  }
-  return false;
-}
-
-test('vercel proxy redirects every non-canonical host and noindexes private paths on the public origin', async () => {
+test('vercel proxy redirects every non-canonical host, noindexes private paths, and signs proxied requests', async () => {
   const config = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
-  const hostRedirect = config.redirects.find(rule => rule.has);
+  const routes = config.routes;
+  for (const legacyOnly of ['redirects', 'rewrites', 'headers']) assert.equal(config[legacyOnly], undefined, `${legacyOnly} cannot be combined with routes`);
+  const hostRedirect = routes[0];
   const pattern = new RegExp(hostRedirect.has[0].value);
-  assert.equal(hostRedirect.permanent, true);
-  assert.equal(hostRedirect.destination, 'https://fridaytravel.vercel.app/$1');
+  assert.equal(hostRedirect.status, 308);
+  assert.equal(hostRedirect.headers.Location, 'https://fridaytravel.vercel.app/$1');
+  assert.match(hostRedirect.headers['X-Robots-Tag'], /noindex/);
   assert.equal(pattern.test('fridaytravel.vercel.app'), false);
   assert.equal(pattern.test('friday-travel-peach.vercel.app'), true);
   assert.equal(pattern.test('friday-travel-git-main-user.vercel.app'), true);
-  assert.equal(config.redirects[0].destination, 'https://fridaytravel.vercel.app/');
-  assert.equal(config.rewrites[0].destination.includes('deploy.built-with-hexclave.com'), true);
-  const noindexRules = (config.headers || []).filter(rule => (rule.headers || []).some(header => header.key === 'X-Robots-Tag' && /noindex/i.test(header.value)));
-  const hostRules = noindexRules.filter(rule => rule.has);
-  const pathRules = noindexRules.filter(rule => !rule.has);
-  assert.equal(hostRules.length, 1);
-  const host = hostRules[0].has.find(item => item.type === 'host').value;
-  assert.equal(new RegExp(host).test('fridaytravel.vercel.app'), false);
-  assert.equal(new RegExp(host).test('friday-travel-peach.vercel.app'), true);
-  assert.equal(hostRules[0].source, '/(.*)');
-  const publicPaths = ['/', '/index.html', '/about.html', '/kerala-guide.html', '/field-notes.html', '/privacy.html', '/terms.html', '/api/health', '/api/villas', '/api/destinations', '/api/airports', '/api/capabilities'];
+  assert.equal(routes[1].headers.Location, 'https://fridaytravel.vercel.app/');
+  assert.equal(new RegExp(routes[1].src).test('/index.html'), true);
+
+  const proxy = routes.at(-1);
+  assert.equal(proxy.dest.includes('deploy.built-with-hexclave.com'), true);
+  assert.deepEqual(proxy.transforms, [{ type: 'request.headers', op: 'set', target: { key: PROXY_HEADER }, args: '$FRIDAY_PROXY_SECRET', env: ['FRIDAY_PROXY_SECRET'] }]);
+
+  const pathRules = routes.slice(2, -1);
   for (const rule of pathRules) {
-    assert.equal(rule.source === '/(.*)', false, rule.source);
-    for (const path of publicPaths) assert.equal(headerCovers(rule.source, path), false, `${rule.source} must not noindex ${path}`);
+    assert.equal(rule.continue, true, rule.src);
+    assert.equal(rule.headers['X-Robots-Tag'], 'noindex, nofollow', rule.src);
   }
+  const covers = path => pathRules.some(rule => new RegExp(rule.src).test(path));
+  const publicPaths = ['/', '/index.html', '/about.html', '/kerala-guide.html', '/field-notes.html', '/privacy.html', '/terms.html', '/api/health', '/api/villas', '/api/destinations', '/api/airports', '/api/capabilities', '/api/tripsx'];
+  for (const path of publicPaths) assert.equal(covers(path), false, `${path} must not be noindexed`);
   for (const path of [...PRIVATE_PAGES, ...PRIVATE_API_PREFIXES]) {
-    assert.equal(pathRules.some(rule => headerCovers(rule.source, path)), true, path);
+    assert.equal(covers(path), true, path);
+    if (path.startsWith('/api/')) assert.equal(covers(`${path}/abc`), true, `${path}/abc`);
   }
 });
 
@@ -249,6 +245,49 @@ test('production redirects non-canonical hosts, noindexes only those responses, 
   assert.match(sharedJson.body, /Kyoto/);
   assert.equal((await request('/api/auth/signup', 'POST', account('Deploy'), { headers: { Origin: deploy } })).status, 200);
   assert.equal((await request('/api/auth/signup', 'POST', account('Peach'), { headers: { Origin: 'https://friday-travel-peach.vercel.app' } })).status, 403);
+});
+
+test('with a proxy secret, only the Vercel-injected header serves the site and direct Deploy visits redirect', async (t) => {
+  const secret = 'test proxy secret value';
+  const fly = 'hxc-p-81-we-5b6199efcb56de4167.fly.dev';
+  const { server } = await startApp(t, {
+    origin: canonical,
+    env: {
+      NODE_ENV: 'production',
+      APP_ORIGIN: canonical,
+      APP_ORIGIN_ALIASES: deploy,
+      HEXCLAVE_INTERNAL_HOST: fly,
+      FRIDAY_PROXY_SECRET_SHA256: createHash('sha256').update(secret).digest('hex'),
+      TRUST_PROXY: '1',
+      AUTH_PROVIDER: 'local',
+    },
+  });
+  const hop = { host: fly, 'x-forwarded-host': 'deploy.example' };
+  const proxied = await raw(server, '/about.html', { ...hop, [PROXY_HEADER]: secret });
+  assert.equal(proxied.status, 200);
+  assert.match(proxied.body, /<link rel="canonical" href="https:\/\/fridaytravel\.vercel\.app\/about\.html">/);
+  assert.equal((await raw(server, '/api/villas', { ...hop, [PROXY_HEADER]: secret })).status, 200);
+
+  for (const headers of [hop, { ...hop, [PROXY_HEADER]: 'wrong' }, { host: 'deploy.example' }]) {
+    const direct = await raw(server, '/about.html?from=deploy', headers);
+    assert.equal(direct.status, 308);
+    assert.equal(direct.headers.location, 'https://fridaytravel.vercel.app/about.html?from=deploy');
+    const api = await raw(server, '/api/villas', headers);
+    assert.equal(api.status, 308);
+    assert.equal(api.headers.location, 'https://fridaytravel.vercel.app/api/villas');
+  }
+  assert.equal((await raw(server, '/api/health', hop)).status, 200, 'platform health check stays reachable');
+  assert.equal((await raw(server, '/api/health', { host: 'deploy.example' })).status, 200);
+});
+
+test('proxy header check needs a well-formed hash and an exact match', () => {
+  const digest = createHash('sha256').update('s3cret').digest('hex');
+  assert.equal(isPublicProxyRequest('s3cret', digest), true);
+  assert.equal(isPublicProxyRequest('s3cret', digest.toUpperCase()), true);
+  assert.equal(isPublicProxyRequest('s3cre', digest), false);
+  assert.equal(isPublicProxyRequest('', digest), false);
+  assert.equal(isPublicProxyRequest('s3cret', ''), false);
+  assert.equal(isPublicProxyRequest('s3cret', 'not-a-hash'), false);
 });
 
 

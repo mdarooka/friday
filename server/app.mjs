@@ -31,7 +31,7 @@ import { carryVerification, verifyBooking } from './booking-confidence.mjs';
 import { quoteDigestMode, digestRecipient, runQuoteDigest, startQuoteDigestLoop } from './quote-digest.mjs';
 import { PREQUOTE_ITEMS, issueChecklist, saveChecklist, getChecklist } from './prequote-checklist.mjs';
 import { briefingAutosendMode, runBriefingSweep, startBriefingLoop, REQUIRED_DRY_RUN_DAYS } from './briefing-scheduler.mjs';
-import { ensureRobotsMeta, hostPolicy, isPrivateSurface, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, hiddenRobotsTxt, ROBOTS_NOINDEX, visitorHost } from './canonical-host.mjs';
+import { ensureRobotsMeta, hostPolicy, isPrivateSurface, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, hiddenRobotsTxt, ROBOTS_NOINDEX, visitorHost, isPublicProxyRequest, PROXY_HEADER } from './canonical-host.mjs';
 const scrypt = promisify(scryptCallback);
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = x => createHash('sha256').update(x).digest('hex');
@@ -111,6 +111,8 @@ export function createApp(options = {}) {
   }
   const canonicalUrl = new URL(origin);
   const internalHosts = new Set([...trustedWriteOrigins].map(value => new URL(value).host.toLowerCase()).filter(host => host !== canonicalUrl.host.toLowerCase()));
+  // Hosts the platform health check may arrive on: the Deploy hostname and Hexclave's internal Fly hop.
+  const healthHosts = new Set([...internalHosts, String(env.HEXCLAVE_INTERNAL_HOST || '').trim().toLowerCase()].filter(Boolean));
   const secure = canonicalUrl.protocol === 'https:';
   const loopback = value => ['localhost','127.0.0.1','::1','[::1]'].includes(String(value||'').toLowerCase());
   const hexclaveAuth = options.hexclaveAuth || (env.AUTH_PROVIDER==='local'&&!production
@@ -259,16 +261,19 @@ export function createApp(options = {}) {
     try {
       const url = new URL(req.url,origin), method=req.method;
       // Hexclave's Fly hop replaces Host with its internal fly.dev name and
-      // X-Forwarded-Host with the Deploy hostname, even for Vercel rewrites.
-      // Treat only this explicitly configured hop as the public proxy; Vercel
-      // redirects its own noncanonical hosts before the request reaches here.
+      // X-Forwarded-Host with the Deploy hostname, even for Vercel rewrites, so a
+      // direct visit and the proxy look alike. With FRIDAY_PROXY_SECRET_SHA256 set,
+      // only requests carrying the Vercel-injected proxy header count as the public
+      // site; direct visits redirect to APP_ORIGIN. Without it, fall back to the hop check.
       const flyHost = String(req.headers.host || '').split(',')[0].trim().toLowerCase();
       const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim().toLowerCase();
-      const fromPublicProxy = trustProxy && flyHost === String(env.HEXCLAVE_INTERNAL_HOST || '').toLowerCase() && internalHosts.has(forwardedHost);
+      const fromPublicProxy = env.FRIDAY_PROXY_SECRET_SHA256
+        ? isPublicProxyRequest(req.headers[PROXY_HEADER], env.FRIDAY_PROXY_SECRET_SHA256)
+        : trustProxy && flyHost === String(env.HEXCLAVE_INTERNAL_HOST || '').toLowerCase() && internalHosts.has(forwardedHost);
       const decision = hostPolicy({
-        publicHost: fromPublicProxy ? canonicalUrl.host : visitorHost({ hostHeader: req.headers.host, forwardedHost: req.headers['x-forwarded-host'], trustProxy, internalHosts }),
+        publicHost: fromPublicProxy ? canonicalUrl.host : visitorHost({ hostHeader: req.headers.host, forwardedHost: req.headers['x-forwarded-host'], trustProxy, internalHosts: healthHosts }),
         canonicalOrigin: canonicalUrl.origin,
-        internalHosts,
+        internalHosts: healthHosts,
         pathname: url.pathname,
         search: url.search,
         production,

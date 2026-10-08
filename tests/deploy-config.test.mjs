@@ -24,6 +24,7 @@ test('the public web service keeps its id, visibility, origin and proxy trust', 
   assert.equal(web.env.APP_ORIGIN_ALIASES.includes('peach'), false);
   assert.equal(web.env.APP_ORIGIN_ALIASES.includes('vercel.app'), false);
   assert.equal(web.env.HEXCLAVE_INTERNAL_HOST, 'hxc-p-81-we-5b6199efcb56de4167.fly.dev');
+  assert.match(web.env.FRIDAY_PROXY_SECRET_SHA256, /^[0-9a-f]{64}$/, 'only the hash of the Vercel proxy secret lives in the repo');
   assert.equal(web.env.AUTH_PROVIDER, 'hexclave');
   assert.equal(web.env.NODE_ENV, 'production');
   assert.equal(web.minInstances, 0);

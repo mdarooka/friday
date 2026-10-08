@@ -1,6 +1,8 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
+
 // Friday has one public origin. Other hosts permanently redirect there.
-// The Hexclave Deploy origin stays in APP_ORIGIN_ALIASES so direct API calls
-// (health checks, and the Vercel rewrite that proxies with that Host) keep working.
+// The Hexclave Deploy origin stays in APP_ORIGIN_ALIASES so the health check works
+// there; everything else on it redirects unless it carries the proxy header.
 export const CANONICAL_ORIGIN = 'https://fridaytravel.vercel.app';
 export const ROBOTS_NOINDEX = 'noindex, nofollow';
 
@@ -84,6 +86,20 @@ export function visitorHost({ hostHeader, forwardedHost, trustProxy = false, int
   return connection;
 }
 
+// The Vercel rewrite sets this header from its FRIDAY_PROXY_SECRET env var. The server
+// keeps only the SHA-256 hex of that value, so the repository never holds the secret.
+// Hexclave rewrites Host on every hop, so this header is the only way to tell the
+// public proxy apart from a visitor typing the direct Deploy URL.
+export const PROXY_HEADER = 'x-friday-proxy';
+
+export function isPublicProxyRequest(headerValue, expectedSha256Hex) {
+  const expected = String(expectedSha256Hex || '').trim().toLowerCase();
+  const given = String(headerValue || '');
+  if (!/^[0-9a-f]{64}$/.test(expected) || !given) return false;
+  const actual = createHash('sha256').update(given).digest();
+  return timingSafeEqual(actual, Buffer.from(expected, 'hex'));
+}
+
 export function hostPolicy({ publicHost, canonicalOrigin, internalHosts = new Set(), pathname = '/', search = '', production = false }) {
   const canonical = new URL(canonicalOrigin).origin;
   const canonicalHost = new URL(canonical).host.toLowerCase();
@@ -94,8 +110,8 @@ export function hostPolicy({ publicHost, canonicalOrigin, internalHosts = new Se
   if (!production || !host || isLoopbackHost(host) || host === canonicalHost) {
     return { action: 'serve', location: null, robots: null };
   }
-  // API on the direct Deploy host is the proxy backend and the platform health check.
-  if (internal.has(host) && String(pathname || '').startsWith('/api/')) {
+  // Only the platform health check stays reachable on the direct Deploy host.
+  if (internal.has(host) && pathname === '/api/health') {
     return { action: 'serve', location: null, robots: 'noindex, nofollow' };
   }
   return { action: 'redirect', location, robots: 'noindex, nofollow' };

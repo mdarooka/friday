@@ -18,11 +18,15 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         APP_ORIGIN: "https://fridaytravel.vercel.app",
         // Keep Friday out of search by default; switch to "on" when public indexing is wanted.
         SEARCH_INDEXING: "off",
-        // Direct Deploy URL only. It is not a public site: pages on it redirect to APP_ORIGIN,
-        // while /api stays reachable for health checks and the Vercel rewrite. Do not add
+        // Direct Deploy URL only. It is not a public site: everything on it redirects to APP_ORIGIN
+        // except /api/health (platform health check) and requests signed by the Vercel proxy. Do not add
         // friday-travel-peach.vercel.app or other preview hosts here.
         APP_ORIGIN_ALIASES: "https://p-81-we-5b6199efcb56de4167-c098b2d7396b0066.deploy.built-with-hexclave.com",
         HEXCLAVE_INTERNAL_HOST: "hxc-p-81-we-5b6199efcb56de4167.fly.dev",
+        // SHA-256 of the FRIDAY_PROXY_SECRET env var on the Vercel project. vercel.json sends that
+        // value as x-friday-proxy, so only proxied requests are served; direct Deploy-URL visits
+        // redirect to APP_ORIGIN. Rotate both together: new Vercel value, then this hash.
+        FRIDAY_PROXY_SECRET_SHA256: "f983604548c15cd8df6a51f46c8fa378c8adc14670f3d404343b11be653de490",
         // All application data lives in the private `database` service below; the web service keeps nothing on its own disk.
         DATABASE_HOST: service("database").hostname(),
         DATABASE_PORT: "5432",
