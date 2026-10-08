@@ -2,7 +2,7 @@
 /*
  * when-india-travels.js - the markup for /when-india-travels.html and the homepage teaser.
  * All data comes from ./data/india-breaks.js. Every row is rendered statically (the page works without JavaScript);
- * assets/js/when-india-travels.js only filters rows by region.
+ * assets/js/when-india-travels.js only filters rows by state and by type of break, and swaps the "Closer to home" block.
  */
 const B = require('./data/india-breaks');
 
@@ -47,7 +47,7 @@ function addNights(startDate, nights) {
 }
 
 function rowHtml(esc, brk, guides) {
-  return `<article class="lw-break" id="${esc(brk.id)}" data-wit-row data-regions="${esc(brk.regions.join(' '))}" data-end="${esc(brk.endDate)}" aria-labelledby="${esc(brk.id)}-h">
+  return `<article class="lw-break" id="${esc(brk.id)}" data-wit-row data-regions="${esc(brk.regions.join(' '))}" data-types="${esc(brk.types.join(' '))}" data-end="${esc(brk.endDate)}" aria-labelledby="${esc(brk.id)}-h">
       <header class="lw-break__head">
         <p class="eyebrow eyebrow--accent">${esc(brk.dates)} \u00b7 ${nightsLabel(brk.nights)} \u00b7 ${esc(regionLabel(brk))}</p>
         <h3 class="h3" id="${esc(brk.id)}-h">${esc(brk.name)}</h3>
@@ -78,7 +78,8 @@ function clientData(today) {
     const brk = B.nextBreak(today, f.key);
     if (brk) next[f.key] = { name: brk.name, dates: brk.dates, nights: brk.nights, place: brk.suggestions[0] ? brk.suggestions[0].place : '' };
   });
-  return { default: B.DEFAULT_REGION, filters: B.REGION_FILTERS, next };
+  const close = { default: B.CLOSE_NEUTRAL, byRegion: B.CLOSE_BY_REGION };
+  return { default: B.DEFAULT_REGION, filters: B.REGION_FILTERS, defaultType: B.DEFAULT_TYPE, types: B.TYPE_FILTERS, close, next };
 }
 
 const dataScript = (today) => `<script type="application/json" id="wit-data">${safeJson(clientData(today))}</script>`;
@@ -90,12 +91,18 @@ ${PageHero({
     title: 'When India<br>travels.',
     lede: 'India plans around a few big breaks, and they differ by city and state. Here is how a Friday designer would use each one: a couple of ideas for where to go, what to watch for, and when to ask for a call. Friday plans trips anywhere, so treat them as starting points. Friday is still designed in Bombay.',
     background: 'assets/illustrations/friday-when-india-travels.svg',
-    meta: [{ k: 'Showing', v: '<span data-wit-region-name>All regions</span>' }, { k: 'Dates', v: 'Checked against official lists, October 2026' }],
+    meta: [{ k: 'Showing', v: '<span data-wit-region-name>All regions</span>' }, { k: 'Type', v: '<span data-wit-type-name>All types</span>' }, { k: 'Dates', v: 'Checked against official lists, October 2026' }],
   })}
 <section class="section section--tight lw-picker" aria-labelledby="wit-filter-h">
   <div class="wrap">
+    <div class="lw-filter">
     <h2 class="eyebrow" id="wit-filter-h">Show breaks for</h2>
     <ul class="lw-cities">${B.REGION_FILTERS.map((f) => `<li><a class="lw-city-link" href="?region=${esc(f.key)}" data-wit-filter="${esc(f.key)}">${esc(f.label)}</a></li>`).join('')}</ul>
+    </div>
+    <div class="lw-filter">
+    <h2 class="eyebrow" id="wit-type-h">Type of break</h2>
+    <ul class="lw-cities">${B.TYPE_FILTERS.map((t) => `<li><a class="lw-city-link" href="?type=${esc(t.key)}" data-wit-type="${esc(t.key)}">${esc(t.label)}</a></li>`).join('')}</ul>
+    </div>
     <p class="lw-status" data-wit-status role="status" aria-live="polite"></p>
   </div>
 </section>
@@ -105,7 +112,7 @@ ${B.GROUPS.map((g) => groupSection(esc, g, today, guides)).join('\n')}
 <section class="section section--tight" aria-labelledby="wit-close-h"><div class="wrap">
   <p class="eyebrow">Closer to home</p>
   <h2 class="h2" id="wit-close-h">A short escape instead?</h2>
-  <p class="lede lw-close" style="margin-top:1rem">For two quiet nights near Bombay, read <a class="link" href="mumbai-quiet-weekend.html">the quiet weekend guide <span class="arrow">&rarr;</span></a> Or browse <a class="link" href="guides.html">the destination guides <span class="arrow">&rarr;</span></a></p>
+  <p class="lede lw-close" style="margin-top:1rem" data-wit-close><span data-wit-close-lead>${esc(B.CLOSE_NEUTRAL.lead)}</span> <a class="link" data-wit-close-link href="${esc(B.CLOSE_NEUTRAL.href)}"><span data-wit-close-label>${esc(B.CLOSE_NEUTRAL.label)}</span> <span class="arrow">&rarr;</span></a><span data-wit-close-more> or <a class="link" href="${esc(B.CLOSE_NEUTRAL.moreHref)}">${esc(B.CLOSE_NEUTRAL.moreLabel)} <span class="arrow">&rarr;</span></a>.</span> Or browse <a class="link" href="guides.html">the destination guides <span class="arrow">&rarr;</span></a></p>
   <p class="lw-fineprint">Dates come from central and state holiday lists and school calendars, checked in October 2026. Dates that depend on the moon can move by a day, and a few 2027 lists are still to be confirmed (those rows say so). Check with your employer or school before you plan. Friday does not book anything here: a designer closes your trip with you by call or quote.</p>
 </div></section>
 ${dataScript(today)}`;
