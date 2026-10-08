@@ -12,6 +12,9 @@ const { guideFeedback } = require('./guide-feedback');
 const { siteOrigin, publicUrl, sitemapXml, robotsTxt } = require('./site-metadata');
 const PUBLIC_ORIGIN = siteOrigin();
 const { cardUrl } = require('./social-cards');
+const LW = require('./when-india-travels');
+/* The date the build treats as today (breaks that have ended are left out). FRIDAY_BUILD_DATE=YYYY-MM-DD pins it. */
+const BUILD_TODAY = /^\d{4}-\d{2}-\d{2}$/.test(process.env.FRIDAY_BUILD_DATE || '') ? process.env.FRIDAY_BUILD_DATE : require('./data/india-breaks').isoDay();
 /* Per-guide share card ({ image, alt }) for layout()'s `social` option: assets/images/og/<id>-guide.jpg, absolute and version-stamped. */
 const guideSocial = (id, alt) => ({ image: cardUrl(`${id}-guide`, PUBLIC_ORIGIN), alt });
 
@@ -79,6 +82,8 @@ const home = `
     </div>
   </div>
 </section>
+
+${LW.homeTeaser({ esc: T.esc, today: BUILD_TODAY })}
 
 <section class="section home-ai" id="how-friday-ai-works" aria-labelledby="home-ai-title">
   <div class="wrap">
@@ -168,7 +173,7 @@ const home = `
 </section>
 `;
 
-page('index.html', { title: 'Your travel designer', description: 'Friday is an AI travel designer from Bombay. Explore villas and sample packages, or shape a trip with Friday.', body: home });
+page('index.html', { title: 'Your travel designer', description: 'Friday is an AI travel designer from Bombay. Explore villas and sample packages, or shape a trip with Friday.', body: home, extraScripts: ['assets/js/when-india-travels.js'] });
 
 /* ======================================================== Destination guides */
 
@@ -271,7 +276,7 @@ ${PageHero({
 ${guideFeedback('kerala')}
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">Make Kerala<br>your own route.</h2><p class="lede" style="margin-top:1rem">Start with the places that interest you, then shape the pace and dates with Friday.</p></div>
-  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" href="trip.html?destination=kerala&amp;from_guide=kerala#/new">Plan your Kerala trip <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" href="contact.html?quote_path=guide&amp;destination=kerala">Ask Friday about a quote <span class="arrow">&rarr;</span></a></div>
+  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" href="trip.html?destination=kerala&amp;from_guide=kerala#/new">Plan your Kerala trip <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" href="contact.html?quote_path=guide&amp;destination=kerala">Ask Friday about a quote <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="callback" data-guide-destination="kerala" href="contact.html?topic=Kerala#callback-title">Talk to a designer <span class="arrow">&rarr;</span></a></div>
 </div></section>`;
 page('kerala-guide.html', {
   title: 'Kerala Travel Guide: Itineraries, Munnar & Backwaters',
@@ -437,13 +442,28 @@ ${PageHero({
 </div></section>
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Make the weekend yours</p><h2 class="h2">Two nights.<br>Your kind of quiet.</h2><p class="lede" style="margin-top:1rem">Tell Friday your dates, how you want to travel, and what a good stay feels like. We’ll check the details with you.</p></div>
-  <div class="c-5 c-md-12"><a class="btn" href="contact.html?from=mumbai-quiet-weekend">Ask Friday to plan this weekend <span class="arrow">&rarr;</span></a></div>
+  <div class="c-5 c-md-12"><a class="btn" href="contact.html?from=mumbai-quiet-weekend">Ask Friday to plan this weekend <span class="arrow">&rarr;</span></a><p style="margin-top:1.4rem"><a class="link" href="when-india-travels.html?region=MH">Planning around a long weekend? <span class="arrow">&rarr;</span></a></p></div>
 </div></section>`;
 page('mumbai-quiet-weekend.html', {
   title: 'Quiet 2-Night Weekend Breaks from Mumbai | Friday',
   description: 'A practical shortlist for couples seeking two quiet nights near Mumbai: travel estimates, season notes and stay advice for Karjat, Igatpuri, Pawna, Dahanu and Lonavala.',
   body: mumbaiQuietWeekend, canonical: 'mumbai-quiet-weekend.html',
 });
+
+/* ================================================ Long weekends & holidays */
+
+/* Guides a break suggestion can link to, from the guide registry (matched by the place's name). */
+const guideRegistry = [
+  ...GUIDES.map((g) => ({ file: g.file, label: DESTINATIONS[g.id].name, names: [g.id, DESTINATIONS[g.id].name.toLowerCase()] })),
+  { file: 'mumbai-quiet-weekend.html', label: 'quiet weekend', names: ['near bombay', 'near mumbai'] },
+];
+page(LW.PAGE, {
+  title: 'Long weekends & holidays from India',
+  description: 'The next long weekends, festival breaks and school holidays across India, with where a Friday designer would send you and what to watch for.',
+  body: LW.whenIndiaTravelsBody({ PageHero, esc: T.esc, today: BUILD_TODAY, guides: guideRegistry }), canonical: LW.PAGE,
+  extraScripts: ['assets/js/when-india-travels.js'],
+});
+
 
 page('partner.html', { title: 'List your villa', description: 'Introduce your villa to Friday for consideration in its collection of considered places to stay.', body: partnerBody(), active: 'partner.html', lightHead: true, extraStyles: ['assets/css/partner.css'], extraScripts: ['assets/js/partner.js'] });
 
@@ -1199,13 +1219,13 @@ ${PageHero({
   meta: [{ k: 'Explore', v: `${D.fieldNotes.length} notes` }, { k: 'Then', v: 'Plan with Friday' }],
 })}
 <section class="section section--flush-top"><div class="wrap">
-  ${D.fieldNotes.map((n, i) => `<article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
-    <div class="${i % 2 ? 'c-5 s-8' : 'c-5'} c-md-12" data-reveal="mask" style="order:${i % 2 ? 2 : 1}"><a href="note-${n.slug}.html" data-cursor="Read">${Plate(`ni-${n.slug}`, { ratio: 'l', scene: n.scene, tone: n.tone, svgRatio: 'landscape' })}</a></div>
+  ${[...D.fieldNotes, { href: LW.PAGE, place: 'India', title: 'When India travels', dek: 'The long weekends, festival breaks and school holidays ahead, region by region, with where a Friday designer would send you.', scene: 'dunes', tone: 'sand', cta: 'See the breaks', kind: 'Planning guide' }].map((n, i) => `<article class="grid" style="align-items:center;padding-block:clamp(2rem,5vw,4rem);border-top:1px solid var(--rule)">
+    <div class="${i % 2 ? 'c-5 s-8' : 'c-5'} c-md-12" data-reveal="mask" style="order:${i % 2 ? 2 : 1}"><a href="${n.href || `note-${n.slug}.html`}" data-cursor="Read">${Plate(`ni-${n.slug || 'when-india-travels'}`, { ratio: 'l', scene: n.scene, tone: n.tone, svgRatio: 'landscape' })}</a></div>
     <div class="${i % 2 ? 'c-6' : 'c-6 s-7'} c-md-12" style="order:${i % 2 ? 1 : 2}">
-      <p class="eyebrow eyebrow--accent">${T.esc(n.place)} &middot; Planning note</p>
-      <h2 class="h2" style="margin-top:.9rem" data-reveal><a href="note-${n.slug}.html" style="text-decoration:none">${T.esc(n.title)}</a></h2>
+      <p class="eyebrow eyebrow--accent">${T.esc(n.place)} &middot; ${n.kind || 'Planning note'}</p>
+      <h2 class="h2" style="margin-top:.9rem" data-reveal><a href="${n.href || `note-${n.slug}.html`}" style="text-decoration:none">${T.esc(n.title)}</a></h2>
       <p class="lede" style="margin-top:1.1rem" data-reveal>${T.esc(n.dek)}</p>
-      <p style="margin-top:1.6rem" data-reveal><a class="link" href="note-${n.slug}.html">Read the note <span class="arrow">&rarr;</span></a></p>
+      <p style="margin-top:1.6rem" data-reveal><a class="link" href="${n.href || `note-${n.slug}.html`}">${n.cta || 'Read the note'} <span class="arrow">&rarr;</span></a></p>
     </div>
   </article>`).join('')}
 </div></section>

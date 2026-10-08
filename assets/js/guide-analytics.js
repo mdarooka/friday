@@ -72,14 +72,42 @@
     return promise;
   }
 
-  window.FridayGuideAnalytics = { trackPublicPageView: trackPublicPageView, trackGuideView: trackGuideView, trackCta: trackCta, tripStarted: tripStarted, flush: A.flush, guideDestinationFromPath: guideDestinationFromPath };
+  /* A guide opened from When India travels (?start=&nights=&from=india_breaks) passes the dates on to its planner link. */
+  function carryDates() {
+    if (!document.querySelectorAll) return;
+    var q = new URLSearchParams(location.search || '');
+    var start = q.get('start'), nights = q.get('nights');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '') || !/^\d{1,2}$/.test(nights || '')) return;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-guide-cta="planner"]'), function (a) {
+      var href = a.getAttribute('href') || '', hash = '', i = href.indexOf('#');
+      if (i !== -1) { hash = href.slice(i); href = href.slice(0, i); }
+      if (/[?&]start=/.test(href)) return;
+      a.setAttribute('href', href + (href.indexOf('?') === -1 ? '?' : '&') + 'start=' + encodeURIComponent(start) + '&nights=' + encodeURIComponent(nights) + hash);
+    });
+  }
+  carryDates();
+
+  window.FridayGuideAnalytics = { trackPublicPageView: trackPublicPageView, trackGuideView: trackGuideView, trackCta: trackCta, tripStarted: tripStarted, trackBreakCta: trackBreakCta, flush: A.flush, guideDestinationFromPath: guideDestinationFromPath };
   trackPublicPageView();
   if (guideFromPath()) trackGuideView();
+  /* When India travels page: "Plan this break" and "Call me back" on a pick. Same event as the guide CTAs, tagged surface=india_breaks. */
+  function trackBreakCta(link) {
+    var target = link.getAttribute('data-break-cta');
+    if (target !== 'guide' && target !== 'planner' && target !== 'callback') return;
+    track('guide_cta_clicked', {
+      surface: 'india_breaks', target: target, place: link.getAttribute('data-break-place'),
+      region: (document.body && document.body.getAttribute('data-wit-region')) || 'all', break_id: link.getAttribute('data-break-id'),
+    });
+  }
+  if (document.addEventListener) document.addEventListener('click', function (event) {
+    var cta = event.target && event.target.closest ? event.target.closest('[data-break-cta]') : null;
+    if (cta) trackBreakCta(cta);
+  });
   if (document.addEventListener) document.addEventListener('click', function (event) {
     var link = event.target && event.target.closest ? event.target.closest('[data-guide-cta]') : null;
     if (!link) return;
     var target = link.getAttribute('data-guide-cta');
-    if (target !== 'planner' && target !== 'quote') return;
+    if (target !== 'planner' && target !== 'quote' && target !== 'callback') return;
     var destination = link.getAttribute('data-guide-destination') || guideFromPath();
     if (GUIDES.indexOf(destination) !== -1) trackCta(target, destination);
   });
