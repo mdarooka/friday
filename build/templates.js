@@ -234,7 +234,8 @@ ${extraScripts.map((src) => `<script src="${esc(src)}"></script>`).join('\n')}
 /* ------------------------------------------------------- shared sections */
 
 /** Interior page masthead. */
-function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedReveal = 'mask', background }) {
+function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedReveal = 'mask', background, heroImage }) {
+  /* heroImage: optional path to a finished panorama (1600x700) shown in the plate instead of the procedural Plate. */
   /* background: a decorative illustration painted behind the hero, full bleed (its sky must start at page paper). */
   return `${background ? `<div class="phero-bg" style="background-image:url('${esc(background)}')">` : ''}<section class="phero wrap">
     <div class="phero__grid">
@@ -245,7 +246,7 @@ function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedRevea
       </div>
       ${meta ? `<div class="phero__side"><div class="stack stack--sm" data-reveal>${meta.map((m) => `<div><p class="eyebrow">${m.k}</p><p class="phero__meta-value">${m.v}</p></div>`).join('')}</div></div>` : ''}
     </div>
-    ${seed ? `<div class="phero__art" style="margin-top:clamp(2.4rem,5vw,4.5rem)"${seedReveal ? ` data-reveal="${esc(seedReveal)}"` : ''}>${Plate(seed, { ratio: 'w', scene, tone, svgRatio: 'panorama' })}</div>` : ''}
+    ${seed || heroImage ? `<div class="phero__art" style="margin-top:clamp(2.4rem,5vw,4.5rem)"${seedReveal ? ` data-reveal="${esc(seedReveal)}"` : ''}>${heroImage ? `<div class="plate plate--ratio-w"><img class="plate__svg" src="${esc(heroImage)}" alt="" width="1600" height="700" decoding="async" fetchpriority="high" style="object-position:center"></div>` : Plate(seed, { ratio: 'w', scene, tone, svgRatio: 'panorama' })}</div>` : ''}
   </section>${background ? '</div>' : ''}`;
 }
 
