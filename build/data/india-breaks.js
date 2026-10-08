@@ -26,18 +26,30 @@ const GROUP_TITLES = {
   festival: { eyebrow: 'By region', title: 'Festival breaks' },
   school: { eyebrow: 'For families', title: 'School holidays' },
 };
-const REGION_NAMES = { MH: 'Maharashtra', DL: 'Delhi NCR', HR: 'Haryana', UP: 'Uttar Pradesh', PB: 'Punjab', KA: 'Karnataka', TN: 'Tamil Nadu', TS: 'Telangana', KL: 'Kerala', WB: 'West Bengal', GJ: 'Gujarat' };
+const REGION_NAMES = { MH: 'Maharashtra', DL: 'Delhi', KA: 'Karnataka', TN: 'Tamil Nadu', TS: 'Telangana', KL: 'Kerala', WB: 'West Bengal', GJ: 'Gujarat' };
 
-/* The page's region filter. A row shows for a filter when it is national or shares a state code with it. */
+/* The page's region filter, by state or union territory. A row shows for a filter when it is national or shares a state code with it.
+ * Only states whose own holiday list or school calendar changes at least one break on this page are listed (audit 2026-10-08).
+ * `aliases` keep older ?region= links working (the filter used to be by city).
+ * Source notes per state (the same lists are cited on the rows themselves):
+ *   Maharashtra  - General Administration Dept, Public Holidays 2026: https://maharashtra.gov.in/site/Upload/pdf/Public-Holiday-2026.pdf
+ *   Delhi        - DoPT central list 2026 (Chhath) and Delhi DoE 2026 school calendar: see DOPT_2026_RH, DOE_DELHI
+ *   Karnataka    - Karnataka govt calendar 2026 (a copy of the notified list, not the gazette itself): see KA_2026
+ *   Tamil Nadu   - Tamil Nadu Gazette Extraordinary 2025, 2026 holidays: https://www.stationeryprinting.tn.gov.in/extraordinary/2025/721_Ex_II_1_2025.pdf
+ *   Telangana    - Telangana government calendar 2026: https://www.telangana.gov.in/downloads/calendar-2026/
+ *   West Bengal  - WB Govt calendar 2026, order 4188-FP2 (copy hosted on wbcalendar.co.in): see WB_2026
+ *   Gujarat      - Gujarat state holidays 2026 notification (copy hosted on hrinformative.com, not the gazette): see GJ_2026
+ * Left out (no break on the page changes for them, or no official list could be opened): Kerala, Andhra Pradesh, Bihar, Assam,
+ * Jharkhand, Tripura, Odisha, Haryana, Uttar Pradesh, Punjab and the rest. Add a state only with a row sourced to its own list. */
 const REGION_FILTERS = [
-  { key: 'all', label: 'All', codes: [] },
-  { key: 'mumbai-pune', label: 'Mumbai / Pune', codes: ['MH'] },
-  { key: 'delhi-ncr', label: 'Delhi NCR', codes: ['DL', 'HR', 'UP'] },
-  { key: 'bengaluru', label: 'Bengaluru', codes: ['KA'] },
-  { key: 'chennai', label: 'Chennai', codes: ['TN'] },
-  { key: 'hyderabad', label: 'Hyderabad', codes: ['TS'] },
-  { key: 'kolkata', label: 'Kolkata', codes: ['WB'] },
-  { key: 'ahmedabad', label: 'Ahmedabad', codes: ['GJ'] },
+  { key: 'all', label: 'All', codes: [], aliases: [] },
+  { key: 'maharashtra', label: 'Maharashtra', codes: ['MH'], aliases: ['mumbai-pune', 'mumbai', 'pune'] },
+  { key: 'delhi', label: 'Delhi', codes: ['DL'], aliases: ['delhi-ncr', 'ncr', 'new-delhi'] },
+  { key: 'karnataka', label: 'Karnataka', codes: ['KA'], aliases: ['bengaluru', 'bangalore'] },
+  { key: 'tamil-nadu', label: 'Tamil Nadu', codes: ['TN'], aliases: ['chennai'] },
+  { key: 'telangana', label: 'Telangana', codes: ['TS'], aliases: ['hyderabad'] },
+  { key: 'west-bengal', label: 'West Bengal', codes: ['WB'], aliases: ['kolkata', 'calcutta'] },
+  { key: 'gujarat', label: 'Gujarat', codes: ['GJ'], aliases: ['ahmedabad'] },
 ];
 const DEFAULT_REGION = 'all';
 
@@ -709,15 +721,15 @@ function isoDay(value) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-const filterByKey = (key) => REGION_FILTERS.find((f) => f.key === key) || null;
+const filterByKey = (key) => REGION_FILTERS.find((f) => f.key === (resolveRegion(key) || key)) || null;
 
-/* "MH", "mumbai-pune", "Delhi NCR" -> a filter key, or null. */
+/* "MH", "mumbai-pune" (an old city link), "Delhi NCR" -> a filter key, or null. */
 function resolveRegion(value) {
   const text = String(value == null ? '' : value).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   if (!text) return null;
   const byKey = REGION_FILTERS.find((f) => f.key === text);
   if (byKey) return byKey.key;
-  const byCode = REGION_FILTERS.find((f) => f.codes.some((c) => c.toLowerCase() === text));
+  const byCode = REGION_FILTERS.find((f) => f.codes.some((c) => c.toLowerCase() === text) || (f.aliases || []).includes(text));
   return byCode ? byCode.key : null;
 }
 

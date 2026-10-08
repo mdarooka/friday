@@ -1,6 +1,6 @@
 /* When India travels: a region filter for when-india-travels.html and a region-aware homepage teaser.
    Every row is already in the page's HTML; without this script all of them are simply listed.
-   Rows that are only national always show; a national row tagged with states shows for those states and under All. Selection: ?region= (a filter key or a state code such as MH) -> the last choice on this device -> All.
+   Rows that are only national always show; a national row tagged with states shows for those states and under All. Selection: ?region= (a state key, an old city key such as mumbai-pune, or a state code such as MH) -> the last choice on this device -> All.
    Nothing here talks to the server. */
 (function () {
   'use strict';
@@ -19,6 +19,8 @@
     if (find(text)) return text;
     for (var i = 0; i < filters.length; i++) {
       for (var j = 0; j < filters[i].codes.length; j++) if (filters[i].codes[j].toLowerCase() === text) return filters[i].key;
+      var aliases = filters[i].aliases || [];
+      for (var k = 0; k < aliases.length; k++) if (aliases[k] === text) return filters[i].key;
     }
     return null;
   }
