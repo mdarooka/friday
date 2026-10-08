@@ -943,8 +943,9 @@ export function createApp(options = {}) {
       if(p==='/api/admin/quotes'){
         allow('GET');if(!user)fail(401,'Please sign in.');const quotes=await friday.adminList(user,effectiveQuoteAdmins);
         const callbacks=await Promise.all((await store.listCallbackRequests(db)).map(async row=>({checklist:{items:PREQUOTE_ITEMS.map(i=>({id:i.id,label:i.label})),...await getChecklist(db,row.id)},id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,tripContext:row.trip_context?JSON.parse(row.trip_context):null,topic:row.topic||null,from:row.from,villaId:row.villa_id,villaName:row.villa_name,villaCity:row.villa_city,villaGuests:row.villa_guests,status:row.status,createdAt:row.created})));
+        const destinationRequests=(await store.listEnquiries(db)).filter(row=>row.kind==='destination_request').map(row=>({row,data:JSON.parse(row.data)})).map(({row,data})=>({id:row.id,kind:'destination_request',customerEmail:data.email||null,name:data.name,phone:data.phone||null,destination:data.destination,month:data.month||null,groupSize:data.groupSize||null,notes:data.notes||null,createdAt:row.created}));
         const villaEnquiries=(await store.listEnquiries(db)).filter(row=>row.kind==='commissions').map(row=>({row,data:JSON.parse(row.data)})).filter(item=>item.data.villa).map(({row,data})=>({id:row.id,kind:'villa_enquiry',customerEmail:data.email,name:data.name,villa:data.villa,data,createdAt:row.created}));
-        return send(200,{quotes:[...villaEnquiries,...callbacks,...quotes]});
+        return send(200,{quotes:[...villaEnquiries,...destinationRequests,...callbacks,...quotes]});
       }
       const bookingVerify=p.match(/^\/api\/admin\/bookings\/([0-9a-f-]{36})\/verify$/i);
       if(bookingVerify){allow('POST');if(!user)fail(401,'Please sign in.');const explicitQuoteAdmins=quoteAdminEmails.length>0||generalAdminEmails.length>0;return send(200,{booking:await verifyBooking({db,store,admin:user,allowed:explicitQuoteAdmins?effectiveQuoteAdmins:new Set(),bookingId:bookingVerify[1],verified:body.verified})});}
@@ -1107,6 +1108,21 @@ export function createApp(options = {}) {
         const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
         const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
         return send(201,{id,saved:true,checklistToken,delivery:{notification:notification?.status||'blocked'}});
+      }
+      if (p==='/api/destination-requests' && method==='POST') {
+        rate('form:'+ip,5);
+        if(Buffer.byteLength(JSON.stringify(body))>10000) fail(413,'Your request is too long.');
+        const destination=str(body.destination,'destination',120,true),name=str(body.name,'name',100,true);
+        const contactEmail=body.email==null||body.email===''?null:email(body.email);
+        const contactPhone=body.phone==null||body.phone===''?null:indianPhone(body.phone);
+        if(!contactEmail&&!contactPhone) fail(422,'Add an email address or an Indian mobile number so the team can reply.');
+        const month=str(body.month,'month',40),groupSize=str(body.groupSize,'group size',40),notes=str(body.notes,'notes',1000);
+        const id=randomUUID(),created=new Date().toISOString();
+        const data={request:'Destination request',destination,name,...(contactEmail?{email:contactEmail}:{}),...(contactPhone?{phone:contactPhone}:{}),...(month?{month}:{}),...(groupSize?{groupSize}:{}),...(notes?{notes}:{})};
+        await store.saveEnquiry(db,{id,kind:'destination_request',data:JSON.stringify(data),created});
+        const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
+        const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
+        return send(201,{id,saved:true,delivery:{notification:notification?.status||'blocked'}});
       }
       if (['/api/commissions','/api/subscriptions'].includes(p) && method==='POST') {
         rate('form:'+ip,5); email(body.email);
