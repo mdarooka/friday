@@ -1114,6 +1114,7 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
 .lw-cities { display: flex; flex-wrap: wrap; gap: .6rem; list-style: none; margin: 1.1rem 0 0; padding: 0; }
 .lw-city-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 1.3rem; font-size: var(--t-label); text-transform: uppercase; letter-spacing: .18em; text-decoration: none; color: var(--fg); border: 1px solid var(--rule); border-radius: 999px; transition: background .3s var(--ease), color .3s var(--ease), border-color .3s var(--ease); }
 .lw-city-link:hover, .lw-city-link[aria-current="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.lw-filter + .lw-filter { margin-top: 1.6rem; }
 .lw-status { min-height: 1.6em; margin: 1rem 0 0; font-size: var(--t-sm); color: var(--fg-mute); }
 .lw-city { padding-block: clamp(2.5rem, 5vw, 4.5rem); border-top: 1px solid var(--rule); }
 .lw-city[hidden], .lw-break[hidden], .lw-close[hidden] { display: none; }
