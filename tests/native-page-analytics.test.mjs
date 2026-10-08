@@ -56,3 +56,8 @@ test('capture remains limited to villas and contact pages', async () => {
     assert.equal(html.includes('assets/js/native-page-analytics.js'), false, `${path} is unchanged`);
   }
 });
+
+test('privacy policy discloses page and click analytics on villa and contact pages', async () => {
+  const privacy = await read('privacy.html');
+  assert.ok(privacy.includes('Friday’s villa and contact pages also record page visits and clicks through Hexclave Analytics.'));
+});
