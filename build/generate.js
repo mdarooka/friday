@@ -500,8 +500,7 @@ ${PageHero({
       <p><a class="link" href="trip.html">Plan a trip <span class="arrow">&rarr;</span></a></p>
     </article>
   </div>
-</div></section>
-${Closer({ title: 'Let the first idea<br>lead somewhere.', text: 'Start planning with Friday, or <a class="link" href="contact.html">get in touch</a> about the trip you have in mind.', cta: 'Plan a trip', href: 'trip.html', seed: 'about-friday-close', scene: 'peaks', tone: 'ember' })}`;
+</div></section>`;
 page('about.html', { title: 'About Friday', description: 'Meet Friday, a travel designer from Bombay and a Kusum Travels brand.', body: about, active: 'about.html', lightHead: true });
 
 const help = `
