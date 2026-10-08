@@ -134,7 +134,7 @@ test('the three groups render in order, with no hidden attributes in the static 
   assert.match(html, /<h2 class="h2" id="school-h">School holidays<\/h2>/);
   assert.doesNotMatch(html, /\shidden[\s=>]/);
   assert.match(html, /<script type="application\/json" id="wit-data">/);
-  const ids = [...html.matchAll(/<article class="lw-break" id="([a-z0-9-]+)" data-wit-row data-regions="([^"]*)"/g)];
+  const ids = [...html.matchAll(/<article class="lw-break" id="([a-z0-9-]+)" data-wit-row data-regions="([^"]*)" data-types="([^"]*)"/g)];
   assert.equal(ids.length, rows().length);
   for (const group of B.GROUPS) {
     const start = at(group);
@@ -252,13 +252,13 @@ test('the filter lists states only, and each one changes at least one break on t
 });
 
 /* A tiny DOM: just what assets/js/when-india-travels.js touches. */
-function runScript(source, { search = '', stored = null, home = false } = {}) {
+function runScript(source, { search = '', stored = null, storedType = null, home = false } = {}) {
   const data = JSON.parse(html.match(/<script type="application\/json" id="wit-data">(.*?)<\/script>/s)[1]);
   const el = (attrs) => {
     const a = { ...attrs };
     return { hidden: false, attrs: a, children: [], textContent: '', getAttribute: (n) => (n in a ? a[n] : null), setAttribute(n, v) { a[n] = String(v); }, removeAttribute(n) { delete a[n]; }, addEventListener(type, fn) { this.handler = fn; }, querySelectorAll(sel) { return sel === '[data-wit-row]' ? this.children : []; } };
   };
-  const rowEls = [...html.matchAll(/<article class="lw-break" id="([a-z0-9-]+)" data-wit-row data-regions="([^"]*)" data-end="([^"]*)"/g)].map((m) => Object.assign(el({ 'data-regions': m[2], 'data-end': m[3] }), { id: m[1] }));
+  const rowEls = [...html.matchAll(/<article class="lw-break" id="([a-z0-9-]+)" data-wit-row data-regions="([^"]*)" data-types="([^"]*)" data-end="([^"]*)"/g)].map((m) => Object.assign(el({ 'data-regions': m[2], 'data-types': m[3], 'data-end': m[4] }), { id: m[1] }));
   const groups = B.GROUPS.map((g) => Object.assign(el({ 'data-wit-group': g }), { children: [] }));
   for (const row of rowEls) {
     const brk = B.BREAKS.find((b) => b.id === row.id);
@@ -266,17 +266,21 @@ function runScript(source, { search = '', stored = null, home = false } = {}) {
   }
   const links = data.filters.map((f) => el({ 'data-wit-filter': f.key }));
   const nameSlot = el({});
+  const typeNameSlot = el({});
+  const typeLinks = data.types.map((t) => el({ 'data-wit-type': t.key }));
+  const status = el({});
+  const closeEls = { '[data-wit-close]': el({}), '[data-wit-close-lead]': el({}), '[data-wit-close-link]': el({ href: data.close.default.href }), '[data-wit-close-label]': el({}), '[data-wit-close-more]': el({}), '[data-wit-status]': status };
   const teaser = el({});
   const slots = { '[data-wit-teaser-break]': el({}), '[data-wit-teaser-dates]': el({}), '[data-wit-teaser-place]': el({}), '[data-wit-teaser-nights]': el({}), '[data-wit-teaser-link]': el({ href: 'when-india-travels.html' }) };
   teaser.querySelector = (sel) => slots[sel] || null;
   const body = el({});
-  const storage = new Map(stored ? [['friday.breaks-region.v1', stored]] : []);
+  const storage = new Map([...(stored ? [['friday.breaks-region.v1', stored]] : []), ...(storedType ? [['friday.breaks-type.v1', storedType]] : [])]);
   const replaced = [];
   const doc = {
     body,
     getElementById: (id) => (id === 'wit-data' ? { textContent: JSON.stringify(data) } : null),
-    querySelectorAll: (sel) => ({ '[data-wit-row]': home ? [] : rowEls, '[data-wit-filter]': links, '[data-wit-group]': groups, '[data-wit-region-name]': [nameSlot] }[sel] || []),
-    querySelector: (sel) => (sel === '[data-wit-teaser]' && home ? teaser : null),
+    querySelectorAll: (sel) => ({ '[data-wit-row]': home ? [] : rowEls, '[data-wit-filter]': links, '[data-wit-group]': groups, '[data-wit-region-name]': [nameSlot], '[data-wit-type]': typeLinks, '[data-wit-type-name]': [typeNameSlot] }[sel] || []),
+    querySelector: (sel) => (sel === '[data-wit-teaser]' && home ? teaser : home ? null : closeEls[sel] || null),
   };
   const context = {
     document: doc, URLSearchParams, Date, Array, Object, String, JSON,
@@ -285,7 +289,7 @@ function runScript(source, { search = '', stored = null, home = false } = {}) {
   };
   vm.runInNewContext(source, context);
   const visible = () => rowEls.filter((r) => !r.hidden).map((r) => r.id);
-  return { rowEls, groups, links, body, nameSlot, slots, storage, replaced, visible, data };
+  return { rowEls, groups, links, typeLinks, typeNameSlot, status, closeEls, body, nameSlot, slots, storage, replaced, visible, data };
 }
 
 test('the region filter hides only non-matching regional rows; national rows always show', async () => {
@@ -342,27 +346,30 @@ test('?region=MH preselects Maharashtra, then the remembered choice, then All; c
   assert.equal(run.body.attrs['data-wit-region'], 'telangana');
   assert.equal(run.storage.get('friday.breaks-region.v1'), 'telangana');
   assert.deepEqual(run.replaced, ['/when-india-travels.html?region=telangana']);
+  assert.equal(run.links.find((l) => l.attrs['data-wit-filter'] === 'gujarat').attrs.href, '?region=gujarat');
   assert.doesNotMatch(source, /\/api\/|fetch\(|auth\/me/);
 });
 
 const indexHtml = await read('index.html');
 const sourceJs = await read('assets/js/when-india-travels.js');
 const homeSection = (page) => page.match(/<section class="section section--tight home-breaks"[^]*?<\/section>/)[0];
-const cardsIn = (section) => [...section.matchAll(/<li class="wit-card-item" data-wit-card data-regions="([^"]*)" data-end="([^"]*)">\s*<a class="wit-card" href="([^"]*)">([^]*?)<\/li>/g)];
+const trackOf = (section) => section.match(/<ul class="wit-track" data-wit-track>[^]*?<\/ul>/)[0];
+const regionalOf = (section) => section.match(/<template data-wit-regional>[^]*?<\/template>/)[0];
+const cardsIn = (section) => [...section.matchAll(/<li class="wit-card-item" data-wit-card data-regions="([^"]*)" data-start="[^"]*" data-end="([^"]*)" data-id="[^"]*">\s*<a class="wit-card" href="([^"]*)">([^]*?)<\/li>/g)];
 const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const escHtml = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-test('the homepage section renders from the data: heading, lede, link, and one card per upcoming break', () => {
+test('the homepage section renders from the data: heading, lede, link, and one card per upcoming national break', () => {
   const section = homeSection(indexHtml);
-  const upcoming = B.upcomingBreaks(buildToday);
+  const upcoming = B.upcomingBreaks(buildToday).filter(B.isPureNational);
   assert.match(section, /<p class="eyebrow">When India travels<\/p>/);
   assert.match(section, /<h2 class="h2" id="home-breaks-title">When India<br><em>travels\.<\/em><\/h2>/);
   assert.match(section, /<p class="lede">The long weekends, festival breaks and school holidays coming up, and the places that suit each one\.<\/p>/);
   assert.match(section, /<a class="link" data-wit-teaser-link href="when-india-travels\.html">See every break <span class="arrow">&rarr;<\/span><\/a>/);
   assert.doesNotMatch(section, /style="(?!--i)|top pick|destination=/);
-  const cards = cardsIn(section);
+  const cards = cardsIn(trackOf(section));
   assert.equal(cards.length, upcoming.length);
-  assert.ok(upcoming.length > 3, 'all upcoming breaks, not just three');
+  assert.ok(upcoming.length > 3, 'all upcoming national breaks, not just three');
   cards.forEach((m, i) => {
     const brk = upcoming[i];
     assert.equal(m[1], brk.regions.join(' '));
@@ -383,11 +390,27 @@ test('the homepage section renders from the data: heading, lede, link, and one c
 test('past breaks are left out of the homepage section at build time', () => {
   const LW = require('../build/when-india-travels.js');
   const later = '2026-11-13';
-  const ids = cardsIn(LW.homeTeaser({ esc: escHtml, today: later })).map((m) => m[3].split('#')[1]);
-  assert.deepEqual(ids, B.upcomingBreaks(later).map((b) => b.id));
-  for (const gone of ['dussehra-2026', 'durga-puja-2026', 'diwali-2026', 'kali-puja-2026']) assert.ok(!ids.includes(gone), `${gone} is past`);
-  assert.ok(ids.includes('guru-nanak-2026'));
+  const section = LW.homeTeaser({ esc: escHtml, today: later });
+  const ids = cardsIn(trackOf(section)).map((m) => m[3].split('#')[1]);
+  assert.deepEqual(ids, B.upcomingBreaks(later).filter(B.isPureNational).map((b) => b.id));
+  for (const gone of ['dussehra-2026', 'durga-puja-2026', 'diwali-2026', 'kali-puja-2026']) assert.ok(!ids.includes(gone) && !regionalOf(section).includes(`#${gone}"`), `${gone} is past`);
+  assert.ok(ids.includes('christmas-2026'));
   assert.equal(LW.homeTeaser({ esc: escHtml, today: '2030-01-01' }), '');
+});
+
+test('the default homepage carousel is national only: no state-specific rows in the static HTML, which waits in a template', () => {
+  const section = homeSection(indexHtml);
+  const track = cardsIn(trackOf(section)).map((m) => m[3].split('#')[1]);
+  const upcoming = B.upcomingBreaks(buildToday);
+  assert.deepEqual(track, upcoming.filter(B.isPureNational).map((b) => b.id));
+  const regional = upcoming.filter((b) => !B.isPureNational(b)).map((b) => b.id);
+  assert.ok(regional.length > 5);
+  for (const id of regional) assert.ok(!trackOf(section).includes(`#${id}"`), `${id} is not in the static carousel`);
+  for (const id of ['school-dasara-2026-blr', 'navratri-2026-gj']) assert.ok(!trackOf(section).includes(id));
+  assert.ok(!/Dasara break \(Bengaluru|Navratri \(Ahmedabad/.test(trackOf(section)));
+  assert.deepEqual(cardsIn(regionalOf(section)).map((m) => m[3].split('#')[1]), regional, 'the template holds exactly the regional rows');
+  assert.match(section, /<template data-wit-regional>/);
+  if (buildToday.startsWith('2026-10')) assert.deepEqual(track.slice(0, 3), ['dussehra-2026', 'diwali-2026', 'christmas-2026']);
 });
 
 test('the carousel markup is a scroll-snap row of links, with labelled arrow buttons that are hidden without JS', async () => {
@@ -407,18 +430,28 @@ test('the carousel markup is a scroll-snap row of links, with labelled arrow but
   assert.match(css, /flex-basis: calc\(\(100% - var\(--wit-gap\)\) \/ 1\.15\)/);
 });
 
-function runCarousel({ stored = null, today = buildToday, reduced = false } = {}) {
+function runCarousel({ stored = null, today = buildToday, reduced = false, storedType = null } = {}) {
   const el = (attrs = {}) => {
     const a = { ...attrs };
     return { hidden: false, disabled: false, attrs: a, listeners: {}, getAttribute: (n) => (n in a ? a[n] : null), setAttribute(n, v) { a[n] = String(v); }, addEventListener(type, fn) { this.listeners[type] = fn; } };
   };
-  const cards = cardsIn(homeSection(indexHtml)).map((m, i) => Object.assign(el({ 'data-regions': m[1], 'data-end': m[2] }), { offsetLeft: i * 300, offsetWidth: 280, id: m[3].split('#')[1], closest() { return this; } }));
-  const track = Object.assign(el(), { scrollLeft: 0, clientWidth: 900, scrollWidth: cards.length * 300, scrolled: [], scrollBy(o) { this.scrolled.push(o); }, scrollTo(o) { this.scrolledTo = o; } });
+  const section = homeSection(indexHtml);
+  const make = (m, i) => Object.assign(el({ 'data-regions': m[1], 'data-end': m[2], 'data-start': m[0].match(/data-start="([^"]*)"/)[1], 'data-id': m[3].split('#')[1] }), { offsetLeft: i * 300, offsetWidth: 280, id: m[3].split('#')[1], closest() { return this; } });
+  const cards = cardsIn(trackOf(section)).map(make);
+  const waiting = cardsIn(regionalOf(section)).map(make);
+  waiting.forEach((c) => { c.cloneNode = () => Object.assign(el({ ...c.attrs }), { id: c.id, closest() { return this; } }); });
+  const track = Object.assign(el(), {
+    scrollLeft: 0, clientWidth: 900, scrolled: [], scrollBy(o) { this.scrolled.push(o); }, scrollTo(o) { this.scrolledTo = o; },
+    querySelectorAll: (sel) => (sel === '[data-wit-card]' ? cards : []),
+    insertBefore(node, ref) { cards.splice(cards.indexOf(ref), 0, node); }, appendChild(node) { cards.push(node); },
+  });
+  Object.defineProperty(track, 'scrollWidth', { get: () => cards.length * 300 });
   const prev = Object.assign(el(), { disabled: true }), next = el(), nav = Object.assign(el(), { hidden: true }), link = el({ href: 'when-india-travels.html' });
-  const parts = { '[data-wit-track]': track, '[data-wit-prev]': prev, '[data-wit-next]': next, '[data-wit-nav]': nav, '[data-wit-teaser-link]': link };
-  const teaser = { querySelector: (sel) => parts[sel] || null, querySelectorAll: (sel) => (sel === '[data-wit-card]' ? cards : []) };
+  const tpl = { content: { querySelectorAll: (sel) => (sel === '[data-wit-card]' ? waiting : []) } };
+  const parts = { '[data-wit-track]': track, '[data-wit-prev]': prev, '[data-wit-next]': next, '[data-wit-nav]': nav, '[data-wit-teaser-link]': link, '[data-wit-regional]': tpl };
+  const teaser = { querySelector: (sel) => parts[sel] || null, querySelectorAll: () => [] };
   const data = JSON.parse(html.match(/<script type="application\/json" id="wit-data">(.*?)<\/script>/s)[1]);
-  const storage = new Map(stored ? [['friday.breaks-region.v1', stored]] : []);
+  const storage = new Map([...(stored ? [['friday.breaks-region.v1', stored]] : []), ...(storedType ? [['friday.breaks-type.v1', storedType]] : [])]);
   const FakeDate = class extends Date { constructor(...args) { super(...(args.length ? args : [`${today}T12:00:00`])); } };
   vm.runInNewContext(sourceJs, {
     document: { body: el(), getElementById: (id) => (id === 'wit-data' ? { textContent: JSON.stringify(data) } : null), querySelectorAll: () => [], querySelector: (sel) => (sel === '[data-wit-teaser]' ? teaser : null) },
@@ -430,24 +463,31 @@ function runCarousel({ stored = null, today = buildToday, reduced = false } = {}
   return { cards, track, prev, next, nav, link, visible: () => cards.filter((c) => !c.hidden).map((c) => c.id) };
 }
 
-test('carousel script: with nothing saved every upcoming break shows; a saved state shows its breaks plus national ones in date order', () => {
-  const all = runCarousel();
-  assert.deepEqual(all.visible(), B.upcomingBreaks(buildToday).map((b) => b.id));
-  assert.equal(all.nav.hidden, false);
-  assert.equal(all.link.attrs.href, 'when-india-travels.html');
+test('carousel script: with nothing saved only national breaks show; a saved state adds its own in date order; the type filter is ignored', () => {
+  const national = B.upcomingBreaks(buildToday).filter(B.isPureNational).map((b) => b.id);
+  const none = runCarousel();
+  assert.deepEqual(none.visible(), national);
+  assert.equal(none.nav.hidden, false);
+  assert.equal(none.link.attrs.href, 'when-india-travels.html');
+  assert.deepEqual(runCarousel({ stored: 'all' }).visible(), national, 'All is not a state');
   const wb = runCarousel({ stored: 'west-bengal' });
   const expected = B.upcomingBreaks(buildToday, { region: 'west-bengal' }).map((b) => b.id);
   assert.deepEqual(wb.visible(), expected);
-  assert.ok(expected.length < all.visible().length);
+  assert.ok(expected.length > national.length - 20 && expected.some((id) => !national.includes(id)), 'regional rows were added');
   assert.ok(expected.includes('dussehra-2026') && expected.includes('durga-puja-2026') && !expected.includes('navratri-2026-gj'));
+  assert.ok(national.every((id) => expected.includes(id)), 'national rows stay');
   assert.equal(wb.link.attrs.href, 'when-india-travels.html?region=west-bengal');
-  assert.equal(runCarousel({ stored: 'all' }).visible().length, all.visible().length);
+  assert.deepEqual(runCarousel({ stored: 'west-bengal', storedType: 'school' }).visible(), expected, 'no type filter on the homepage');
+  assert.equal(runCarousel({ stored: 'gujarat' }).visible().includes('navratri-2026-gj'), true);
 });
 
 test('carousel script: breaks that ended after the build are hidden by date', () => {
   const ids = runCarousel({ today: '2026-11-13' }).visible();
-  assert.ok(!ids.includes('dussehra-2026') && !ids.includes('diwali-2026') && ids.includes('guru-nanak-2026'));
-  assert.deepEqual(ids, B.upcomingBreaks('2026-11-13').map((b) => b.id));
+  assert.ok(!ids.includes('dussehra-2026') && !ids.includes('diwali-2026') && ids.includes('christmas-2026'));
+  assert.deepEqual(ids, B.upcomingBreaks('2026-11-13').filter(B.isPureNational).map((b) => b.id));
+  const wb = runCarousel({ today: '2026-11-13', stored: 'west-bengal' }).visible();
+  assert.ok(!wb.includes('durga-puja-2026') && !wb.includes('kali-puja-2026'));
+  assert.deepEqual(wb, B.upcomingBreaks('2026-11-13', { region: 'west-bengal' }).map((b) => b.id));
 });
 
 test('carousel script: arrows scroll one card and disable at each end; reduced motion is respected; focus keeps the card in view', () => {
@@ -488,8 +528,8 @@ test('When India travels is linked from the footer, field notes, the Mumbai guid
   assert.match(mumbai, /Planning around a long weekend\?/);
   assert.match(index, /assets\/js\/when-india-travels\.js/);
   assert.match(index, /href="when-india-travels\.html"/);
-  assert.match(html, /href="mumbai-quiet-weekend\.html"/);
   assert.match(html, /href="guides\.html"/);
+  assert.match(html, /data-wit-close-link href="trip\.html"/, 'Closer to home is neutral in the static HTML');
 });
 
 test('the planner reads ?start= and ?nights= when it opens a new trip', async () => {
@@ -541,4 +581,139 @@ test('the planner no longer steers a traveller to six destinations, and plans an
   assert.match(chat, /function freeformPlan/);
   assert.match(chat, /postJson\('api\/itineraries', body\)/);
   assert.match(chat, /preplanned\[d\.id\]/);
+});
+
+/* ------------------------------------------------------------ type of break */
+const ALL_ROWS = () => B.upcomingBreaks(B.isoDay());
+
+test('every row has a types field that follows its kind and length, and every type pill matches at least one row', () => {
+  const allowed = B.TYPE_FILTERS.filter((t) => t.key !== 'all').map((t) => t.key);
+  assert.deepEqual(allowed, ['festival', 'school', 'long-weekend', 'short-escape']);
+  assert.deepEqual(B.TYPE_FILTERS.map((t) => t.label), ['All', 'Festival breaks', 'School holidays', 'Long weekends', 'Short escapes']);
+  for (const brk of B.BREAKS) {
+    assert.ok(Array.isArray(brk.types) && brk.types.length >= 1 && brk.types.every((t) => allowed.includes(t)), `${brk.id} types`);
+    assert.equal(brk.types.includes('school'), brk.kind === 'school-break', `${brk.id} school`);
+    assert.equal(brk.types.includes('long-weekend'), brk.kind === 'long-weekend', `${brk.id} long weekend`);
+    assert.equal(brk.types.includes('short-escape'), brk.kind !== 'school-break' && brk.nights <= 2, `${brk.id} short escape`);
+    if (brk.group === 'festival') assert.ok(brk.types.includes('festival'), `${brk.id} regional festival rows are festival breaks`);
+    if (brk.kind === 'school-break') assert.deepEqual(brk.types, ['school']);
+  }
+  const rows = ALL_ROWS();
+  for (const t of allowed) assert.ok(rows.filter((b) => b.types.includes(t)).length >= 1, `${t} has a row`);
+  assert.equal(rows.filter((b) => B.matchesType(b, 'all')).length, rows.length);
+  assert.deepEqual(rows.filter((b) => b.types.includes('short-escape')).map((b) => b.id).sort(), ['bakrid-2027', 'christmas-2026', 'new-year-2027', 'shivaji-jayanti-2027']);
+  assert.equal(B.resolveType('Festival breaks'), 'festival');
+  assert.equal(B.resolveType('short-escape'), 'short-escape');
+  assert.equal(B.resolveType('nonsense'), null);
+  assert.deepEqual(B.upcomingBreaks(B.isoDay(), { type: 'school', region: 'maharashtra' }).map((b) => b.group), ['school', 'school', 'school', 'school']);
+});
+
+test('the page renders a Type of break filter with the same pills as Show breaks for, and every row carries data-types', () => {
+  assert.match(html, /<h2 class="eyebrow" id="wit-filter-h">Show breaks for<\/h2>/);
+  assert.match(html, /<h2 class="eyebrow" id="wit-type-h">Type of break<\/h2>/);
+  const pills = [...html.matchAll(/<a class="lw-city-link" href="\?type=([a-z-]+)" data-wit-type="([a-z-]+)">([^<]+)<\/a>/g)];
+  assert.deepEqual(pills.map((m) => [m[1], m[2], m[3]]), B.TYPE_FILTERS.map((t) => [t.key, t.key, t.label]));
+  for (const brk of ALL_ROWS()) assert.match(html, new RegExp(`id="${brk.id}" data-wit-row data-regions="[^"]*" data-types="${brk.types.join(' ')}"`));
+  assert.doesNotMatch(html, /\shidden[\s=>]/);
+});
+
+test('the type filter and the state filter combine (state AND type), hide empty sections, and say so when nothing matches', async () => {
+  const source = await read('assets/js/when-india-travels.js');
+  const expected = (region, type) => B.upcomingBreaks(B.isoDay(), { region, type }).map((b) => b.id).sort();
+  for (const region of B.REGION_FILTERS) {
+    for (const type of B.TYPE_FILTERS) {
+      const run = runScript(source, { search: `?region=${region.key}&type=${type.key}` });
+      assert.deepEqual(run.visible().sort(), expected(region.key, type.key), `${region.key} + ${type.key}`);
+      assert.equal(run.body.attrs['data-wit-type'], type.key);
+      assert.equal(run.status.textContent === '', expected(region.key, type.key).length > 0, `${region.key} + ${type.key} status`);
+    }
+  }
+  /* Just a type: the state stays All. */
+  const festival = runScript(source, { search: '?type=festival' });
+  assert.equal(festival.body.attrs['data-wit-region'], 'all');
+  assert.equal(festival.visible().length, 20);
+  assert.equal(festival.typeNameSlot.textContent, 'Festival breaks');
+  assert.ok(festival.groups[2].hidden, 'the school section is empty and hidden');
+  assert.ok(!festival.groups[0].hidden && !festival.groups[1].hidden);
+  const mhSchool = runScript(source, { search: '?region=MH&type=school' });
+  assert.equal(mhSchool.visible().length, 4);
+  assert.ok(mhSchool.groups[0].hidden && mhSchool.groups[1].hidden && !mhSchool.groups[2].hidden);
+  /* A combination with nothing shows a sensible message and hides every section. */
+  const empty = runScript(source, { search: '?region=telangana&type=school' });
+  assert.deepEqual(empty.visible(), []);
+  assert.ok(empty.groups.every((g) => g.hidden));
+  assert.match(empty.status.textContent, /No breaks match school holidays in Telangana/);
+  assert.match(empty.status.textContent, /choose All/);
+  assert.equal(runScript(source, { search: '?region=gujarat&type=school' }).visible().length, 0);
+  assert.equal(runScript(source, {}).status.textContent, '');
+});
+
+test('each filter keeps the other filter\'s value in its links and in the address; type is remembered like the state', async () => {
+  const source = await read('assets/js/when-india-travels.js');
+  const run = runScript(source, { search: '?region=karnataka&type=festival' });
+  assert.equal(run.links.find((l) => l.attrs['data-wit-filter'] === 'delhi').attrs.href, '?region=delhi&type=festival');
+  assert.equal(run.links.find((l) => l.attrs['data-wit-filter'] === 'all').attrs.href, '?region=all&type=festival');
+  assert.equal(run.typeLinks.find((l) => l.attrs['data-wit-type'] === 'school').attrs.href, '?region=karnataka&type=school');
+  assert.equal(run.typeLinks.find((l) => l.attrs['data-wit-type'] === 'all').attrs.href, '?region=karnataka');
+  assert.equal(run.typeLinks.find((l) => l.attrs['data-wit-type'] === 'festival').attrs['aria-current'], 'true');
+  let prevented = 0;
+  const click = (link) => link.handler({ preventDefault() { prevented++; } });
+  click(run.typeLinks.find((l) => l.attrs['data-wit-type'] === 'school'));
+  assert.equal(prevented, 1);
+  assert.equal(run.body.attrs['data-wit-region'], 'karnataka', 'state kept');
+  assert.equal(run.body.attrs['data-wit-type'], 'school');
+  assert.equal(run.storage.get('friday.breaks-type.v1'), 'school');
+  assert.equal(run.storage.get('friday.breaks-region.v1'), undefined, 'a type click does not touch the saved state');
+  assert.equal(run.replaced.at(-1), '/when-india-travels.html?region=karnataka&type=school');
+  click(run.links.find((l) => l.attrs['data-wit-filter'] === 'delhi'));
+  assert.equal(run.body.attrs['data-wit-type'], 'school', 'type kept');
+  assert.equal(run.storage.get('friday.breaks-region.v1'), 'delhi');
+  assert.equal(run.replaced.at(-1), '/when-india-travels.html?region=delhi&type=school');
+  click(run.typeLinks.find((l) => l.attrs['data-wit-type'] === 'all'));
+  assert.equal(run.storage.get('friday.breaks-type.v1'), 'all');
+  assert.equal(run.replaced.at(-1), '/when-india-travels.html?region=delhi');
+  /* selection order: ?type= -> last choice on this device -> All */
+  assert.equal(runScript(source, { storedType: 'long-weekend' }).body.attrs['data-wit-type'], 'long-weekend');
+  assert.equal(runScript(source, { search: '?type=short-escape', storedType: 'long-weekend' }).body.attrs['data-wit-type'], 'short-escape');
+  assert.equal(runScript(source, { search: '?type=bogus', storedType: 'school' }).body.attrs['data-wit-type'], 'school');
+  assert.equal(runScript(source, { search: '?type=Festival%20breaks' }).body.attrs['data-wit-type'], 'festival');
+  assert.equal(runScript(source, {}).body.attrs['data-wit-type'], 'all');
+  assert.equal(runScript(source, { storedType: 'school', stored: 'gujarat' }).body.attrs['data-wit-region'], 'gujarat');
+});
+
+test('Closer to home is neutral in the HTML and for every state without its own short-escape guide; Maharashtra gets the Mumbai guide', async () => {
+  const source = await read('assets/js/when-india-travels.js');
+  const block = html.match(/<p class="lede lw-close"[^]*?<\/p>/)[0];
+  assert.doesNotMatch(block, /Bombay|Mumbai|Pune|mumbai-quiet-weekend/);
+  assert.match(block, /wherever you are starting/);
+  assert.match(block, /data-wit-close-link href="trip\.html"/);
+  assert.match(block, /href="contact\.html\?topic=Short%20escape#callback-title"/);
+  assert.match(block, /href="guides\.html"/);
+  assert.match(html, /<h2 class="h2" id="wit-close-h">A short escape instead\?<\/h2>/);
+  assert.deepEqual(Object.keys(B.CLOSE_BY_REGION), ['maharashtra']);
+  assert.equal(B.CLOSE_BY_REGION.maharashtra.href, 'mumbai-quiet-weekend.html');
+  assert.ok((await read('mumbai-quiet-weekend.html')).length > 0);
+  for (const filter of B.REGION_FILTERS) {
+    const run = runScript(source, { search: `?region=${filter.key}` });
+    const lead = run.closeEls['[data-wit-close-lead]'].textContent;
+    const link = run.closeEls['[data-wit-close-link]'].attrs.href;
+    const more = run.closeEls['[data-wit-close-more]'];
+    if (filter.key === 'maharashtra') {
+      assert.match(lead, /In Maharashtra, starting from Mumbai\?/);
+      assert.equal(link, 'mumbai-quiet-weekend.html');
+      assert.equal(run.closeEls['[data-wit-close-label]'].textContent, 'the quiet weekend guide');
+      assert.equal(more.hidden, true);
+    } else {
+      assert.equal(lead, B.CLOSE_NEUTRAL.lead, filter.key);
+      assert.equal(link, 'trip.html', filter.key);
+      assert.equal(run.closeEls['[data-wit-close-label]'].textContent, B.CLOSE_NEUTRAL.label);
+      assert.equal(more.hidden, false);
+      assert.doesNotMatch(lead, /Bombay|Mumbai|Pune/);
+    }
+  }
+  /* moving between states swaps it back */
+  const run = runScript(source, { search: '?region=MH' });
+  run.links.find((l) => l.attrs['data-wit-filter'] === 'all').handler({ preventDefault() {} });
+  assert.equal(run.closeEls['[data-wit-close-link]'].attrs.href, 'trip.html');
+  assert.equal(run.closeEls['[data-wit-close-more]'].hidden, false);
 });

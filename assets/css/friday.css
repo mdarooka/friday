@@ -1114,9 +1114,13 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
 .lw-cities { display: flex; flex-wrap: wrap; gap: .6rem; list-style: none; margin: 1.1rem 0 0; padding: 0; }
 .lw-city-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 1.3rem; font-size: var(--t-label); text-transform: uppercase; letter-spacing: .18em; text-decoration: none; color: var(--fg); border: 1px solid var(--rule); border-radius: 999px; transition: background .3s var(--ease), color .3s var(--ease), border-color .3s var(--ease); }
 .lw-city-link:hover, .lw-city-link[aria-current="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.lw-filter + .lw-filter { margin-top: 1.6rem; }
 .lw-status { min-height: 1.6em; margin: 1rem 0 0; font-size: var(--t-sm); color: var(--fg-mute); }
 .lw-city { padding-block: clamp(2.5rem, 5vw, 4.5rem); border-top: 1px solid var(--rule); }
 .lw-city[hidden], .lw-break[hidden], .lw-close[hidden] { display: none; }
+/* Links inside the Closer to home sentence read at the sentence's size, not the smaller standalone link size. */
+.lw-close .link { display: inline; white-space: nowrap; font-size: inherit; letter-spacing: inherit; padding-bottom: .1em; }
+.lw-close .link .arrow { display: inline; }
 .lw-city__note { margin-top: 1rem; max-width: 40em; }
 .lw-break { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(1.5rem, 4vw, 4rem); padding-block: clamp(1.8rem, 3.5vw, 3rem); border-top: 1px solid var(--rule-soft); margin-top: clamp(1.5rem, 3vw, 2.5rem); }
 .lw-break__note { margin: .8rem 0 0; font-size: var(--t-sm); line-height: 1.65; color: var(--fg-mute); max-width: 32em; }
