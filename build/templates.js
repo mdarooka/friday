@@ -6,7 +6,8 @@ const D = require('./data');
 const esc = (s = '') => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const { siteOrigin, publicUrl } = require('./site-metadata');
 const SITE_ORIGIN = siteOrigin();
-const SOCIAL_IMAGE = publicUrl('assets/images/friday-social.jpg', SITE_ORIGIN);
+const { SITE_CARD_FILE, SITE_CARD_VERSION } = require('./social-cards');
+const SOCIAL_IMAGE = `${publicUrl(SITE_CARD_FILE, SITE_ORIGIN)}?v=${SITE_CARD_VERSION}`;
 
 /* The <head> font links, shared with the planner page (build/trip.js). */
 const FONT_LINKS = `<link rel="preconnect" href="https://fonts.googleapis.com">

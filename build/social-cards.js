@@ -10,6 +10,9 @@
 const CARD_VERSION = 1;
 const CARD_WIDTH = 1200;
 const CARD_HEIGHT = 630;
+/* The site-wide card every other page shares. SITE_CARD_VERSION does for it what CARD_VERSION does for the others. */
+const SITE_CARD_FILE = 'assets/images/friday-social.jpg';
+const SITE_CARD_VERSION = 2;
 
 /* The keys are catalogue destination ids (build/trip-data) or "<id>-guide" for a guide page. */
 const DESTINATION_CARDS = {
@@ -57,6 +60,6 @@ function matchDestinationText(text) {
 }
 
 module.exports = {
-  CARD_VERSION, CARD_WIDTH, CARD_HEIGHT, DESTINATION_CARDS, GUIDES,
+  CARD_VERSION, CARD_WIDTH, CARD_HEIGHT, SITE_CARD_FILE, SITE_CARD_VERSION, DESTINATION_CARDS, GUIDES,
   cardKeys, cardFile, hasCard, cardUrl, normalizeDestinationId, matchDestinationText,
 };

@@ -325,7 +325,7 @@ export function createApp(options = {}) {
         else if (relative === 'robots.txt') content = Buffer.from(searchIndexingEnabled ? rewriteRobotsSitemap(content.toString('utf8'), origin) : hiddenRobotsTxt(origin));
         if (relative==='app.html' || relative==='trip.html') {
           const sharedToken=url.searchParams.get('share')||'';
-          const shareFallback=origin.replace(/\/+$/,'')+'/assets/images/friday-coastal-banner.jpg';
+          const shareFallback=socialMeta.siteCardUrl(origin);
           let shared=null;
           if (/^[a-f0-9]{64}$/.test(sharedToken)) {
             const tokenHash=hash(sharedToken),share=await trips.findShare(tokenHash);
