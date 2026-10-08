@@ -110,18 +110,19 @@ test('upcomingBreaks drops past rows, sorts by date, and filters by group and re
   assert.equal(B.nextBreak(TODAY, 'west-bengal').id, 'durga-puja-2026');
 });
 
-test('Ladakh is only a May/June suggestion, Kyoto only a 6+ night spring or autumn one, and places are not limited to a short list', () => {
-  let ladakh = 0, kyoto = 0;
+test('Ladakh is only a May/June suggestion, Kyoto is never suggested, and places are not limited to a short list', () => {
+  let ladakh = 0;
   const places = new Set();
   for (const brk of B.upcomingBreaks(TODAY)) {
     for (const sug of brk.suggestions) {
       places.add(sug.place);
       const month = Number(sug.start.slice(5, 7));
       if (/ladakh/i.test(sug.place)) { ladakh++; assert.ok([5, 6].includes(month), `${brk.id} ladakh in month ${month}`); }
-      if (/kyoto/i.test(sug.place)) { kyoto++; assert.ok(sug.nights >= 6, `${brk.id} kyoto nights`); assert.ok([3, 4, 10, 11].includes(month), `${brk.id} kyoto month ${month}`); }
+      assert.ok(!/kyoto/i.test(`${sug.place} ${sug.reason} ${sug.caveat}`), `${brk.id} still suggests Kyoto`);
     }
   }
-  assert.ok(ladakh > 0 && kyoto > 0);
+  assert.ok(ladakh > 0);
+  assert.ok(!/kyoto/i.test(html), 'no Kyoto on the page');
   assert.ok(places.size >= 20, 'a wide spread of places');
   for (const place of ['Coorg', 'Andaman Islands', 'Meghalaya', 'Bhutan', 'Himachal Pradesh', 'Vietnam']) assert.ok(places.has(place), place);
 });
