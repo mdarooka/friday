@@ -55,7 +55,28 @@ function flattenJsonLd(nodes) {
   nodes.forEach(visit); return out;
 }
 
-export function extractBooking({subject='', from='', body='', snippet='', schema=[], externalId='', sourceUrl='', confirmationDate='', tripId='', today=new Date().toISOString().slice(0,10), includePast=false}={}) {
+export function htmlToText(value){return String(value||'').replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi,' ').replace(/<\s*br\s*\/?>/gi,'\n').replace(/<\s*\/(?:p|div|tr|li|h[1-6])\s*>/gi,'\n').split('\n').map(line=>clean(line)).filter(Boolean).join('\n').slice(0,12000);}
+export function jsonLdObjects(html){const objects=[];for(const m of String(html||'').matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){try{objects.push(JSON.parse(m[1]));}catch{}}return objects;}
+
+const refLabel=/\b(?:confirmation\s*(?:number|code|no\.?|#)|booking\s*(?:reference|ref\.?|id|number|code)|reservation\s*(?:number|code|id|no\.?)|record\s*locator|e-?ticket\s*number|PNR)\b\s*(?:is\s*)?[:#-]?\s*([A-Z0-9][A-Z0-9-]{4,19})\b/i;
+function findRef(text,structured){
+  const s=structured?.reservationNumber;
+  if(typeof s==='string'||typeof s==='number')return clean(s,40);
+  const m=refLabel.exec(text);
+  return m&&(/\d/.test(m[1])||/^[A-Z]{5,}$/.test(m[1]))?m[1].toUpperCase():'';
+}
+function guessType(text,structured){
+  const t=Array.isArray(structured?.['@type'])?structured['@type'].join(' '):String(structured?.['@type']||'');
+  if(/Flight/i.test(t))return 'flight';
+  if(/Lodging|Hotel/i.test(t))return 'hotel';
+  if(/Food|Restaurant|Event|Rental/i.test(t))return 'reservation';
+  if(/\b(?:airline|flight|boarding|PNR|e-?ticket)\b/i.test(text))return 'flight';
+  if(/\b(?:hotel|check[- ]?in|check[- ]?out|stay|lodging|accommodation)\b/i.test(text))return 'hotel';
+  if(/\b(?:restaurant|table|tour|dinner|lunch)\b/i.test(text))return 'reservation';
+  return 'other';
+}
+
+export function extractBooking({source='google-gmail',subject='', from='', body='', snippet='', schema=[], externalId='', sourceUrl='', confirmationDate='', tripId='', today=new Date().toISOString().slice(0,10), includePast=false}={}) {
   const text=clean(`${subject}\n${from}\n${body}\n${snippet}`);
   const cancelledSubject=/\b(?:cancelled|canceled|refund(?:ed)?|voided)\b/i.test(subject);
   const cancelledStatement=/\b(?:booking|reservation|flight|hotel|trip|stay|ticket|itinerary)\s+(?:has been|was|is now|is)\s+(?:cancelled|canceled|refunded|voided)\b|\b(?:cancelled|canceled|refunded|voided)\s+(?:booking|reservation|flight|hotel|trip|stay|ticket|itinerary)\b/i.test(text);
@@ -95,7 +116,7 @@ export function extractBooking({subject='', from='', body='', snippet='', schema
   }
   const title=clean(subject,300)||clean(structured?.name,300)||'Travel booking';
   const evidence=clean(`${subject} ${body} ${snippet}`,1200);
-  return {booking:{type:'other',name:title,title,source:'google-gmail',externalId,tripId:tripId||'',start,end,date:start||'',dateStatus:needsClarification?'needs-clarification':'confirmed',confirmationDate,sender:clean(from,500),notes:clean(snippet||body,1200),sourceUrl,sourceEvidence:evidence}};
+  return {booking:{type:guessType(text,structured),ref:findRef(text,structured),name:title,title,source,externalId,tripId:tripId||'',start,end,date:start||'',dateStatus:needsClarification?'needs-clarification':'confirmed',confirmationDate,sender:clean(from,500),notes:clean(snippet||body,1200),sourceUrl,sourceEvidence:evidence}};
 }
 
 function validIso(value) {

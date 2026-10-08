@@ -973,11 +973,12 @@
   ];
   const typeIcon = (t) => (BOOKING_TYPES.find((x) => x.id === t) || BOOKING_TYPES[3]).icon;
 
-  function openBookingForm(tripId, dayIndex, initialType) {
+  function openBookingForm(tripId, dayIndex, initialType, prefill) {
     const trips = sortedTrips();
     const here = router.current();
     const initialTrip = tripId !== undefined && tripId !== null ? tripId : here.name === 'trip' ? here.id : trips[0] ? trips[0].id : '';
-    let type = initialType || 'hotel';
+    prefill = prefill && typeof prefill === 'object' ? prefill : null;
+    let type = initialType || (prefill && prefill.type) || 'hotel';
     const body = doc.createElement('div');
     body.className = 'fx-form';
     const curOf = (id) => { const t = store.trip(id); const d = t && FT.dest(t.destId); return d && d.currency ? d.currency : '₹'; };
@@ -997,6 +998,7 @@
       '<div class="fx-field"><label class="fx-label" for="bk-price">Price</label><div class="fx-pricebox"><select class="fx-input" id="bk-cur" name="currency" aria-label="Currency">' +
       ['₹', '$', '¥', '€', '£'].map((c) => '<option value="' + c + '">' + c + '</option>').join('') +
       '</select><input class="fx-input" type="number" min="0" step="any" id="bk-price" name="price" inputmode="decimal" placeholder="0"></div></div></div>' +
+      (prefill ? '<p class="fx-hint">Read from your pasted email. Check the details, then add the booking.' + (prefill.dateStatus === 'needs-clarification' ? ' Check the dates — Friday couldn’t read them confidently.' : '') + '</p>' : '') +
       '<p class="fx-error" role="alert" hidden></p>';
 
     const q = (n) => $('[name="' + n + '"]', body);
@@ -1014,11 +1016,12 @@
     };
     setType(type);
     q('currency').value = curOf(initialTrip);
+    if (prefill) { q('name').value = prefill.name || ''; q('start').value = prefill.start || ''; q('end').value = prefill.end || ''; q('ref').value = prefill.ref || ''; }
     $$('.fx-segtab', body).forEach((b) => b.addEventListener('click', () => setType(b.dataset.type)));
     q('trip').addEventListener('change', () => { q('currency').value = curOf(q('trip').value); });
 
     modal({
-      title: 'Add a booking',
+      title: prefill ? 'Review booking' : 'Add a booking',
       body,
       actions: [
         { label: 'Cancel' },
@@ -1044,6 +1047,8 @@
                 tripId: tid, type, name, start, end, ref: q('ref').value.trim(),
                 price: priceRaw ? +priceRaw : null, currency: q('currency').value, destId: t ? t.destId : null,
                 flightNumber: q('flightNumber').value.trim(), address: q('address').value.trim(), startTime: q('startTime').value, endTime: q('endTime').value,
+                // A reviewed paste with a start date is confirmed, which is what the pre-departure briefing needs.
+                ...(prefill ? { source: 'pasted-email', sourceEvidence: prefill.sourceEvidence || '', sender: prefill.sender || '', notes: prefill.notes || '', dateStatus: start ? 'confirmed' : 'needs-clarification' } : {}),
               });
               if (t && dayIndex !== undefined && Number.isFinite(dayIndex)) {
                 let dest = FT.dest(t.destId);
@@ -1671,12 +1676,12 @@
     render() {
       const el = pageEl('bookings');
       const list = state.bookings.slice();
-      const add = '<div class="fx-pagehead__actions"><button class="fx-btn fx-btn--line" type="button" data-act="gmail-bookings">Connect email</button><button class="fx-btn fx-btn--ink" type="button" data-act="add-booking">' + icon('plus', 16) + '<span>Add booking</span></button></div>';
+      const add = '<div class="fx-pagehead__actions"><button class="fx-btn fx-btn--line" type="button" data-act="gmail-bookings">Connect email</button><button class="fx-btn fx-btn--line" type="button" data-act="paste-booking">Paste confirmation</button><button class="fx-btn fx-btn--ink" type="button" data-act="add-booking">' + icon('plus', 16) + '<span>Add booking</span></button></div>';
       const emailCard = '<section class="fx-bk-email fx-card" data-email-bookings><div><p class="fx-eyebrow">Your confirmations</p><h2 class="fx-h2">Bring bookings into Friday</h2><p class="fx-muted" data-email-status>Checking Gmail connection…</p></div><div class="fx-bk-email__actions"><button class="fx-btn fx-btn--line" type="button" data-act="gmail-bookings">Manage Gmail</button><button class="fx-btn fx-btn--ink" type="button" data-act="plan-bookings">Plan around bookings</button></div></section>';
       if (!list.length) {
         el.innerHTML = '<div class="fx-wrap">' + pageHead('Bookings', add) +
-          emailCard + '<div class="fx-empty">' + SUITCASE + '<h2 class="fx-empty__t">No bookings found</h2><p class="fx-empty__d">Connect Gmail to find travel confirmations, or add flights, stays and reservations by hand.</p>' +
-          '<button class="fx-btn fx-btn--ink" type="button" data-act="add-booking">Add a booking</button></div></div>';
+          emailCard + '<div class="fx-empty">' + SUITCASE + '<h2 class="fx-empty__t">No bookings found</h2><p class="fx-empty__d">Paste a confirmation email, connect Gmail to find travel confirmations, or add flights, stays and reservations by hand.</p>' +
+          '<div class="fx-pagehead__actions"><button class="fx-btn fx-btn--line" type="button" data-act="paste-booking">Paste confirmation</button><button class="fx-btn fx-btn--ink" type="button" data-act="add-booking">Add a booking</button></div></div></div>';
         renderGmailStatus(el);
         return;
       }
@@ -1695,6 +1700,54 @@
       renderGmailStatus(el);
     },
   };
+  function openPasteBooking() {
+    const trips = sortedTrips();
+    const here = router.current();
+    const initialTrip = here.name === 'trip' ? here.id : trips[0] ? trips[0].id : '';
+    const body = doc.createElement('div');
+    body.className = 'fx-form';
+    body.innerHTML =
+      '<p class="fx-hint">Paste the text of a booking confirmation. Friday reads it here, then you review the details before anything is saved.</p>' +
+      '<div class="fx-field"><label class="fx-label" for="pb-text">Paste the confirmation email</label><textarea class="fx-input" id="pb-text" name="text" rows="9" maxlength="20000" placeholder="Subject, dates and confirmation number help most"></textarea></div>' +
+      '<div class="fx-field"><label class="fx-label" for="pb-trip">Trip</label><select class="fx-input" id="pb-trip" name="trip"><option value="">No trip</option>' + trips.map((t) => '<option value="' + esc(t.id) + '"' + (t.id === initialTrip ? ' selected' : '') + '>' + esc(t.title) + '</option>').join('') + '</select></div>' +
+      '<p class="fx-error" role="alert" hidden></p><p class="fx-hint" data-by-hand hidden><button type="button" class="fx-link" data-by-hand-btn>Add it by hand</button></p>';
+    const q = (n) => $('[name="' + n + '"]', body);
+    const err = $('.fx-error', body), byHand = $('[data-by-hand]', body);
+    const showErr = (msg, hand) => { err.textContent = msg; err.hidden = false; byHand.hidden = !hand; };
+    if (!FT.backend || !FT.backend.user) {
+      body.innerHTML = '<p class="fx-hint">Sign in to read a confirmation email and save the booking to your account. Friday has not saved anything or changed your browser drafts.</p><p class="fx-hint">You can sign in or create an account from Account in your planner settings.</p>';
+      modal({ title: 'Paste confirmation', body, actions: [{ label: 'Done' }, { label: 'Account settings', primary: true, onClick: (close) => { close(); window.location.hash = '#/preferences'; } }] });
+      return;
+    }
+    let busy = false;
+    modal({
+      title: 'Paste confirmation',
+      body,
+      actions: [
+        { label: 'Cancel' },
+        {
+          label: 'Read email', primary: true,
+          onClick: (close, button) => {
+            if (busy) return;
+            const text = q('text').value.trim();
+            if (!text) return showErr('Paste the text of the confirmation email first.');
+            if (text.length > 20000) return showErr('That is too long. Paste just the confirmation itself (up to 20,000 characters).');
+            busy = true; button.disabled = true; button.textContent = 'Reading…'; err.hidden = true; byHand.hidden = true;
+            const tid = q('trip').value || '';
+            FT.backend.request('/api/bookings/parse-email', 'POST', { text }).then((r) => {
+              if (r && r.booking) { close(); openBookingForm(tid, undefined, undefined, Object.assign({}, r.booking, { tripId: tid })); return; }
+              const msgs = { cancelled: 'This looks like a cancellation, so nothing was added.', promotional: 'This looks like a promotional email rather than a confirmation.', past: 'This booking has already happened.' };
+              const skip = r && r.skip;
+              showErr(msgs[skip] || 'Friday couldn’t find a confirmed booking in this text.', !msgs[skip]);
+            }).catch((e) => {
+              showErr(e && e.status === 401 ? 'Please sign in again to read this email.' : (e && e.message) || 'Friday couldn’t read that email. Please try again.');
+            }).then(() => { busy = false; button.disabled = false; button.textContent = 'Read email'; });
+          },
+        },
+      ],
+      onOpen: (box, close) => { $('[data-by-hand-btn]', box).addEventListener('click', () => { const tid = q('trip').value || ''; close(); openBookingForm(tid); }); },
+    });
+  }
   function renderBookingPlanTools(list) {
     const trips = sortedTrips();
     const options = trips.map((t) => '<option value="' + esc(t.id) + '">' + esc(t.title || 'Untitled trip') + '</option>').join('');
@@ -1708,8 +1761,8 @@
     if (!FT.integrations || !FT.integrations.connectionStatus) { status.textContent = 'Email connection isn’t available yet.'; setControls('Email unavailable', true); return; }
     FT.integrations.connectionStatus().then((data) => {
       const gmail = (data.connections || []).find((x) => x.kind === 'gmail');
-      if (!data.configured) { status.textContent = 'Email connection isn’t available yet. You can still add bookings by hand.'; setControls('Email unavailable', true); return; }
-      status.textContent = gmail ? 'Gmail is connected with read-only access. Sync confirmations from Manage Gmail.' : 'Connect Gmail with read-only access to find upcoming travel confirmations.';
+      if (!data.configured) { status.textContent = 'Email connection isn’t available yet. You can still paste a confirmation email or add bookings by hand.'; setControls('Email unavailable', true); return; }
+      status.textContent = gmail ? 'Gmail is connected with read-only access. Sync confirmations from Manage Gmail.' : 'Connect Gmail with read-only access to find upcoming travel confirmations, or paste a confirmation email.';
       setControls(gmail ? 'Manage Gmail' : 'Connect Gmail', false);
     }).catch((err) => {
       if (!FT.backend || !FT.backend.user || err && err.status === 401) { status.textContent = 'Sign in to connect email and manage private booking confirmations.'; setControls('Sign in to connect', false); }
@@ -1719,6 +1772,7 @@
   function wireBookings() {
     const el = pageEl('bookings');
     delegate(el, 'click', '[data-act="add-booking"]', () => openBookingForm());
+    delegate(el, 'click', '[data-act="paste-booking"]', () => openPasteBooking());
     delegate(el, 'click', '[data-act="gmail-bookings"]', () => { if (FT.integrations) FT.integrations.openConnections({ onChange: () => pages.bookings.render() }); });
     delegate(el, 'click', '[data-act="plan-bookings"]', () => { if (FT.integrations) FT.integrations.openFridayPlan({}); });
     delegate(el, 'click', '[data-act="plan-selected"]', () => {
