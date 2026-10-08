@@ -46,3 +46,15 @@ jobs:
           retention-days: 30
           if-no-files-found: error
           compression-level: 0
+      - name: Alert the owners (only when the backup failed)
+        if: failure()
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.BACKUP_ALERT_WEBHOOK_URL }}
+        run: |
+          echo "::error::Nightly database backup failed. See the run log."
+          if [ -z "$ALERT_WEBHOOK_URL" ]; then
+            echo "BACKUP_ALERT_WEBHOOK_URL is not set; GitHub's failure email is the only alert."
+            exit 0
+          fi
+          body="{\"text\":\"Friday nightly database backup FAILED: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\",\"content\":\"Friday nightly database backup FAILED: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}"
+          curl --fail --silent --show-error --max-time 30 -H 'Content-Type: application/json' -d "$body" "$ALERT_WEBHOOK_URL" >/dev/null
