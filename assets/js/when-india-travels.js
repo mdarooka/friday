@@ -1,5 +1,5 @@
 /* When India travels: a state filter and a type-of-break filter for when-india-travels.html, a state-aware "Closer to home" block, and a
-   state-aware homepage teaser. Every row is already in the page's HTML; without this script all of them are simply listed.
+   state-aware homepage breaks carousel. Every row is already in the page's HTML; without this script all of them are simply listed.
    The two filters combine (state AND type). ?type= works like ?region= (a type key such as festival, school, long-weekend, short-escape).
    Rows that are only national always show; a national row tagged with states shows for those states and under All. Selection: ?region= (a state key, an old city key such as mumbai-pune, or a state code such as MH) -> the last choice on this device -> All.
    Nothing here talks to the server. */
@@ -146,19 +146,71 @@
     show();
   }
 
-  /* ------------------------------------------------------ the homepage */
+  /* ------------------------------------------------------ the homepage carousel
+     The HTML holds the national breaks only (a scroll-snap row that works without JavaScript); state-specific breaks wait in a
+     <template>. Here: with no saved state nothing is added; with one, that state's breaks are inserted in date order. Breaks that
+     ended after the build are hidden. The saved type filter is not applied here. */
   var teaser = document.querySelector('[data-wit-teaser]');
-  if (teaser && data.next) {
+  if (teaser) {
+    var track = teaser.querySelector('[data-wit-track]');
     var saved = remembered();
-    var next = saved && saved !== 'all' ? data.next[saved] : null;
-    if (next) {
-      var set = function (sel, text) { var el = teaser.querySelector(sel); if (el) el.textContent = text; };
-      set('[data-wit-teaser-break]', next.name);
-      set('[data-wit-teaser-dates]', next.dates);
-      set('[data-wit-teaser-place]', next.place || '');
-      set('[data-wit-teaser-nights]', next.nights + (next.nights === 1 ? ' night' : ' nights'));
-      var link = teaser.querySelector('[data-wit-teaser-link]');
-      if (link) link.setAttribute('href', 'when-india-travels.html?region=' + saved);
+    var savedFilter = saved && saved !== 'all' ? find(saved) : null;
+    var savedCodes = savedFilter ? savedFilter.codes : null;
+    var tpl = teaser.querySelector('[data-wit-regional]');
+    var order = function (c) { return (c.getAttribute('data-start') || '') + ' ' + (c.getAttribute('data-id') || ''); };
+    if (track && tpl && savedCodes) {
+      list(tpl.content ? tpl.content.querySelectorAll('[data-wit-card]') : []).forEach(function (item) {
+        var regions = String(item.getAttribute('data-regions') || '').split(' ');
+        if (!regions.some(function (r) { return savedCodes.indexOf(r) !== -1; })) return;
+        var before = null;
+        list(track.querySelectorAll('[data-wit-card]')).some(function (c) {
+          if (order(c) > order(item)) { before = c; return true; }
+          return false;
+        });
+        var clone = item.cloneNode(true);
+        if (before) track.insertBefore(clone, before); else track.appendChild(clone);
+      });
+    }
+    var cards = list(track ? track.querySelectorAll('[data-wit-card]') : []);
+    cards.forEach(function (card) {
+      card.hidden = (card.getAttribute('data-end') || '9999') < today;
+    });
+    var seeAll = teaser.querySelector('[data-wit-teaser-link]');
+    if (seeAll && savedFilter) seeAll.setAttribute('href', 'when-india-travels.html?region=' + savedFilter.key);
+
+    var prev = teaser.querySelector('[data-wit-prev]');
+    var next = teaser.querySelector('[data-wit-next]');
+    var nav = teaser.querySelector('[data-wit-nav]');
+    if (track && prev && next) {
+      if (nav) nav.hidden = false;
+      var shown = function () { return cards.filter(function (c) { return !c.hidden; }); };
+      var smooth = function () {
+        try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'; } catch (_) { return 'auto'; }
+      };
+      /* one card plus the gap, measured from the first two visible cards */
+      var step = function () {
+        var vis = shown();
+        if (!vis.length) return track.clientWidth;
+        if (vis.length > 1) return vis[1].offsetLeft - vis[0].offsetLeft;
+        return vis[0].offsetWidth;
+      };
+      var update = function () {
+        prev.disabled = track.scrollLeft <= 1;
+        next.disabled = track.scrollLeft >= track.scrollWidth - track.clientWidth - 1;
+      };
+      prev.addEventListener('click', function () { track.scrollBy({ left: -step(), behavior: smooth() }); });
+      next.addEventListener('click', function () { track.scrollBy({ left: step(), behavior: smooth() }); });
+      track.addEventListener('scroll', update, { passive: true });
+      window.addEventListener('resize', update);
+      /* keep a focused card fully inside the row (horizontal only, so the page does not jump) */
+      track.addEventListener('focusin', function (event) {
+        var item = event.target && event.target.closest ? event.target.closest('[data-wit-card]') : null;
+        if (!item) return;
+        var left = item.offsetLeft, right = left + item.offsetWidth;
+        if (left < track.scrollLeft) track.scrollTo({ left: left, behavior: smooth() });
+        else if (right > track.scrollLeft + track.clientWidth) track.scrollTo({ left: right - track.clientWidth, behavior: smooth() });
+      });
+      update();
     }
   }
 })();

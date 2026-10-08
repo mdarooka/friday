@@ -71,18 +71,13 @@ function groupSection(esc, group, today, guides) {
 </section>`;
 }
 
-/* What the browser script needs: the filters, and the next break per filter (for the homepage teaser). */
-function clientData(today) {
-  const next = {};
-  B.REGION_FILTERS.forEach((f) => {
-    const brk = B.nextBreak(today, f.key);
-    if (brk) next[f.key] = { name: brk.name, dates: brk.dates, nights: brk.nights, place: brk.suggestions[0] ? brk.suggestions[0].place : '' };
-  });
+/* What the browser script needs: the state and type filters, and the "Closer to home" copy per state. */
+function clientData() {
   const close = { default: B.CLOSE_NEUTRAL, byRegion: B.CLOSE_BY_REGION };
-  return { default: B.DEFAULT_REGION, filters: B.REGION_FILTERS, defaultType: B.DEFAULT_TYPE, types: B.TYPE_FILTERS, close, next };
+  return { default: B.DEFAULT_REGION, filters: B.REGION_FILTERS, defaultType: B.DEFAULT_TYPE, types: B.TYPE_FILTERS, close };
 }
 
-const dataScript = (today) => `<script type="application/json" id="wit-data">${safeJson(clientData(today))}</script>`;
+const dataScript = () => `<script type="application/json" id="wit-data">${safeJson(clientData())}</script>`;
 
 function whenIndiaTravelsBody({ PageHero, esc, today, guides }) {
   return `
@@ -118,23 +113,65 @@ ${B.GROUPS.map((g) => groupSection(esc, g, today, guides)).join('\n')}
 ${dataScript(today)}`;
 }
 
-/* The one quiet teaser on the homepage: the next national break. */
+/* One sentence for a card: the first sentence of the break's public note. */
+const firstSentence = (text) => {
+  const t = String(text || '').trim();
+  const m = t.match(/^.*?[.!?](?=\s|$)/);
+  return m ? m[0] : t;
+};
+
+/* The card's date line has to stay on one line: "17\u201320 Oct" when the break starts this year, "14\u201317 Jan 2027" for a short
+   break in a later year, and no year at all for a range that runs across two months ("11 Apr \u2013 31 May"; the page has the full dates). */
+function cardDates(brk, today) {
+  if (brk.dates.includes(' \u2013 ')) return brk.dates.replace(/ \d{4}/g, '');
+  return brk.startDate.slice(0, 4) === B.isoDay(today).slice(0, 4) ? brk.dates.replace(/ \d{4}$/, '') : brk.dates;
+}
+
+function breakCardHtml(esc, brk, today) {
+  const first = brk.suggestions[0];
+  return `<li class="wit-card-item" data-wit-card data-regions="${esc(brk.regions.join(' '))}" data-start="${esc(brk.startDate)}" data-end="${esc(brk.endDate)}" data-id="${esc(brk.id)}">
+          <a class="wit-card" href="${PAGE}#${esc(brk.id)}">
+            <p class="eyebrow eyebrow--accent wit-card__dates">${esc(cardDates(brk, today))} \u00b7 ${nightsLabel(brk.nights)}</p>
+            <h3 class="h3 wit-card__t">${esc(brk.name)}</h3>
+            <p class="wit-card__note">${esc(firstSentence(brk.note))}</p>
+            ${first ? `<p class="wit-card__idea">First idea: <span>${esc(first.place)}</span></p>` : ''}
+          </a>
+        </li>`;
+}
+
+/* The homepage section: the heading on the left, a scroll-snap carousel of upcoming breaks on the right.
+   With no saved state the carousel is national only: rows that apply everywhere (B.isPureNational, the same test the page uses
+   for "always show"). State-specific rows are not in the track; they wait in a <template> and the script adds the saved
+   state's rows in date order. Without JavaScript it is a horizontally scrollable row of national breaks
+   (the arrow buttons stay hidden until the script runs). */
 function homeTeaser({ esc, today }) {
-  const brk = B.nextBreak(today, 'all');
-  if (!brk) return '';
+  const rows = B.upcomingBreaks(today);
+  if (!rows.length) return '';
+  const national = rows.filter(B.isPureNational);
+  const regional = rows.filter((brk) => !B.isPureNational(brk));
   return `<section class="section section--tight home-breaks" data-wit-teaser aria-labelledby="home-breaks-title">
-  <div class="wrap">
-    <div class="grid" style="align-items:end">
-      <div class="c-8 c-md-12" data-reveal>
-        <p class="eyebrow">${LABEL}</p>
-        <h2 class="h3" id="home-breaks-title" style="margin-top:.8rem"><span data-wit-teaser-break>${esc(brk.name)}</span>.</h2>
-        <p class="card__d" style="max-width:38em"><span data-wit-teaser-dates>${esc(brk.dates)}</span> \u00b7 <span data-wit-teaser-nights>${nightsLabel(brk.nights)}</span>${brk.suggestions[0] ? `. A first idea: <span data-wit-teaser-place>${esc(brk.suggestions[0].place)}</span>` : ''}.</p>
+  <div class="wrap home-breaks__grid">
+    <div class="home-breaks__text" data-reveal>
+      <p class="eyebrow">${LABEL}</p>
+      <h2 class="h2" id="home-breaks-title">When India<br><em>travels.</em></h2>
+      <p class="lede">The long weekends, festival breaks and school holidays coming up, and the places that suit each one.</p>
+      <p><a class="link" data-wit-teaser-link href="${PAGE}">See every break <span class="arrow">&rarr;</span></a></p>
+    </div>
+    <div class="home-breaks__carousel" data-reveal style="--i:1" data-wit-carousel role="group" aria-roledescription="carousel" aria-label="Upcoming breaks">
+      <ul class="wit-track" data-wit-track>
+        ${national.map((brk) => breakCardHtml(esc, brk, today)).join('\n        ')}
+      </ul>
+      <template data-wit-regional>
+        ${regional.map((brk) => breakCardHtml(esc, brk, today)).join('\n        ')}
+      </template>
+      <div class="wit-nav" data-wit-nav hidden>
+        <button class="wit-nav__btn" type="button" data-wit-prev aria-label="Previous breaks" disabled><span aria-hidden="true">&larr;</span></button>
+        <button class="wit-nav__btn" type="button" data-wit-next aria-label="Next breaks"><span aria-hidden="true">&rarr;</span></button>
       </div>
-      <div class="c-4 c-md-12" data-reveal style="--i:1"><a class="link" data-wit-teaser-link href="${PAGE}">See what is coming up <span class="arrow">&rarr;</span></a></div>
     </div>
   </div>
 </section>
-${dataScript(today)}`;
+${dataScript()}`;
 }
 
 module.exports = { PAGE, LABEL, whenIndiaTravelsBody, homeTeaser, clientData, topicFor };

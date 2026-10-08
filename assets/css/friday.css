@@ -1139,6 +1139,33 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
 .lw-empty, .lw-fineprint { font-size: var(--t-sm); color: var(--fg-mute); max-width: 40em; }
 .lw-fineprint { margin-top: 2rem; }
 .home-breaks { border-top: 1px solid var(--rule-soft); }
+/* Homepage: heading on the left, a scroll-snap carousel of upcoming breaks on the right. */
+.home-breaks__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: clamp(2rem, 5vw, 5rem); align-items: center; }
+.home-breaks__text .h2 { margin-top: .8rem; }
+.home-breaks__text .lede { margin-top: 1.2rem; max-width: 26em; }
+.home-breaks__text .link { margin-top: .4rem; }
+.home-breaks__carousel { --wit-gap: clamp(.75rem, 1.4vw, 1.1rem); --wit-show: 3; min-width: 0; }
+.wit-track { position: relative; display: flex; gap: var(--wit-gap); list-style: none; margin: 0; padding: 4px 0; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.wit-track::-webkit-scrollbar { display: none; }
+.wit-card-item { flex: 0 0 calc((100% - (var(--wit-show) - 1) * var(--wit-gap)) / var(--wit-show)); min-width: 0; scroll-snap-align: start; }
+.wit-card-item[hidden] { display: none; }
+.wit-card { display: flex; flex-direction: column; height: 100%; padding: clamp(1.1rem, 1.6vw, 1.5rem); color: var(--fg); text-decoration: none; border: 1px solid rgba(21, 20, 15, .14); border-radius: 14px; background: rgba(255, 255, 255, .35); transition: border-color .3s var(--ease), background .3s var(--ease); }
+.wit-card:hover { border-color: var(--accent); background: rgba(255, 255, 255, .55); }
+.wit-card:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 3px; }
+.wit-card__dates { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .08em; }
+.wit-card__t { margin: .8rem 0 0; font-size: clamp(1.3rem, 1.7vw, 1.6rem); }
+.wit-card__note { margin: .6rem 0 0; font-size: var(--t-sm); line-height: 1.6; color: var(--fg-mute); }
+.wit-card__idea { margin: auto 0 0; padding-top: 1.1rem; font-size: var(--t-sm); color: var(--fg-soft); }
+.wit-card__idea span { color: var(--fg); }
+.wit-nav { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 1rem; }
+.wit-nav[hidden] { display: none; }
+.wit-nav__btn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; font: inherit; font-size: 1.05rem; line-height: 1; color: var(--fg); background: transparent; border: 1px solid var(--fg); border-radius: 50%; cursor: pointer; transition: background .3s var(--ease), color .3s var(--ease), opacity .3s var(--ease); }
+.wit-nav__btn:hover:not(:disabled) { background: var(--fg); color: var(--bg); }
+.wit-nav__btn:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 3px; }
+.wit-nav__btn:disabled { opacity: .35; cursor: default; }
+@media (max-width: 1279px) { .home-breaks__carousel { --wit-show: 2; } }
+@media (max-width: 800px) { .home-breaks__grid { grid-template-columns: 1fr; gap: 2rem; } .home-breaks__text .lede { max-width: 36em; } }
+@media (max-width: 600px) { .wit-card-item { flex-basis: calc((100% - var(--wit-gap)) / 1.15); } }
 @media (max-width: 800px) { .lw-break { grid-template-columns: 1fr; } }
 /* A hero painted over a full-bleed illustration (PageHero `background`). The art's sky starts at paper,
    so the text sits on paper and the scene rises beneath it; the grain matches the plates. */
