@@ -1282,7 +1282,7 @@
 
     side.innerHTML =
       '<div class="fx-side__in">' +
-      '<div class="fx-side__top"><a class="fx-wordmark" href="index.html" aria-label="Friday, back to home">Friday</a>' +
+      '<div class="fx-side__top">' +
       '<button class="fx-icon-btn" type="button" data-act="toggle-side" aria-label="Collapse sidebar" title="Collapse sidebar">' + icon('sidebar', 18) + '</button></div>' +
       '<div class="fx-seg">' +
       '<a class="fx-seg__btn' + (on('home') ? ' is-active' : '') + '" href="#/" aria-label="Home" title="Home"' + (on('home') ? ' aria-current="page"' : '') + '>' + icon('home', 18) + '</a>' +

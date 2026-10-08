@@ -233,7 +233,7 @@ input[type="search"].fx-input::-webkit-search-cancel-button { display: none; }
 }
 .fx-app.is-side-collapsed .fx-side { width: 0; border-right-width: 0; visibility: hidden; transition: width .28s var(--ease), visibility 0s .28s; }
 .fx-side__in { display: flex; flex-direction: column; width: var(--fx-side-w); height: 100%; padding: 18px 12px 12px; }
-.fx-side__top { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 10px; height: 44px; }
+.fx-side__top { display: flex; align-items: center; justify-content: flex-end; padding: 0 6px 0 10px; height: 44px; }
 .fx-wordmark { font-family: var(--serif); font-weight: 500; font-size: 1.85rem; letter-spacing: -.03em; line-height: 1; color: var(--ink); }
 
 .fx-seg { display: flex; align-items: center; gap: 4px; margin: 14px 0 10px; padding: 4px; border-radius: 999px; background: var(--paper-3); }
