@@ -858,7 +858,7 @@ export function createApp(options = {}) {
             const tripData=JSON.parse(row.data);
             if(tripData.archived||tripData.claudeState?.archived)continue;
             const briefing=prepareBriefing({tripId:row.id,tripData,bookingRows,recipient:owner.email,origin,now:new Date(`${today}T12:00:00Z`)});
-            if(briefing.departureDate&&briefing.daysBeforeDeparture>=0&&briefing.daysBeforeDeparture<=30)results.push({tripId:row.id,title:briefing.title,departureDate:briefing.departureDate,daysBeforeDeparture:briefing.daysBeforeDeparture,bookingCount:briefing.bookings.length,eligible:briefing.eligible,reason:briefing.eligible?'Confirmed date within 7 days':'A linked booking with a confirmed date is required, and sending is limited to 7 days before departure.'});
+            if(briefing.departureDate&&briefing.daysBeforeDeparture>=0&&briefing.daysBeforeDeparture<=30)results.push({tripId:row.id,title:briefing.title,departureDate:briefing.departureDate,daysBeforeDeparture:briefing.daysBeforeDeparture,bookingCount:briefing.bookings.length,eligible:briefing.eligible,reason:briefing.eligible?'Confirmed date within 7 days':'A confirmed booking dated within the trip is required, and sending is limited to 7 days before departure.'});
           }
         }
         results.sort((a,b)=>a.departureDate.localeCompare(b.departureDate)||a.title.localeCompare(b.title));
@@ -922,7 +922,7 @@ export function createApp(options = {}) {
         const requestId=typeof body.requestId==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(body.requestId)?body.requestId:'';
         if(!requestId)fail(422,'A send request id is required.');
         const briefing=prepareBriefing({tripId,tripData:JSON.parse(found.row.data),bookingRows:found.bookingRows,recipient:found.owner.email,origin,source:'admin'});
-        if(!briefing.eligible)fail(409,'Only trips with a linked confirmed booking departing within 7 days can receive a briefing.');
+        if(!briefing.eligible)fail(409,'Only trips with a confirmed booking within the trip dates, departing within 7 days, can receive a briefing.');
         if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(briefing.recipient))fail(409,'This traveller account has no deliverable email address.');
         const row=await briefingEmail({dedupeKey:`briefing:${tripId}:${requestId}`,briefing,emailService});
         if(row?.status!=='provider_accepted')fail(503,'Friday could not confirm the briefing email was accepted. Check the email outbox before trying again.');
