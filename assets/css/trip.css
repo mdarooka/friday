@@ -471,9 +471,6 @@ input[type="search"].fx-input::-webkit-search-cancel-button { display: none; }
 .fx-prefs__main { display: grid; gap: 44px; min-width: 0; }
 .fx-prefs__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; min-height: 40px; }
 .fx-prefs__btns { display: flex; gap: 8px; }
-.fx-chatgpt__card { padding: 16px 18px; display: grid; gap: 4px; }
-.fx-chatgpt__who { display: flex; align-items: center; gap: 8px; font-size: .9375rem; color: var(--ink); overflow-wrap: anywhere; }
-.fx-chatgpt__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
 .fx-kvs { padding: 4px 24px; }
 .fx-kv { padding: 18px 0; }
 .fx-kv + .fx-kv { border-top: 1px solid var(--rule-soft); }

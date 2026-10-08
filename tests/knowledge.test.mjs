@@ -6,8 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startApp } from './helpers.mjs';
 import { loadKnowledge, knowledgeConfig } from '../server/knowledge/index.mjs';
-import { createOpenAIProvider, KNOWLEDGE_PREAMBLE, buildPrompt } from '../server/itinerary/providers/openai.mjs';
-import { createAuth } from '../server/itinerary/providers/openai-auth.mjs';
+import { createClaudeProvider, KNOWLEDGE_PREAMBLE, buildPrompt } from '../server/itinerary/providers/claude.mjs';
 import { getDestination } from '../server/itinerary/catalog.mjs';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'knowledge');
@@ -84,19 +83,19 @@ test('config: defaults, overrides and KNOWLEDGE=off', () => {
 const goa = getDestination('goa');
 const request = { destination: 'goa', types: ['Beach downtime'], days: 1, dates: { start: '2027-01-10' }, pace: 'normal', base: null };
 
-test('openai system message: current text, then preamble, then knowledge', async () => {
+test('claude system prompt: current text, then preamble, then knowledge', async () => {
   const knowledge = loadKnowledge(FIX);
   let body;
-  const fetchMock = async (u, init) => { body = JSON.parse(init.body); return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"days":[]}' } }] }) }; };
-  const p = createOpenAIProvider({ auth: createAuth({ OPENAI_API_KEY: 'k' }), model: 'm', fetch: fetchMock, knowledge });
+  const fetchMock = async (u, init) => { body = JSON.parse(init.body); return { ok: true, status: 200, json: async () => ({ content: [{ type: 'tool_use', name: 'submit_itinerary', input: { days: [] } }] }) }; };
+  const p = createClaudeProvider({ apiKey: 'k', model: 'm', fetch: fetchMock, knowledge });
   await assert.rejects(p.generate(goa, request), /usable days/);
-  const sys = body.messages[0].content;
+  const sys = body.system;
   const base = buildPrompt(goa, request).system;
   assert.ok(sys.startsWith(base));
   const i = sys.indexOf(KNOWLEDGE_PREAMBLE), j = sys.indexOf('## Procedure');
   assert.ok(i > base.length - 1 && j > i);
   assert.ok(sys.includes('never state prices') || /never state prices/.test(KNOWLEDGE_PREAMBLE));
-  assert.equal(body.response_format.json_schema.strict, true);
+  assert.equal(body.tools[0].strict, true);
   assert.equal(buildPrompt(goa, request, { text: '' }).system, base);
 });
 

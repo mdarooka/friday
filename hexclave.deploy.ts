@@ -43,15 +43,14 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         QUOTE_ADMIN_EMAILS: "manavdarooka1@gmail.com",
         // Team accounts that manage villa inventory (comma-separated); empty grants no access.
         VILLA_ADMIN_EMAILS: secret("VILLA_ADMIN_EMAILS", ""),
-        AI_PROVIDER: "openai",
-        AI_MODEL: "gpt-5-mini",
-        OPENAI_RESEARCH_MODEL: "gpt-5-mini",
+        AI_PROVIDER: "claude",
+        AI_MODEL: "claude-sonnet-5-5",
         // Empty defaults keep optional integrations off until their keys are supplied.
         GOOGLE_CLIENT_ID: secret("GOOGLE_CLIENT_ID", ""),
         GOOGLE_CLIENT_SECRET: secret("GOOGLE_CLIENT_SECRET", ""),
         GOOGLE_TOKEN_KEY: secret("GOOGLE_TOKEN_KEY", ""),
         GOOGLE_PLACES_API_KEY: secret("GOOGLE_PLACES_API_KEY", ""),
-        OPENAI_API_KEY: secret("OPENAI_API_KEY", ""),
+        ANTHROPIC_API_KEY: secret("ANTHROPIC_API_KEY", ""),
         FRIDAY_BRIEFING_AUTOSEND: "dry-run",
         FRIDAY_CRON_SECRET: secret("FRIDAY_CRON_SECRET", ""),
         // Bearer secret for GET /api/cron/db-backup (the nightly GitHub Actions backup); empty keeps the route off.

@@ -6,14 +6,13 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 export const CANONICAL_ORIGIN = 'https://fridaytravel.vercel.app';
 export const ROBOTS_NOINDEX = 'noindex, nofollow';
 
-// Planner, staff consoles, the ChatGPT return page, and the share alias.
+// Planner, staff consoles, and the share alias.
 // Sign-in, email verification, and account screens render on these documents.
 export const PRIVATE_PAGES = [
   '/trip', '/trip.html',
   '/app', '/app.html',
   '/admin', '/admin.html',
   '/admin-villas', '/admin-villas.html',
-  '/chatgpt-callback.html',
 ];
 
 // Owner-scoped and staff APIs. Public catalog routes (health, villas, destinations,

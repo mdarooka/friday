@@ -1,6 +1,6 @@
 /*
  * House knowledge: a travel company's planning skill file plus reference notes, read once at startup
- * and folded into the OpenAI provider's system prompt. Layout: <dir>/SKILL.md and <dir>/references/*.md.
+ * and folded into the Claude itinerary provider's system prompt. Layout: <dir>/SKILL.md and <dir>/references/*.md.
  * Only an allowlist of SKILL.md sections is kept, local-path lines are dropped, and client names and
  * sample file names are redacted. A missing or empty folder yields an empty result, never an error.
  */

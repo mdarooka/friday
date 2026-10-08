@@ -506,7 +506,7 @@
     }
     if (q.kind === 'callback') {
       dom.quoteTitle.textContent = 'Callback request';
-      var tripLink = q.tripId ? '<p><strong>Trip:</strong> <a href="trip.html#/trip/' + encodeURIComponent(q.tripId) + '" target="_blank" rel="noopener noreferrer">Open planner trip</a></p>' : '';
+      var tripLink = q.tripId ? tripButtonHtml(q.tripId) : '';
       var tripContext = q.tripContext || {};
       var tripSummary = q.tripContext ? '<p><strong>Trip:</strong> ' + esc(tripContext.name || 'Your trip') + (tripContext.destination ? ' · ' + esc(tripContext.destination) : '') + '</p>' + ((tripContext.startDate || tripContext.endDate) ? '<p><strong>Dates:</strong> ' + esc(tripContext.startDate || 'Not set') + (tripContext.endDate ? ' to ' + esc(tripContext.endDate) : '') + '</p>' : '') : '';
       dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + (q.topic ? '<p><strong>About:</strong> ' + esc(q.topic) + '</p>' : '') + (q.villaName ? '<p><strong>Villa:</strong> ' + esc(q.villaName) + '</p><p><strong>City:</strong> ' + esc(q.villaCity || '') + '</p><p><strong>Guest capacity:</strong> ' + esc(q.villaGuests || 'Not listed') + '</p>' : '') + tripSummary + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>' + checklistHtml(q.checklist) + '<p><button type="button" class="villa-text-button" data-callback-status="' + esc(q.id) + '" data-next-status="' + (q.status === 'done' ? 'open' : 'done') + '">' + (q.status === 'done' ? 'Reopen' : 'Mark done') + '</button></p>';
@@ -526,6 +526,7 @@
       '<p><strong>Budget:</strong> ' + esc(snap.flexibleBudget ? 'Flexible' : (snap.budget || '—')) + '</p>' +
       (itemsList ? '<p><strong>Selected listings:</strong> ' + esc(itemsList) + '</p>' : '') +
       (snap.instructions ? '<p><strong>Client notes:</strong> <em>' + esc(snap.instructions) + '</em></p>' : '') +
+      (snap.tripId ? tripButtonHtml(snap.tripId) : '') +
       bookingVerifyHtml(snap.selectedBookings);
 
     dom.quoteSummaryInfo.innerHTML = summaryHtml;
@@ -533,7 +534,7 @@
     var f = dom.quoteForm.elements;
     f.quoteId.value = q.id;
     f.amount.value = q.quote ? q.quote.amount : '';
-    f.currency.value = q.quote ? q.quote.currency : 'USD';
+    f.currency.value = q.quote ? q.quote.currency : 'INR';
     f.details.value = q.quote ? q.quote.details : '';
 
     var isPending = q.status === 'pending';
@@ -569,6 +570,28 @@
       })
       .catch(function (err) { dom.quoteNote.textContent = err.message || 'Could not update this callback.'; btn.disabled = false; });
   }
+  function tripButtonHtml(tripId) {
+    return '<p><strong>Trip:</strong> <button type="button" class="villa-text-button" data-view-trip="' + esc(tripId) + '">View shared trip</button></p><div data-trip-view></div>';
+  }
+  function viewSharedTrip(btn) {
+    var box = btn.closest('p').nextElementSibling;
+    btn.disabled = true; box.textContent = 'Loading…';
+    FridayAdmin.request('/api/admin/trips/' + encodeURIComponent(btn.dataset.viewTrip), 'GET')
+      .then(function (res) {
+        var t = res.trip || {};
+        var days = (t.days || []).map(function (d, i) {
+          var items = (d.items || []).map(function (it) { return '<li>' + (it.time ? esc(it.time) + ' · ' : '') + esc(it.title) + (it.notes ? ' — ' + esc(it.notes) : '') + '</li>'; }).join('');
+          return '<p><strong>Day ' + (i + 1) + (d.date ? ' · ' + esc(d.date) : '') + (d.title ? ' · ' + esc(d.title) : '') + '</strong>' + (d.notes ? '<br>' + esc(d.notes) : '') + '</p>' + (items ? '<ul>' + items + '</ul>' : '');
+        }).join('');
+        var books = (t.bookings || []).map(function (b) { return '<li>' + esc(b.title) + (b.date ? ' · ' + esc(b.date) : '') + (b.location ? ' · ' + esc(b.location) : '') + '</li>'; }).join('');
+        box.innerHTML = '<p><strong>' + esc(t.title || 'Trip') + '</strong>' + (t.destination ? ' · ' + esc(t.destination) : '') + '</p>' +
+          ((t.startDate || t.endDate) ? '<p><strong>Dates:</strong> ' + esc(t.startDate || 'Not set') + (t.endDate ? ' to ' + esc(t.endDate) : '') + '</p>' : '') +
+          (t.travelers ? '<p><strong>Travelers:</strong> ' + esc(t.travelers) + '</p>' : '') +
+          (days || '<p>No day-by-day plan saved yet.</p>') + (books ? '<p><strong>Bookings:</strong></p><ul>' + books + '</ul>' : '');
+      })
+      .catch(function (err) { box.textContent = err.message || 'This trip could not be loaded.'; })
+      .then(function () { btn.disabled = false; });
+  }
   function verifyBooking(btn) {
     var row = btn.closest('[data-booking-row]'), note = row && row.querySelector('[data-booking-state]');
     var verified = btn.dataset.verified === 'true';
@@ -591,7 +614,7 @@
       return;
     }
     if (!currency || currency.length !== 3) {
-      dom.quoteNote.textContent = 'Enter a 3-letter currency code (e.g. USD).';
+      dom.quoteNote.textContent = 'Enter a 3-letter currency code (e.g. INR).';
       return;
     }
     if (!details) {
@@ -959,6 +982,8 @@
           .catch(function (err) { markReplied.disabled = false; dom.quoteSetupNote.textContent = 'Could not mark this quote replied: ' + err.message; });
         return;
       }
+      var tripBtn = e.target.closest('[data-view-trip]');
+      if (tripBtn) { viewSharedTrip(tripBtn); return; }
       var cbBtn = e.target.closest('[data-callback-status]');
       if (cbBtn) { setCallbackStatus(cbBtn); return; }
       var verifyBtn = e.target.closest('[data-verify-booking]');

@@ -485,6 +485,13 @@
         }
       });
     });
+    /* In-planner "talk with a designer" links open the Call me back modal for the current trip (href stays a no-JS fallback). */
+    doc.addEventListener('click', function (e) {
+      var link = e.target.closest && e.target.closest('[data-call-designer], a[href="#call-me-back"]');
+      if (!link) return;
+      e.preventDefault();
+      callbackCta.click();
+    });
     new MutationObserver(syncStickyContact).observe(doc.body, { childList: true, subtree: true });
     if (FT.store && FT.store.on) FT.store.on('change', syncStickyContact);
     doc.addEventListener('friday:handoff-created', function () {

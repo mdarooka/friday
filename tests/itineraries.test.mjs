@@ -104,27 +104,30 @@ test('bad input is 400', async (t) => {
   assert.equal((await post(request, undefined, { raw: '' })).status, 400);   // an empty body has no destination
 });
 
-test('a destination outside the catalog is accepted, not refused: planned by OpenAI, and needing it', async (t) => {
+test('a destination outside the catalog is accepted, not refused: planned by Claude, and needing it', async (t) => {
   const { request } = await startApp(t);   // local provider: it cannot plan a place it has no catalog for
   const r = await post(request, { destination: 'Coorg', days: 3 });
   assert.equal(r.status, 503);
-  assert.match(r.result.error, /OpenAI/);
+  assert.match(r.result.error, /Claude/);
   assert.equal((await post(request, { destination: 'x', days: 3 })).status, 400);
   assert.equal((await post(request, { destination: 'a\u0000b'.repeat(60), days: 3 })).status, 400);
 });
 
-test('with OpenAI configured, a non-catalog destination gets a plan over the places the model names, plus a small catalog', async (t) => {
+test('with Claude configured, a non-catalog destination gets a plan over the places the model names, plus a small catalog', async (t) => {
   const reply = { days: [
     { town: 'Madikeri', stops: [{ name: 'Abbey Falls', kind: 'nature', note: 'Go early.' }, { name: 'Raja\u2019s Seat', kind: 'sight', note: 'Good at sunset.' }] },
     { town: 'Kushalnagar', stops: [{ name: 'Dubare Elephant Camp', kind: 'nature', note: 'Check the timings.' }, { name: 'Abbey Falls', kind: 'nature', note: 'duplicate' }] },
     { town: 'Madikeri', stops: [{ name: 'Madikeri Fort', kind: 'museum', note: 'Short visit.' }] }
   ] };
   let seen;
-  const itineraryFetch = async (url, init) => { seen = JSON.parse(init.body); return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify(reply) } }] }) }; };
-  const { request } = await startApp(t, { itineraryFetch, env: { ITINERARY_PROVIDER: 'openai', OPENAI_API_KEY: 'sk-test' } });
+  const itineraryFetch = async (url, init) => {
+    seen = JSON.parse(init.body);
+    return { ok: true, status: 200, json: async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'submit_itinerary', input: reply }] }) };
+  };
+  const { request } = await startApp(t, { itineraryFetch, env: { ITINERARY_PROVIDER: 'claude', ANTHROPIC_API_KEY: 'sk-ant-test' } });
   const r = await post(request, { destination: '  Coorg ', days: 3, types: ['Nature & slow days'], dates: { start: '2027-01-10' } });
   assert.equal(r.status, 201);
-  assert.equal(r.result.provider, 'openai');
+  assert.equal(r.result.provider, 'claude');
   const { plan } = r.result;
   assert.equal(plan.days.length, 3);
   assert.equal(plan.catalog.name, 'Coorg');
@@ -132,14 +135,14 @@ test('with OpenAI configured, a non-catalog destination gets a plan over the pla
   assert.ok(plan.days.every((d) => d.items.length && d.items.every((i) => plan.catalog.places[i.place])));
   assert.equal(Object.values(plan.catalog.places).filter((p) => p.name === 'Abbey Falls').length, 1, 'duplicates dropped');
   assert.equal(plan.days[0].date, '2027-01-10');
-  const prompt = JSON.parse(seen.messages[1].content);
+  const prompt = JSON.parse(seen.messages[0].content);
   assert.equal(prompt.destination, 'Coorg');
-  assert.doesNotMatch(seen.messages[0].content, /ONLY from the catalog/);
-  assert.equal(seen.response_format.json_schema.schema.properties.days.items.required.includes('town'), true);
+  assert.doesNotMatch(seen.system, /ONLY from the catalog/);
+  assert.equal(seen.tools[0].input_schema.properties.days.items.required.includes('town'), true);
   // a catalog destination still goes through the catalog, and a name matches it too
   assert.equal((await post(request, { destination: 'Goa', days: 2 })).status, 201);
   // an unusable model reply is an error for a free destination, never a fallback to someone else's places
-  const bad = await startApp(t, { itineraryFetch: async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify({ days: [] }) } }] }) }), env: { ITINERARY_PROVIDER: 'openai', OPENAI_API_KEY: 'sk-test' } });
+  const bad = await startApp(t, { itineraryFetch: async () => ({ ok: true, status: 200, json: async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'submit_itinerary', input: { days: [] } }] }) }), env: { ITINERARY_PROVIDER: 'claude', ANTHROPIC_API_KEY: 'sk-ant-test' } });
   assert.equal((await post(bad.request, { destination: 'Coorg', days: 3 })).status, 502);
 });
 
@@ -181,11 +184,11 @@ test('the store only accepts minted ids', async (t) => {
 
 test('the itinerary provider is validated at startup, separately from AI_PROVIDER', async (t) => {
   assert.throws(() => createApp({ origin: 'http://localhost:4871', memory: true, env: { ITINERARY_PROVIDER: 'bard' } }), /ITINERARY_PROVIDER/);
-  assert.throws(() => createApp({ origin: 'http://localhost:4871', memory: true, env: { OPENAI_AUTH: 'chatgpt' } }), /OPENAI_AUTH/);
+  assert.throws(() => createApp({ origin: 'http://localhost:4871', memory: true, env: { ITINERARY_PROVIDER: 'gpt' } }), /ITINERARY_PROVIDER/);
   const a = await startApp(t, { env: { ITINERARY_PROVIDER: '' } });
-  const b = await startApp(t, { env: { ITINERARY_PROVIDER: '', OPENAI_API_KEY: 'sk-test' } });
-  const c = await startApp(t, { env: { ITINERARY_PROVIDER: '', OPENAI_API_KEY: 'sk-test', AI_PROVIDER: 'perplexity' } });
+  const b = await startApp(t, { env: { ITINERARY_PROVIDER: '', ANTHROPIC_API_KEY: 'sk-test' } });
+  const c = await startApp(t, { env: { ITINERARY_PROVIDER: '', ANTHROPIC_API_KEY: 'sk-test', AI_PROVIDER: 'perplexity' } });
   assert.equal((await a.request('/api/health')).result.itineraryProvider, 'local');
-  assert.equal((await b.request('/api/health')).result.itineraryProvider, 'openai');
-  assert.equal((await c.request('/api/health')).result.itineraryProvider, 'openai');
+  assert.equal((await b.request('/api/health')).result.itineraryProvider, 'claude');
+  assert.equal((await c.request('/api/health')).result.itineraryProvider, 'claude');
 });

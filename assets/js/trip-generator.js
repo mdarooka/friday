@@ -3,7 +3,7 @@
  *
  * One module for both sides of the wire. In Node it is `require('./trip-generator.js')`; in the
  * browser it is a classic script (file:// works, no build step) that adds `FridayTrip.generate`.
- * The server's local provider, the server's openai provider (to assemble and validate) and the
+ * The server's local provider, the server's Claude provider (to assemble and validate) and the
  * planner's offline fallback all call this same code.
  *
  *   generate(dest, { types, days, dates, pace, base, stay, travel, uid, table })
@@ -146,7 +146,7 @@
   }
 
   /* ---------------------------------------------------------------- assembly */
-  /* draft days [{ area, items: [{ place, note }] }] -> the plan the UI stores. Shared with the openai provider. */
+  /* draft days [{ area, items: [{ place, note }] }] -> the plan the UI stores. Shared with the Claude provider. */
   function assemble(dest, drafts, opts) {
     opts = opts || {};
     var T = opts.table || defaultTable();

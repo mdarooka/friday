@@ -99,13 +99,13 @@ test('public pages canonicalize to fridaytravel.vercel.app and private pages do 
     assert.doesNotMatch(html, /friday-travel-peach/);
     canonicalUrls.push(links[0]);
   }
-  for (const file of ['trip.html', 'app.html', 'admin.html', 'admin-villas.html', 'chatgpt-callback.html']) {
+  for (const file of ['trip.html', 'app.html', 'admin.html', 'admin-villas.html']) {
     const html = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
     assert.doesNotMatch(html, /<link rel="canonical"/i, file);
     assert.match(html, /<meta name="robots" content="noindex, nofollow">/, file);
   }
   const robots = await readFile(new URL('../robots.txt', import.meta.url), 'utf8');
-  for (const path of ['/trip.html', '/app.html', '/admin.html', '/admin-villas.html', '/chatgpt-callback.html', '/api/']) {
+  for (const path of ['/trip.html', '/app.html', '/admin.html', '/admin-villas.html', '/api/']) {
     assert.match(robots, new RegExp(`Disallow: ${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
   }
   const moved = await readFile(new URL('../salon.html', import.meta.url), 'utf8');
@@ -201,7 +201,7 @@ test('production redirects non-canonical hosts, noindexes only those responses, 
   assert.equal(home.headers['x-robots-tag'], undefined);
 
   const robotsMeta = '<meta name="robots" content="noindex, nofollow">';
-  for (const path of ['/trip.html', '/app.html', '/admin.html', '/admin-villas.html', '/chatgpt-callback.html']) {
+  for (const path of ['/trip.html', '/app.html', '/admin.html', '/admin-villas.html']) {
     const privatePage = await raw(server, path, { host: 'fridaytravel.vercel.app' });
     assert.equal(privatePage.status, 200, path);
     assert.equal(privatePage.headers['x-robots-tag'], 'noindex, nofollow', path);
