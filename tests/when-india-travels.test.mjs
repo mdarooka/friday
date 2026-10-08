@@ -103,11 +103,11 @@ test('upcomingBreaks drops past rows, sorts by date, and filters by group and re
   assert.ok(B.upcomingBreaks('2027-03-27').some((b) => b.id === 'holi-easter-2027'), 'a break still running is kept');
   assert.equal(B.upcomingBreaks('2030-01-01').length, 0);
   assert.ok(B.upcomingBreaks(TODAY, { group: 'national' }).every((b) => b.group === 'national'));
-  const kolkata = B.upcomingBreaks(TODAY, { region: 'kolkata' }).map((b) => b.id);
+  const kolkata = B.upcomingBreaks(TODAY, { region: 'west-bengal' }).map((b) => b.id);
   assert.ok(kolkata.includes('durga-puja-2026') && kolkata.includes('diwali-2026'));
   assert.ok(kolkata.includes('guru-nanak-2026') && !kolkata.includes('diwali-2026-mh') && !kolkata.includes('sankranti-pongal-2027'));
   assert.equal(B.nextBreak(TODAY, 'all').group, 'national');
-  assert.equal(B.nextBreak(TODAY, 'kolkata').id, 'durga-puja-2026');
+  assert.equal(B.nextBreak(TODAY, 'west-bengal').id, 'durga-puja-2026');
 });
 
 test('Ladakh is only a May/June suggestion, Kyoto only a 6+ night spring or autumn one, and places are not limited to a short list', () => {
@@ -227,16 +227,28 @@ test('analytics: both CTAs fire the shared guide event with surface=india_breaks
   assert.match(html, /assets\/js\/when-india-travels\.js/);
 });
 
-test('region keys resolve from keys and state codes', () => {
-  assert.equal(B.resolveRegion('MH'), 'mumbai-pune');
-  assert.equal(B.resolveRegion('mumbai-pune'), 'mumbai-pune');
-  assert.equal(B.resolveRegion('HR'), 'delhi-ncr');
-  assert.equal(B.resolveRegion('Delhi NCR'), 'delhi-ncr');
-  assert.equal(B.resolveRegion('ka'), 'bengaluru');
+test('region keys resolve from state keys, state codes and the old city links', () => {
+  assert.equal(B.resolveRegion('MH'), 'maharashtra');
+  assert.equal(B.resolveRegion('maharashtra'), 'maharashtra');
+  assert.equal(B.resolveRegion('DL'), 'delhi');
+  assert.equal(B.resolveRegion('ka'), 'karnataka');
   assert.equal(B.resolveRegion('all'), 'all');
   assert.equal(B.resolveRegion('ZZ'), null);
   assert.equal(B.resolveRegion(''), null);
-  for (const [key, code] of [['chennai', 'TN'], ['hyderabad', 'TS'], ['kolkata', 'WB'], ['ahmedabad', 'GJ']]) assert.equal(B.resolveRegion(code), key);
+  for (const [key, code] of [['tamil-nadu', 'TN'], ['telangana', 'TS'], ['west-bengal', 'WB'], ['gujarat', 'GJ']]) assert.equal(B.resolveRegion(code), key);
+  /* old ?region= city values keep working */
+  for (const [old, key] of [['mumbai-pune', 'maharashtra'], ['delhi-ncr', 'delhi'], ['Delhi NCR', 'delhi'], ['bengaluru', 'karnataka'], ['chennai', 'tamil-nadu'],
+    ['hyderabad', 'telangana'], ['kolkata', 'west-bengal'], ['ahmedabad', 'gujarat']]) assert.equal(B.resolveRegion(old), key, old);
+});
+
+test('the filter lists states only, and each one changes at least one break on the page', () => {
+  const states = B.REGION_FILTERS.filter((f) => f.key !== 'all');
+  assert.deepEqual(states.map((f) => f.key), ['maharashtra', 'delhi', 'karnataka', 'tamil-nadu', 'telangana', 'west-bengal', 'gujarat']);
+  for (const f of states) {
+    assert.ok(B.BREAKS.some((b) => b.nights >= B.MIN_NIGHTS && b.regions.some((r) => f.codes.includes(r))), `${f.key} has a regional break`);
+    assert.ok(f.codes.every((c) => B.REGION_NAMES[c]), `${f.key} code has a name`);
+  }
+  assert.ok(!states.some((f) => /Mumbai|Pune|NCR|Bengaluru|Chennai|Hyderabad|Kolkata|Ahmedabad/.test(f.label)), 'no city labels');
 });
 
 /* A tiny DOM: just what assets/js/when-india-travels.js touches. */
@@ -295,39 +307,41 @@ test('the region filter hides only non-matching regional rows; national rows alw
     }
     assert.equal(run.body.attrs['data-wit-region'], filter.key);
   }
-  const chennai = runScript(source, { search: '?region=chennai' });
+  const chennai = runScript(source, { search: '?region=tamil-nadu' });
   assert.ok(chennai.rowEls.find((r) => r.id === 'guru-nanak-2026').hidden, 'national + states row hidden for a non-listed region');
   assert.ok(!chennai.rowEls.find((r) => r.id === 'diwali-2026').hidden, 'pure national row stays');
   assert.ok(!chennai.rowEls.find((r) => r.id === 'ayutha-pooja-2026-tn').hidden);
   assert.ok(chennai.rowEls.find((r) => r.id === 'durga-puja-2026').hidden);
-  const mumbai = runScript(source, { search: '?region=mumbai-pune' });
+  const mumbai = runScript(source, { search: '?region=maharashtra' });
   assert.ok(!mumbai.rowEls.find((r) => r.id === 'guru-nanak-2026').hidden, 'listed region keeps it');
   assert.ok(!everything.rowEls.find((r) => r.id === 'guru-nanak-2026').hidden, 'All shows it');
-  const kolkata = runScript(source, { search: '?region=kolkata' });
+  const kolkata = runScript(source, { search: '?region=west-bengal' });
   assert.ok(kolkata.rowEls.find((r) => r.id === 'diwali-2026-mh').hidden);
   assert.ok(!kolkata.rowEls.find((r) => r.id === 'durga-puja-2026').hidden);
   assert.ok(!kolkata.groups[0].hidden, 'national section stays');
 });
 
-test('?region=MH preselects Mumbai / Pune, then the remembered choice, then All; clicks update the URL and storage', async () => {
+test('?region=MH preselects Maharashtra, then the remembered choice, then All; clicks update the URL and storage', async () => {
   const source = await read('assets/js/when-india-travels.js');
   const mh = runScript(source, { search: '?region=MH' });
-  assert.equal(mh.body.attrs['data-wit-region'], 'mumbai-pune');
-  assert.equal(mh.nameSlot.textContent, 'Mumbai / Pune');
+  assert.equal(mh.body.attrs['data-wit-region'], 'maharashtra');
+  assert.equal(mh.nameSlot.textContent, 'Maharashtra');
   assert.ok(mh.rowEls.find((r) => r.id === 'durga-puja-2026').hidden);
   assert.ok(!mh.rowEls.find((r) => r.id === 'diwali-2026-mh').hidden);
-  assert.equal(runScript(source, { stored: 'chennai' }).body.attrs['data-wit-region'], 'chennai');
-  assert.equal(runScript(source, { search: '?region=ZZ', stored: 'chennai' }).body.attrs['data-wit-region'], 'chennai');
-  assert.equal(runScript(source, { search: '?region=bengaluru', stored: 'chennai' }).body.attrs['data-wit-region'], 'bengaluru');
+  assert.equal(runScript(source, { stored: 'tamil-nadu' }).body.attrs['data-wit-region'], 'tamil-nadu');
+  assert.equal(runScript(source, { search: '?region=ZZ', stored: 'tamil-nadu' }).body.attrs['data-wit-region'], 'tamil-nadu');
+  assert.equal(runScript(source, { search: '?region=karnataka', stored: 'tamil-nadu' }).body.attrs['data-wit-region'], 'karnataka')
+  assert.equal(runScript(source, { search: '?region=bengaluru' }).body.attrs['data-wit-region'], 'karnataka', 'old city link')
+  assert.equal(runScript(source, { stored: 'chennai' }).body.attrs['data-wit-region'], 'tamil-nadu', 'old saved city');
   assert.equal(runScript(source, {}).body.attrs['data-wit-region'], 'all');
   const run = runScript(source, {});
-  const link = run.links.find((l) => l.attrs['data-wit-filter'] === 'hyderabad');
+  const link = run.links.find((l) => l.attrs['data-wit-filter'] === 'telangana');
   let prevented = false;
   link.handler({ preventDefault() { prevented = true; } });
   assert.ok(prevented);
-  assert.equal(run.body.attrs['data-wit-region'], 'hyderabad');
-  assert.equal(run.storage.get('friday.breaks-region.v1'), 'hyderabad');
-  assert.deepEqual(run.replaced, ['/when-india-travels.html?region=hyderabad']);
+  assert.equal(run.body.attrs['data-wit-region'], 'telangana');
+  assert.equal(run.storage.get('friday.breaks-region.v1'), 'telangana');
+  assert.deepEqual(run.replaced, ['/when-india-travels.html?region=telangana']);
   assert.doesNotMatch(source, /\/api\/|fetch\(|auth\/me/);
 });
 
@@ -340,11 +354,11 @@ test('the homepage teaser starts national and swaps to the saved region', async 
   assert.doesNotMatch(index.match(/data-wit-teaser[^]*?<\/section>/)[0], /top pick|destination=/);
   const plain = runScript(source, { home: true });
   assert.equal(plain.slots['[data-wit-teaser-break]'].textContent, '');
-  const saved = runScript(source, { home: true, stored: 'kolkata' });
-  const expected = B.nextBreak(buildToday, 'kolkata');
+  const saved = runScript(source, { home: true, stored: 'west-bengal' });
+  const expected = B.nextBreak(buildToday, 'west-bengal');
   assert.equal(saved.slots['[data-wit-teaser-break]'].textContent, expected.name);
   assert.equal(saved.slots['[data-wit-teaser-place]'].textContent, expected.suggestions[0].place);
-  assert.equal(saved.slots['[data-wit-teaser-link]'].attrs.href, 'when-india-travels.html?region=kolkata');
+  assert.equal(saved.slots['[data-wit-teaser-link]'].attrs.href, 'when-india-travels.html?region=west-bengal');
 });
 
 test('When India travels is linked from the footer, field notes, the Mumbai guide, the guides and the homepage, not the top nav', async () => {
