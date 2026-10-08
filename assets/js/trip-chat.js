@@ -320,29 +320,10 @@
     if (o.travel) days[0].items.unshift(Object.assign({ id: uid('i_') }, o.travel));
     return plan;
   }
-  /* With a connected ChatGPT plan (trip-chatgpt.js), the model call runs in this browser under the visitor's own
-     sign-in: the server supplies the prompt, ChatGPT drafts the plan, the server validates and saves it. Resolves to
-     the server's plan, or null on any failure so the caller carries on with the server's own provider. */
   function postJson(url, body) {
     return withTimeout(function (signal) {
       return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: signal });
     }, 45000).then(function (r) { if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); });
-  }
-  function chatgptPlan(d, o, body) {
-    var cg = FT.chatgpt;
-    if (!cg || !cg.enabled() || !cg.connected()) return Promise.resolve(null);
-    return postJson('api/itineraries/prompt', body)
-      .then(function (bundle) { return cg.generate(bundle); })
-      .then(function (draft) { return postJson('api/itineraries', Object.assign({}, body, { draft: draft, source: 'chatgpt' })); })
-      .then(function (j) {
-        var plan = j && j.provider === 'chatgpt' ? adoptPlan(d, j.plan, o) : null;
-        if (plan) o.via = 'chatgpt';
-        return plan;
-      })
-      .catch(function (error) {
-        if (body.conversationId && body.messageId) return auditStandalone(body.tripId,body.conversationId,'chatgpt_'+body.messageId,'system',{provider:'chatgpt',error:error&&error.message||'ChatGPT planning failed.'},'failed','ai_provider_error',body.ownerId).catch(function(auditError){toast(auditError.message||'Friday could not save the ChatGPT error for review.',true);}).then(function(){return null;});
-        return null;
-      });
   }
   function requestPlan(d, o, turn, trip) {
     var local = function () { return buildPlan(d, o); };
@@ -351,10 +332,7 @@
       var body = { destination: d.id, types: o.types, days: clamp(Math.round(o.days || 4), 1, 21), pace: o.pace || 'normal', conversationId: turn && turn.threadId, tripId: trip && (trip.serverId || trip.id), messageId: turn && turn.msgId, ownerId:turn&&turn.ownerId };
       if (o.dates && o.dates.start) body.dates = { start: o.dates.start };
       if (o.base) body.base = o.base;
-      return chatgptPlan(d, o, body).then(function (viaChatgpt) {
-        if (viaChatgpt) return viaChatgpt;
-        return postJson('api/itineraries', body).then(function (j) { return adoptPlan(d, j && j.plan, o) || local(); });
-      });
+      return postJson('api/itineraries', body).then(function (j) { return adoptPlan(d, j && j.plan, o) || local(); });
     }).catch(function () { return local(); });
   }
   function countItems(plan) { return plan.days.reduce(function (n, d) { return n + d.items.length; }, 0); }
@@ -1049,6 +1027,7 @@
   function respond(turn, text) {
     var reelThread = threadById(getTrip(turn.tripId), turn.threadId);
     if (reelThread && (reelThread.reelChat || /https:\/\/(?:www\.)?(?:instagram\.com|tiktok\.com|youtube\.com|youtu\.be|pinterest\.com|x\.com|twitter\.com)\//i.test(text) || /^(?:plan from a reel|plan a reel)$/i.test(text))) {
+      if (FT.reel && FT.reel.available && !FT.reel.available()) return reply(turn, 'Reel import isn’t available right now. Tell me the place or destination you have in mind and I’ll plan from that instead.');
       reelThread.reelChat = true;
       if(!FT.backend || FT.backend.auditOwnerId!==turn.ownerId) return reply(turn,'Your account changed. Reopen this conversation before continuing.');
       return FT.backend.request('/api/friday/reel-chat', 'POST', {conversationId:turn.threadId,message:text,ownerId:turn.ownerId}).then(function(result){
@@ -1137,7 +1116,7 @@
     var ctx = ctxFor(d, trip);
     switch (intent) {
       case 'reserve':
-        return reply(turn, fill(replies.reserve || "I can help you shape the itinerary here. For booking questions, [talk with a Friday travel designer](commission.html) before making arrangements.", ctx), chipsFor(d, text));
+        return reply(turn, fill(replies.reserve || "I can help you shape the itinerary here. For booking questions, [talk with a Friday travel designer](#call-me-back) before making arrangements.", ctx), chipsFor(d, text));
       case 'relax':
         return followSteps('a slower pace').then(function () {
           var r = relaxEdit(d, trip.plan);
@@ -1202,7 +1181,7 @@
   function respondGeneric(turn, trip, text, q) {
     var name = trip.destName, replied = trip.prefs && trip.prefs.types && trip.prefs.types.length;
     if (/\b(reserve|reservations?|book|booking|bookings|buy)\b/.test(q)) {
-      return reply(turn, "I can't make reservations from the planner. I can help shape your itinerary; confirm prices and availability with each provider before booking. [Talk with a Friday travel designer](commission.html) if you'd like help with your trip plan.", curatedChips());
+      return reply(turn, "I can't make reservations from the planner. I can help shape your itinerary; confirm prices and availability with each provider before booking. [Talk with a Friday travel designer](#call-me-back) if you'd like help with your trip plan.", curatedChips());
     }
     if (!replied) {
       return tick(turn, 450).then(function () {
@@ -1322,7 +1301,7 @@
       .then(function () { var rp = reportBlock(d); addBlock(turn, rp); return runReport(turn, rp); })
       .then(function () { return tick(turn, 400); })
       .then(function () { return planP; })
-      .then(function (p) { plan = p; return planOpts.via === 'chatgpt' ? tool(turn, 'Planning with your ChatGPT plan', null, 250) : null; })
+      .then(function (p) { plan = p; return null; })
       .then(function () { return tool(turn, 'Created plan with ' + countItems(plan) + ' stops', null, 350); })
       .then(function () { applyPlan(turn, plan, 'Created a ' + plan.days.length + '-day plan from research', countItems(plan)); return tick(turn, 300); })
       .then(function () {

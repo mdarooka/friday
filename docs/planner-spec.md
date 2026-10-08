@@ -667,30 +667,28 @@ account; the research and account routes are described in the README.
 | `POST /api/itineraries` | Body `{ destination, types?, days, dates?: { start }, pace?, base? }`. 201 `{ id, provider, plan, fallbackReason? }`. 400 on bad input, 404 on unknown destination, 413 over the body limit (64 KB) |
 | `GET /api/itineraries/:id` | The saved record `{ id, createdAt, request, provider, plan, fallbackReason? }`. 404 if unknown |
 
-**Providers** (`server/itinerary/providers/`, not to be confused with `AI_PROVIDER`, which selects the Claude or Perplexity research provider in `server/providers/`): `ITINERARY_PROVIDER` is `local` or `openai`; unset means openai
-when a credential is configured, else local.
+**Providers** (`server/itinerary/providers/`, not to be confused with `AI_PROVIDER`, which selects the research provider in `server/providers/`): `ITINERARY_PROVIDER` is `local` or `claude`; unset means claude
+when `ANTHROPIC_API_KEY` is set, else local.
 
 - `local` wraps the shared generator. No network, no credentials.
-- `openai` calls the Chat Completions API with `fetch` and a JSON-schema response format. The model
-  is given only place ids, names, kinds and areas (no blurbs, ratings or coordinates) and asked to
+- `claude` calls the Anthropic Messages API (`server/itinerary/providers/claude.mjs`) with `fetch` and a
+  `submit_itinerary` tool whose `input_schema` is the itinerary schema (a JSON text reply is also accepted).
+  The model is given only place ids, names, kinds and areas (no blurbs, ratings or coordinates) and asked to
   choose and order places and write short notes. Every returned id is checked against the catalog;
-  unknown ids, hotels and repeats are dropped. On any error, timeout (`OPENAI_TIMEOUT_MS`, 30 s), or
+  unknown ids, hotels and repeats are dropped. On any error, timeout (`ITINERARY_TIMEOUT_MS`, 30 s), or
   a response that cannot make the requested number of days, the server uses `local` and answers
   `provider: 'local'` with a `fallbackReason`. The key is never logged or returned.
-- Credentials come from a separate source, `server/itinerary/providers/openai-auth.mjs`, chosen by `OPENAI_AUTH`
-  (default `api-key`, reading `OPENAI_API_KEY`). A source implements `getAuth() -> { baseUrl, headers } | null`.
-  There is no sign-in flow.
 
 **Storage:** itineraries live in the SQLite `itineraries` table (`user_id` is the signed-in owner, or null for
 a signed-out visitor), read and written through `saveItinerary` and `getItinerary` in `server/store.mjs`.
 `GET /api/itineraries/:id` returns a record to anyone who holds its unguessable id.
 
-Environment: `PORT`, `HOST`, `DATABASE_PATH`, `ITINERARY_PROVIDER`, `OPENAI_AUTH`, `OPENAI_API_KEY`, `OPENAI_MODEL`
-(default `gpt-5-mini`), `OPENAI_BASE_URL`, `OPENAI_TIMEOUT_MS`, `KNOWLEDGE`, `KNOWLEDGE_DIR`, `KNOWLEDGE_MAX_CHARS`, `KNOWLEDGE_SECTIONS`.
+Environment: `PORT`, `HOST`, `DATABASE_PATH`, `ITINERARY_PROVIDER`, `ANTHROPIC_API_KEY`, `ITINERARY_MODEL`
+(default `AI_MODEL`, then `claude-sonnet-5-5`), `ITINERARY_TIMEOUT_MS`, `KNOWLEDGE`, `KNOWLEDGE_DIR`, `KNOWLEDGE_MAX_CHARS`, `KNOWLEDGE_SECTIONS`.
 
 ### House knowledge
 
-The OpenAI provider can be given a travel company's planning skill file and reference notes (prompt
+The Claude provider can be given a travel company's planning skill file and reference notes (prompt
 text only, no fine-tuning). Put `SKILL.md` and `references/*.md` in the knowledge folder
 (`KNOWLEDGE_DIR`, default `server/knowledge/kusum`, relative to the repo root). They are read once at
 startup and appended to the provider's system prompt after a fixed preamble that tells the model to
@@ -711,7 +709,7 @@ culture only when the traveler stated them; sample lessons are history, not temp
   `knowledge: N files, M chars` or `knowledge: none` (never the contents), and `GET /api/health`
   reports `knowledge: { sources, chars }`.
 
-Only the OpenAI provider uses it; the local generator is unaffected.
+Only the Claude provider uses it; the local generator is unaffected.
 
 ### The planner uses it when it is there
 
@@ -722,30 +720,7 @@ the flight item is put back on top. On `file://`, with no server, on a timeout, 
 the same plan is built in the browser by the generator. The trip itself is saved only in
 `localStorage`; the saved server-side itinerary is a record of what was generated.
 
-### Use your ChatGPT plan
-
-Visitors can sign in with ChatGPT (OpenAI's "Sign in with ChatGPT", OAuth 2.0 Authorization Code + PKCE with OpenID Connect) and have trip planning run on their own ChatGPT plan, at no cost to us. The feature is fully built but **hidden until `SIWC_CLIENT_ID` is set**: without it, `GET /api/capabilities` reports `chatgpt: { enabled: false }` and the Preferences card does not render.
-
-**How it works.** In Preferences, "Connect ChatGPT" opens the OpenAI sign-in in a popup (a full-page redirect if the popup is blocked). `chatgpt-callback.html` (generated, static, no secrets) hands the authorization code back to the planner, which checks `state`, exchanges the code (PKCE, no client secret) and refreshes tokens, all from the browser. When planning, the planner asks the server for the prompt (`POST /api/itineraries/prompt`, built by the same prompt builder and house knowledge as the openai provider), calls `https://api.openai.com/v1/responses` from the browser with the visitor's bearer token and a strict JSON schema, then posts the model's draft to `POST /api/itineraries` with `source: "chatgpt"`. The server validates it exactly like the openai provider (catalog ids only, no stays, no repeats, enough days), saves it and returns `provider: "chatgpt"`. An unusable draft falls back to the configured server provider with a `fallbackReason`; any browser-side failure falls back to the normal server path.
-
-**Tokens stay in the browser, by design.** OpenAI's terms allow plan usage only for the signed-in user's own requests, from a runtime that user controls, with access and refresh tokens stored locally under the user's control, not on a server or any shared or managed environment. They are kept in this browser's `localStorage` (key `friday.chatgpt.v1`) and cleared by Disconnect. They are never sent to Friday's server, logged or synced; the server only sees the prompt request and the model's JSON draft. Do not add server-side token storage or use the plan for anything other than this app's own planning.
-
-| Variable | Meaning |
-| --- | --- |
-| `SIWC_CLIENT_ID` | OpenAI-issued client id. Required to enable the feature. Public, not a secret |
-| `SIWC_ISSUER` | Default `https://auth.openai.com`; endpoints come from `<issuer>/.well-known/openid-configuration` (fallback `/authorize`, `/oauth/token`) |
-| `SIWC_SCOPES` | Default `openid profile email offline_access`. The scope that authorizes inference is not assumed here: take its exact name from the client configuration OpenAI issues and add it |
-| `SIWC_MODEL` | Default `gpt-5-mini` |
-| `SIWC_REDIRECT_PATH` | Default `/chatgpt-callback.html`; the redirect URI is `APP_ORIGIN` plus this path (the generated page is `chatgpt-callback.html`) |
-
-**What the owner must do.**
-1. Apply through OpenAI's Sign in with ChatGPT interest form for hosted/commercial apps (currently a limited trial) and obtain a client id.
-2. Register the redirect URI `<APP_ORIGIN>/chatgpt-callback.html` for each environment (production, staging, local).
-3. Set `SIWC_CLIENT_ID` (and `SIWC_SCOPES` as issued) and restart. The Preferences card then appears.
-
-Code: `assets/js/trip-chatgpt.js` (browser module, UMD so tests load it in Node), `server/itinerary/chatgpt.mjs` (config), `build/trip.js` (callback page), tests in `tests/chatgpt.test.mjs`.
-
-Tests: `npm test` (`tests/generator.test.mjs`, `tests/itineraries.test.mjs`, `tests/openai.test.mjs`, `tests/knowledge.test.mjs`, and the account, hardening and integration suites).
+Tests: `npm test` (`tests/generator.test.mjs`, `tests/itineraries.test.mjs`, `tests/claude-itinerary.test.mjs`, `tests/knowledge.test.mjs`, and the account, hardening and integration suites).
 
 ## Trip storage in Hexclave
 

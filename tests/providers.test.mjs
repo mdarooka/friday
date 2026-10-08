@@ -87,8 +87,8 @@ test('unverified and unsafe place metadata is discarded instead of asserted',asy
 });
 
 test('Perplexity Agent raw REST output_text and citations are parsed',async()=>{
-  let count=0;const fetch=async(url,options)=>{const body=JSON.parse(options.body);assert.equal(body.model,'openai/test-deep');count++;const text=count===3?JSON.stringify({...plan,text:'Verified',days:[]}):'Research evidence';return response({status:'completed',output:[{type:'search_results',results:[{title:'Public post',url:'https://www.instagram.com/p/AbC123/'}]},{type:'message',content:[{type:'output_text',text,annotations:[{type:'url_citation',url:'https://www.instagram.com/p/AbC123/',title:'Public post'}]}]}]});};
-  const result=await research({prompt:'Review',trip:{},profile:{},mode:'deep'},cfg(fetch,{provider:'perplexity',model:'openai/test-fast',deepModel:'openai/test-deep'}));
+  let count=0;const fetch=async(url,options)=>{const body=JSON.parse(options.body);assert.equal(body.model,'sonar/test-deep');count++;const text=count===3?JSON.stringify({...plan,text:'Verified',days:[]}):'Research evidence';return response({status:'completed',output:[{type:'search_results',results:[{title:'Public post',url:'https://www.instagram.com/p/AbC123/'}]},{type:'message',content:[{type:'output_text',text,annotations:[{type:'url_citation',url:'https://www.instagram.com/p/AbC123/',title:'Public post'}]}]}]});};
+  const result=await research({prompt:'Review',trip:{},profile:{},mode:'deep'},cfg(fetch,{provider:'perplexity',model:'sonar/test-fast',deepModel:'sonar/test-deep'}));
   assert.equal(result.text,'Verified');assert.equal(result.sources[0].title,'Public post');
 });
 

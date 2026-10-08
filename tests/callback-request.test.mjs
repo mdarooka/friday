@@ -173,3 +173,21 @@ test('callback phone patterns use the same current-browser validation on contact
   }
   assert.equal(patterns[0], patterns[1], 'contact and planner patterns stay consistent');
 });
+
+test('admins can open only trips a traveller attached to a callback request', async t => {
+  const { request } = await startApp(t, { env: { AUTH_PROVIDER: 'local', QUOTE_ADMIN_EMAILS: 'quoteadmin@example.com' }, hexclaveAuth: { configured: false, currentUser: async () => null } });
+  const admin = await signUp(request, 'QuoteAdmin');
+  const traveler = await signUp(request, 'Traveler');
+  const mk = async title => (await request('/api/trips', 'POST', { data: { title, destination: 'Kerala', startDate: '2026-12-01', endDate: '2026-12-05', days: [{ title: 'Fort Kochi', items: [{ title: 'Chinese fishing nets', time: '16:00' }] }] } }, { cookie: traveler.cookie })).result.record.id;
+  const shared = await mk('Shared trip'), private_ = await mk('Private trip');
+  assert.equal((await request('/api/callbacks', 'POST', { name: 'Jane', phone: '9876543210', bestTime: 'morning', entryPoint: 'planner', tripId: shared }, { cookie: traveler.cookie })).status, 201);
+
+  const ok = await request(`/api/admin/trips/${shared}`, 'GET', undefined, { cookie: admin.cookie });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.result.trip.title, 'Shared trip');
+  assert.equal(ok.result.trip.days[0].items[0].title, 'Chinese fishing nets');
+  assert.ok(!JSON.stringify(ok.result).includes('@example.com'));
+  assert.equal((await request(`/api/admin/trips/${private_}`, 'GET', undefined, { cookie: admin.cookie })).status, 404);
+  assert.equal((await request(`/api/admin/trips/${shared}`, 'GET', undefined, { cookie: traveler.cookie })).status, 403);
+  assert.equal((await request(`/api/admin/trips/${shared}`, 'GET')).status, 401);
+});

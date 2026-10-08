@@ -33,9 +33,19 @@ export async function claudeMessage({prompt,config,web=false,deep=false,image}) 
   return {text,sources};
 }
 
+/* Claude has no JSON-mode flag: prompts ask for JSON only, and this strips code fences or stray prose before parsing. */
+export function parseJsonText(text) {
+  const raw=String(text).trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
+  try { return JSON.parse(raw); } catch {
+    const start=raw.indexOf('{'),end=raw.lastIndexOf('}');
+    if(start<0||end<=start)throw new Error('Response is not JSON');
+    return JSON.parse(raw.slice(start,end+1));
+  }
+}
+
 export function parsePlan(text) {
   const clean=String(text).trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
-  const plan=JSON.parse(clean);
+  const plan=parseJsonText(clean);
   if(!plan||typeof plan!=='object'||Array.isArray(plan))throw new Error('Invalid plan');
   return {text:typeof plan.text==='string'?plan.text:'',days:Array.isArray(plan.days)?plan.days:[],places:Array.isArray(plan.places)?plan.places:[],questions:Array.isArray(plan.questions)?plan.questions:[]};
 }

@@ -17,8 +17,6 @@ import { createGooglePlacesIntegration } from './places.mjs';
 import { createItineraryService } from './itinerary/service.mjs';
 import { parseItineraryRequest } from './itinerary/validate.mjs';
 import { getDestination, listDestinations, catalogOf } from './itinerary/catalog.mjs';
-import { chatgptConfig, publicChatgpt } from './itinerary/chatgpt.mjs';
-import { SCHEMA as ITINERARY_SCHEMA } from './itinerary/providers/openai.mjs';
 import { loadKnowledgeFromEnv } from './knowledge/index.mjs';
 import { resolveTripStorage, createTripStore, VaultError } from './storage/index.mjs';
 import { validateVillaInput, validateVillaSubmission, publicVilla, adminVilla, privateSubmission, distanceMeters, localVillaPlan } from './villas.mjs';
@@ -122,12 +120,11 @@ export function createApp(options = {}) {
   // and test fixtures when no Hexclave project is configured.
   const localAuthBypass = !hexclaveSelected && !production && env.AUTH_REQUIRED === 'false' && loopback(new URL(origin).hostname) && loopback(env.HOST || '127.0.0.1');
   const trustProxy = options.trustProxy ?? env.TRUST_PROXY === '1';
-  // Itinerary generation (local | openai, ITINERARY_PROVIDER) is separate from the AI_PROVIDER research below.
+  // Itinerary generation (local | claude, ITINERARY_PROVIDER) is separate from the AI_PROVIDER research below.
   const itineraryEnv = env;
   const log = options.log || (() => {});
   const knowledge = options.knowledge || loadKnowledgeFromEnv(itineraryEnv);
   log(knowledge.sources.length ? `knowledge: ${knowledge.sources.length} files, ${knowledge.chars} chars` : 'knowledge: none');
-  const chatgpt = chatgptConfig(env, origin);
   const itineraries = createItineraryService({ env: itineraryEnv, fetch: options.itineraryFetch, log, knowledge });
   // Planner trips may live in Hexclave's Data Vault (TRIP_STORAGE=hexclave); a missing key fails here, before anything opens.
   const tripConfig = resolveTripStorage(env);
@@ -137,7 +134,7 @@ export function createApp(options = {}) {
   const db = openStore({ env, memory: !!options.memory, dataDir: options.dataDir || (localAuthBypass ? path.join(root,'.data/friday-local-dev-pglite') : path.join(root,'.data/pglite')), tripsInVault: tripConfig.mode === 'hexclave', connect: options.dbConnect, retry: options.dbRetry, sleep: options.dbSleep });
   const emailService = options.emailService || createHexclaveEmailService({ db, store, env, fetch: options.emailFetch || options.fetch });
   let localDevUser = null;
-  const config = options.ai || {provider:'openai',apiKey:env.OPENAI_API_KEY,model:env.OPENAI_RESEARCH_MODEL||env.OPENAI_MODEL||'gpt-5-mini',deepModel:env.OPENAI_DEEP_MODEL,fetch:options.fetch};
+  const config = options.ai || {provider:'claude',apiKey:env.ANTHROPIC_API_KEY,model:env.AI_MODEL||'claude-sonnet-5-5',deepModel:env.AI_DEEP_MODEL||undefined,effort:env.AI_EFFORT||undefined,fetch:options.fetch};
   /* Startup work that needs the database. Requests wait for it (see `startup` in the request handler). */
   const startup = (async () => {
     await store.markInterruptedEmailSendsUnknown(db);
@@ -300,7 +297,7 @@ export function createApp(options = {}) {
         if (relative === 'app') relative='app.html';
         const realRoot = await realpath(root);
         // Public extensionless routes point to their canonical .html pages. Private app and staff pages keep their existing access paths.
-        const privatePages = new Set(['trip.html','app.html','admin.html','admin-villas.html','chatgpt-callback.html','404.html']);
+        const privatePages = new Set(['trip.html','app.html','admin.html','admin-villas.html','404.html']);
         if (/^[a-z0-9-]+$/.test(relative) && !privatePages.has(`${relative}.html`)) {
           const candidate = await realpath(path.resolve(realRoot,`${relative}.html`)).catch(()=>null);
           if (candidate && candidate.startsWith(realRoot+path.sep) && (await stat(candidate)).isFile()) {
@@ -390,7 +387,7 @@ export function createApp(options = {}) {
         await store.updateAiConversationEvent(db,{eventKey:audit.eventKey,ownerId:user.id,conversationId:audit.conversationId,content:auditContent(content),status,updated:new Date().toISOString()});
       };
       if (p==='/api/health') {allow('GET','HEAD');return send(200,{ok:true,itineraryProvider:itineraries.name,knowledge:{sources:knowledge.sources,chars:knowledge.chars}});}
-      if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));const whatsappRaw=String(env.FRIDAY_WHATSAPP_NUMBER||'').trim();const whatsappNumber=/^\+?[0-9\s().-]+$/.test(whatsappRaw)?whatsappRaw.replace(/\D/g,''):'';return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportCount:airportData().length,whatsappNumber:/^\d{8,15}$/.test(whatsappNumber)?whatsappNumber:'',chatgpt:publicChatgpt(chatgpt)});}
+      if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));const whatsappRaw=String(env.FRIDAY_WHATSAPP_NUMBER||'').trim();const whatsappNumber=/^\+?[0-9\s().-]+$/.test(whatsappRaw)?whatsappRaw.replace(/\D/g,''):'';return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportCount:airportData().length,whatsappNumber:/^\d{8,15}$/.test(whatsappNumber)?whatsappNumber:''});}
       if (p==='/api/newsletter/unsubscribe') {
         allow('GET','HEAD','POST');
         const token=method==='POST'?(typeof body.token==='string'?body.token:''):url.searchParams.get('token')||'';
@@ -946,6 +943,19 @@ export function createApp(options = {}) {
         const villaEnquiries=(await store.listEnquiries(db)).filter(row=>row.kind==='commissions').map(row=>({row,data:JSON.parse(row.data)})).filter(item=>item.data.villa).map(({row,data})=>({id:row.id,kind:'villa_enquiry',customerEmail:data.email,name:data.name,villa:data.villa,data,createdAt:row.created}));
         return send(200,{quotes:[...villaEnquiries,...callbacks,...quotes]});
       }
+      const adminTrip=p.match(/^\/api\/admin\/trips\/([A-Za-z0-9_-]{1,160})$/);
+      if(adminTrip){
+        // Read-only view of a trip the traveller attached to a callback or quote request. Nothing else is reachable here.
+        allow('GET','HEAD');if(!user)fail(401,'Please sign in.');if(!isQuoteAdmin)fail(403,'Your account is not on the quote administration allowlist.');
+        for(const ownerId of await store.listTripSharers(db,adminTrip[1])){
+          const row=await trips.find(adminTrip[1],ownerId);if(!row)continue;
+          let tripData;try{tripData=JSON.parse(row.data);}catch{continue;}
+          const state=tripData.claudeState&&typeof tripData.claudeState==='object'?tripData.claudeState:{};
+          const b=prepareBriefing({tripId:adminTrip[1],tripData,bookingRows:await store.listRecords(db,ownerId,'bookings'),recipient:'',origin});
+          return send(200,{trip:{id:adminTrip[1],title:b.title,destination:b.destination,startDate:b.departureDate,endDate:b.endDate,travelers:tripData.travelers??state.travelers??state.prefs?.travelers??null,stay:b.stay,days:b.days,bookings:b.bookings.map(({id,title,type,date,time,end,confirmed,location})=>({id,title,type,date,time,end,confirmed,location})),openQuestions:b.questions}});
+        }
+        fail(404,'This trip was not shared with Friday.');
+      }
       const bookingVerify=p.match(/^\/api\/admin\/bookings\/([0-9a-f-]{36})\/verify$/i);
       if(bookingVerify){allow('POST');if(!user)fail(401,'Please sign in.');const explicitQuoteAdmins=quoteAdminEmails.length>0||generalAdminEmails.length>0;return send(200,{booking:await verifyBooking({db,store,admin:user,allowed:explicitQuoteAdmins?effectiveQuoteAdmins:new Set(),bookingId:bookingVerify[1],verified:body.verified})});}
       const callbackStatus=p.match(/^\/api\/admin\/callbacks\/([0-9a-f-]{36})\/status$/i);
@@ -1011,17 +1021,6 @@ export function createApp(options = {}) {
         const dest=getDestination(id);if(!dest)fail(404,'Unknown destination');
         return send(200,catalogOf(dest));
       }
-      if (p==='/api/itineraries/prompt') {
-        allow('POST');
-        if(hexclaveSelected&&!user)fail(401,'Please sign in before planning a trip.');
-        rate('itinerary-prompt:'+(user?user.id:ip),20);
-        const parsed=parseItineraryRequest(body);
-        if(parsed.error)fail(parsed.status,parsed.error);
-        const audit=await startAiAudit(body.conversationId,'itinerary_prompt',{request:parsed.value},body.tripId,body.ownerId);
-        const result={...itineraries.prompt(parsed.dest,parsed.value),schema:ITINERARY_SCHEMA,model:chatgpt.model};
-        await finishAiAudit(audit,'completed',{request:parsed.value,response:result});
-        return send(200,result);
-      }
       if (p==='/api/itineraries') {
         allow('POST');
         if(hexclaveSelected&&!user)fail(401,'Please sign in before planning a trip.');
@@ -1029,20 +1028,15 @@ export function createApp(options = {}) {
         const parsed=parseItineraryRequest(body);
         if(parsed.error)fail(parsed.status,parsed.error);
         let out;
-        const audit=await startAiAudit(body.conversationId,'itinerary_generation',{request:{...parsed.value,source:body.source||itineraries.name},messageId:body.messageId},body.tripId,body.ownerId);
+        const audit=await startAiAudit(body.conversationId,'itinerary_generation',{request:{...parsed.value,source:itineraries.name},messageId:body.messageId},body.tripId,body.ownerId);
         try {
-        if(body.draft!==undefined||body.source!==undefined){
-          // A draft made in the user's browser with their own ChatGPT plan; we validate it against the catalog.
-          if(body.source!=='chatgpt'||!body.draft||typeof body.draft!=='object'||Array.isArray(body.draft))fail(400,'"draft" must be a JSON object with source "chatgpt".');
-          if(JSON.stringify(body.draft).length>40000)fail(413,'The draft is too large.');
-          out=await itineraries.fromDraft(parsed.dest,parsed.value,body.draft);
-        } else out=await itineraries.generate(parsed.dest,parsed.value);
+        out=await itineraries.generate(parsed.dest,parsed.value);
         const record={id:'it_'+randomBytes(8).toString('hex'),createdAt:new Date().toISOString(),request:parsed.value,provider:out.provider,plan:out.plan};
         if(out.fallbackReason)record.fallbackReason=out.fallbackReason;
         await saveItinerary(db,record,user?user.id:null);
         const made={id:record.id,provider:record.provider,plan:record.plan};
         if(record.fallbackReason)made.fallbackReason=record.fallbackReason;
-        await finishAiAudit(audit,'completed',{request:{...parsed.value,source:body.source||itineraries.name},response:made});
+        await finishAiAudit(audit,'completed',{request:{...parsed.value,source:itineraries.name},response:made});
         return send(201,made,{Location:'/api/itineraries/'+record.id});
         }catch(error){await finishAiAudit(audit,'failed',{request:parsed.value,error:error.message||'Itinerary generation failed.'});throw error;}
       }

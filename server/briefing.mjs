@@ -21,13 +21,20 @@ function questionList(data) {
   return source.map(item => clean(typeof item === 'string' ? item : item?.question || item?.text || item?.label || item?.title, 300)).filter(Boolean).slice(0, 12);
 }
 
+/** A date counts as confirmed when an import verified it, or when the traveller typed the booking in themselves (no import source). Callers still check the date itself. */
+export function bookingDateConfirmed(data) {
+  if (data?.dateStatus === 'confirmed') return true;
+  if (!data || data.dateStatus) return false;
+  return !data.source || data.source === 'manual';
+}
+
 export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient, origin, now = new Date(), source = '' }) {
   const state = tripData?.claudeState && typeof tripData.claudeState === 'object' ? tripData.claudeState : {};
   const linked = bookingRows.map(row => {
     const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data || {};
     return { id: row.id, data };
   }).filter(({ data }) => data.tripId === tripId || data.claudeState?.tripId === tripId);
-  const confirmed = linked.filter(({ data }) => data.dateStatus === 'confirmed' && validDate(data.start || data.date));
+  const confirmed = linked.filter(({ data }) => bookingDateConfirmed(data) && validDate(data.start || data.date));
   const tripDate = tripData.startDate || state.startDate || state.prefs?.dates?.start || '';
   const matching = confirmed.filter(({ data }) => !tripDate || (data.start || data.date) === tripDate);
   const departureDate = validDate(tripDate) ? tripDate : (matching[0]?.data.start || matching[0]?.data.date || '');
@@ -42,7 +49,7 @@ export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient,
       date: start.date,
       time: start.time,
       end: end.date,
-      confirmed: data.dateStatus === 'confirmed',
+      confirmed: bookingDateConfirmed(data) && validDate(start.date),
       reference: clean(data.ref || data.reference || '', 100),
       location: clean(data.location || '', 180),
     };

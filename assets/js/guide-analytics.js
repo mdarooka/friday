@@ -21,7 +21,7 @@
   }
   function trackPublicPageView() {
     var path = A.pathname();
-    if (/^\/(?:admin(?:-villas)?(?:\.html)?|chatgpt-callback\.html|app(?:\.html)?)$/.test(path)) return Promise.resolve();
+    if (/^\/(?:admin(?:-villas)?(?:\.html)?|app(?:\.html)?)$/.test(path)) return Promise.resolve();
     var tags = A.currentTags();
     return track('public_page_viewed', {
       path: path, referrer_host: A.referrerHost(), utm_source: tags.utm_source,

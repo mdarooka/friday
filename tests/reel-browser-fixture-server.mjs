@@ -56,7 +56,7 @@ const server = createApp({
     AI_MODEL: 'fixture-only-model',
     ANTHROPIC_API_KEY: 'fixture-only-key',
   },
-  ai: { provider: 'openai', apiKey: 'fixture-only-key', model: 'fixture-only-model' },
+  ai: { provider: 'claude', apiKey: 'fixture-only-key', model: 'fixture-only-model' },
   researchLink,
   reelResearch: research,
   reelInterpret: async (text) => ({fields: {

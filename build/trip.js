@@ -75,7 +75,6 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
 <script src="assets/js/trip-prequote.js" defer></script>
 <script src="assets/js/trip-reel.js" defer></script>
 <script src="assets/js/trip-map.js" defer></script>
-<script src="assets/js/trip-chatgpt.js" defer></script>
 <script src="assets/js/trip-chat.js" defer></script>
 <script src="assets/js/trip-feedback.js" defer></script>
 <script src="assets/js/trip-confidence.js" defer></script>
@@ -122,44 +121,6 @@ function appAliasPage() {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><meta http-equiv="refresh" content="0;url=trip.html"><title>Friday · Your journey</title><script>location.replace('trip.html'+location.search+location.hash)</script></head><body><p><a href="trip.html">Continue to your Friday journey</a></p></body></html>`;
 }
 
-/* The Sign in with ChatGPT redirect target. Static and secret-free: it only hands the authorization code (and state)
-   back to the planner, which exchanges it in the browser. See assets/js/trip-chatgpt.js. */
-function chatgptCallbackPage() {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
-<meta name="referrer" content="no-referrer">
-<title>Connecting ChatGPT · Friday</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#fff;color:#1f1e1d;font:16px/1.5 Inter,system-ui,sans-serif}p{margin:0}a{color:#c15f3c}</style>
-</head>
-<body>
-<p id="m">Connecting your ChatGPT account&hellip;</p>
-<script>
-(function () {
-  var q = location.search || '';
-  var p = {};
-  q.replace(/^\?/, '').split('&').forEach(function (kv) {
-    if (!kv) return; var i = kv.indexOf('=');
-    try { p[decodeURIComponent(i < 0 ? kv : kv.slice(0, i))] = i < 0 ? '' : decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' ')); } catch (e) {}
-  });
-  var msg = { type: 'friday-chatgpt-callback', code: p.code || '', state: p.state || '', error: p.error || '', error_description: p.error_description || '' };
-  /* Hand the code to the planner window: through window.opener, and through a same-origin BroadcastChannel for the case
-     where the sign-in site severed the opener. Then close; if this is not a popup, the planner picks the code up from
-     sessionStorage after the redirect below. */
-  try { if (window.opener && !window.opener.closed) window.opener.postMessage(msg, location.origin); } catch (e) {}
-  try { var bc = new BroadcastChannel('friday-chatgpt'); bc.postMessage(msg); bc.close(); } catch (e) {}
-  try { window.close(); } catch (e) {}
-  try { sessionStorage.setItem('friday.chatgpt.callback', JSON.stringify(msg)); } catch (e) {}
-  setTimeout(function () { location.replace('trip.html#/preferences'); }, 300);
-})();
-</script>
-<noscript><p>This page needs JavaScript. <a href="trip.html">Back to the planner</a></p></noscript>
-</body>
-</html>`;
-}
 
 function tripScripts() {
   const data = loadData();
@@ -186,4 +147,4 @@ ${artSrc}
   return { 'assets/js/trip-data.js': dataJs, 'assets/js/trip-art.js': artJs };
 }
 
-module.exports = { tripPage, tripBriefingPage, tripScripts, appAliasPage, chatgptCallbackPage };
+module.exports = { tripPage, tripBriefingPage, tripScripts, appAliasPage };

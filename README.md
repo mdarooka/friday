@@ -29,7 +29,7 @@ Hexclave provides Friday's sign-in and transactional email. Friday can run on He
 Before the first deploy:
 
 1. Turn on the Deploy app in the Hexclave dashboard and set the `POSTGRES_PASSWORD` secret (see above). Both services use `minInstances: 0`, so they suspend when idle (the database keeps its disk) and resume on the next request; an always-running server (`minInstances: 1`) needs a paid plan. Do not push `hexclave.config.ts` as part of this step.
-2. `APP_ORIGIN`, `FRIDAY_ENQUIRY_EMAIL`, and `QUOTE_ADMIN_EMAILS` are set directly in `hexclave.deploy.ts`; update them there when the domain or inbox changes. Set the optional `FRIDAY_WHATSAPP_NUMBER` secret under Project Settings → Secrets to Friday’s international WhatsApp number (country code and number, for example `+919876543210`). The planner exposes only a validated public phone number for its click-to-chat link; leave it empty to hide that option. The optional `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY`, `GOOGLE_PLACES_API_KEY`, and `OPENAI_API_KEY` default to empty and keep those integrations off until configured. For Gmail/Calendar, set the Google client ID, client secret, and a 64-character hexadecimal `GOOGLE_TOKEN_KEY` together. Deploy supplies `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY` itself; without a valid enquiry inbox, enquiries are saved but the team notification is not sent.
+2. `APP_ORIGIN`, `FRIDAY_ENQUIRY_EMAIL`, and `QUOTE_ADMIN_EMAILS` are set directly in `hexclave.deploy.ts`; update them there when the domain or inbox changes. Set the optional `FRIDAY_WHATSAPP_NUMBER` secret under Project Settings → Secrets to Friday’s international WhatsApp number (country code and number, for example `+919876543210`). The planner exposes only a validated public phone number for its click-to-chat link; leave it empty to hide that option. The optional `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY`, `GOOGLE_PLACES_API_KEY`, and `ANTHROPIC_API_KEY` default to empty and keep those integrations off until configured. For Gmail/Calendar, set the Google client ID, client secret, and a 64-character hexadecimal `GOOGLE_TOKEN_KEY` together. Deploy supplies `HEXCLAVE_PROJECT_ID` and `HEXCLAVE_SECRET_SERVER_KEY` itself; without a valid enquiry inbox, enquiries are saved but the team notification is not sent.
 Vercel (`vercel.json`, project `friday-travel`) is only a reverse proxy: it serves `https://fridaytravel.vercel.app` by rewriting every path to the Hexclave Deploy origin, so all data stays in the project's PostgreSQL service. `APP_ORIGIN` is the public proxy origin, because browsers send `Origin: https://fridaytravel.vercel.app` on API writes. `APP_ORIGIN_ALIASES` explicitly lists the direct Deploy origin for browser sessions opened on that host; the server accepts only those exact configured origins for writes and never trusts arbitrary request hosts.
 `https://fridaytravel.vercel.app` is Friday's canonical public origin. The Vercel proxy redirects other project hosts to it; the server also redirects direct Deploy page requests while retaining its internal API access. Public pages have canonical metadata and private pages are excluded from indexing.
 3. To move to your own domain, attach and verify it on the public `web` service, set its exact HTTPS origin as `APP_ORIGIN` in `hexclave.deploy.ts`, and update `build/site-metadata.js` and `vercel.json`.
@@ -69,7 +69,7 @@ The production host and DNS name still need to be selected before a live deploym
 
 ## AI research configuration
 
-Deep is the default research mode. All user-facing research and reel itinerary generation uses OpenAI's Responses API with web search. Set server-only `OPENAI_API_KEY`; `OPENAI_RESEARCH_MODEL` defaults to `OPENAI_MODEL` or `gpt-5-mini`. Optionally set `OPENAI_DEEP_MODEL`. Legacy Claude and Perplexity environment variables do not select the production research provider. Without the OpenAI key, research is unavailable and existing saved itineraries remain accessible.
+Deep is the default research mode. All user-facing research, reel import and itinerary generation use the Claude API (Anthropic); Set the server-only `ANTHROPIC_API_KEY`; `AI_MODEL` defaults to `claude-sonnet-5-5`. Optionally set `AI_DEEP_MODEL` (a stronger model for Deep research) and `AI_EFFORT` (`low`, `medium`, `high`, `xhigh` or `max`). Web search uses Claude's own `web_search` tool. Without the key, research and reel import are unavailable (the planner hides reel paste) and existing saved itineraries remain accessible.
 
 ## Feature status
 
@@ -104,30 +104,28 @@ Public owner intake is `POST /api/villa-submissions` with `{ contactName, email,
 
 ## Itinerary generation
 
-The planner asks the server for its plan. That is separate from the AI research above: OpenAI Responses with web search powers research chat and Deep research jobs, while `ITINERARY_PROVIDER` chooses how the planner's first plan is generated.
+The planner asks the server for its plan. That is separate from the AI research above: Claude with web search powers research chat and Deep research jobs, while `ITINERARY_PROVIDER` chooses how the planner's first plan is generated.
 
 | Route | |
 | --- | --- |
 | `GET /api/health` | Public. `{ ok, itineraryProvider, knowledge: { sources, chars } }` |
 | `GET /api/destinations`, `GET /api/destinations/:id` | The six curated destinations and their catalogs |
-| `POST /api/itineraries` | Sign-in required unless the isolated loopback development bypass is active. `{ destination, types, days, dates?, pace?, base?, draft?, source? }` generates and saves a plan: `{ id, provider, plan }` (400 on bad input, 404 unknown destination). `draft` with `source: "chatgpt"` is a browser-made model draft, validated here (see Use your ChatGPT plan) |
-| `POST /api/itineraries/prompt` | Same sign-in requirement; `{ instructions, input, schema, model }` for the browser-side ChatGPT call |
+| `POST /api/itineraries` | Sign-in required unless the isolated loopback development bypass is active. `{ destination, types, days, dates?, pace?, base? }` generates and saves a plan: `{ id, provider, plan }` (400 on bad input, 404 unknown destination). |
 | `GET /api/itineraries/:id` | Sign-in required and returns the itinerary only to its owner (404 for another owner's id). Explicit trip-share links remain the public viewing path. |
 
 These routes require authentication in production and normal server mode; the isolated loopback development bypass uses its development owner. Generated itineraries are stored with the authenticated owner's id, and prompt/generation activity is audited to that owner. POST requests also use the usual same-origin check and a rate limit. The explicit trip-share flow is the public viewing path. On `file://`, without the server, or on any failure, the browser builds the plan with the same generator (`assets/js/trip-generator.js`). When a signed-in visitor's server has no research provider configured, the planner's own conversation (clarifier cards, then the plan) answers instead of Deep research, and its plan comes from `POST /api/itineraries`; with a research provider, Deep research answers as before.
 
-Providers: `local` is the deterministic generator. `openai` asks a model to choose and order places from the catalog (it is sent only ids, names, kinds and areas), validates every id against the catalog, and falls back to `local` on any error or timeout, reporting `provider: "local"` and a `fallbackReason` (the API key is redacted from both). Unset, `ITINERARY_PROVIDER` is `openai` when `OPENAI_API_KEY` is set and `local` otherwise.
+Providers: `local` is the deterministic generator. `claude` asks Claude to choose and order places from the catalog (it is sent only ids, names, kinds and areas), validates every id against the catalog, and falls back to `local` on any error or timeout, reporting `provider: "local"` and a `fallbackReason` (the API key is redacted from both). Unset, `ITINERARY_PROVIDER` is `openai` when `OPENAI_API_KEY` is set and `local` otherwise.
 
 | Variable | Meaning |
 | --- | --- |
-| `ITINERARY_PROVIDER` | `local` or `openai` |
-| `OPENAI_AUTH` | Credential source, default `api-key` (reads `OPENAI_API_KEY`); another source can implement the same interface in `server/itinerary/providers/openai-auth.mjs` |
-| `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`, `OPENAI_TIMEOUT_MS` | The openai provider (model default `gpt-5-mini`, timeout 30000 ms) |
-| `KNOWLEDGE`, `KNOWLEDGE_DIR`, `KNOWLEDGE_MAX_CHARS`, `KNOWLEDGE_SECTIONS` | House knowledge for the openai provider |
+| `ITINERARY_PROVIDER` | `local` or `claude` (default `claude` when `ANTHROPIC_API_KEY` is set, otherwise `local`) |
+| `ANTHROPIC_API_KEY`, `ITINERARY_MODEL` (falls back to `AI_MODEL`), `ITINERARY_TIMEOUT_MS` | The claude provider (timeout default 30000 ms) |
+| `KNOWLEDGE`, `KNOWLEDGE_DIR`, `KNOWLEDGE_MAX_CHARS`, `KNOWLEDGE_SECTIONS` | House knowledge for the claude provider |
 
 ### House knowledge
 
-The OpenAI provider can be given a travel company's planning skill file and reference notes (prompt text only, no fine-tuning). Put `SKILL.md` and `references/*.md` in the knowledge folder (`KNOWLEDGE_DIR`, default `server/knowledge/kusum`, relative to the repo root). They are read once at startup and appended to the provider's system prompt after a fixed preamble that tells the model to use them as planning principles only (no prices, quotes, bookings or supplier contact; diet and culture only when the traveler stated them; sample lessons are history, not templates).
+The Claude provider can be given a travel company's planning skill file and reference notes (prompt text only, no fine-tuning). Put `SKILL.md` and `references/*.md` in the knowledge folder (`KNOWLEDGE_DIR`, default `server/knowledge/kusum`, relative to the repo root). They are read once at startup and appended to the provider's system prompt after a fixed preamble that tells the model to use them as planning principles only (no prices, quotes, bookings or supplier contact; diet and culture only when the traveler stated them; sample lessons are history, not templates).
 
 - **Included:** from `SKILL.md` (front matter removed) only the `## ` sections named in the allowlist (default: Procedure, Pitfalls, Sightseeing specificity, Indian traveler knowledge, Sample evidence; override with `KNOWLEDGE_SECTIONS`, a comma list); every `references/*.md` file, sorted by name.
 - **Excluded:** all other `SKILL.md` sections, and any line mentioning a local path (`/Users/`, `Downloads/`, `C:\`).
@@ -135,28 +133,7 @@ The OpenAI provider can be given a travel company's planning skill file and refe
 - **Size:** `KNOWLEDGE_MAX_CHARS` (default 60000). Over the cap, SKILL sections go in first, then references in order; what does not fit is left out.
 - **Off / missing:** `KNOWLEDGE=off` disables it; a missing or empty folder is fine. The server logs `knowledge: N files, M chars` or `knowledge: none` (never the contents), and `GET /api/health` reports the same counts.
 
-Only the OpenAI provider uses it; the local generator is unaffected.
-
-## Use your ChatGPT plan
-
-Visitors can sign in with ChatGPT (OpenAI's "Sign in with ChatGPT", OAuth 2.0 Authorization Code + PKCE with OpenID Connect) and have trip planning run on their own ChatGPT plan, at no cost to us. The feature is fully built but **hidden until `SIWC_CLIENT_ID` is set**: without it, `GET /api/capabilities` reports `chatgpt: { enabled: false }` and the Preferences card does not render.
-
-**How it works.** In Preferences, "Connect ChatGPT" opens the OpenAI sign-in in a popup (a full-page redirect if the popup is blocked). `chatgpt-callback.html` (generated, static, no secrets) hands the authorization code back to the planner, which checks `state`, exchanges the code (PKCE, no client secret) and refreshes tokens, all from the browser. When planning, the planner asks the server for the prompt (`POST /api/itineraries/prompt`, built by the same prompt builder and house knowledge as the openai provider), calls `https://api.openai.com/v1/responses` from the browser with the visitor's bearer token and a strict JSON schema, then posts the model's draft to `POST /api/itineraries` with `source: "chatgpt"`. The server validates it exactly like the openai provider (catalog ids only, no stays, no repeats, enough days), saves it and returns `provider: "chatgpt"`. An unusable draft falls back to the configured server provider with a `fallbackReason`; any browser-side failure falls back to the normal server path.
-
-**Tokens stay in the browser, by design.** OpenAI's terms allow plan usage only for the signed-in user's own requests, from a runtime that user controls, with access and refresh tokens stored locally under the user's control, not on a server or any shared or managed environment. They are kept in this browser's `localStorage` (key `friday.chatgpt.v1`) and cleared by Disconnect. They are never sent to Friday's server, logged or synced; the server only sees the prompt request and the model's JSON draft. Do not add server-side token storage or use the plan for anything other than this app's own planning.
-
-| Variable | Meaning |
-| --- | --- |
-| `SIWC_CLIENT_ID` | OpenAI-issued client id. Required to enable the feature. Public, not a secret |
-| `SIWC_ISSUER` | Default `https://auth.openai.com`; endpoints come from `<issuer>/.well-known/openid-configuration` (fallback `/authorize`, `/oauth/token`) |
-| `SIWC_SCOPES` | Default `openid profile email offline_access`. The scope that authorizes inference is not assumed here: take its exact name from the client configuration OpenAI issues and add it |
-| `SIWC_MODEL` | Default `gpt-5-mini` |
-| `SIWC_REDIRECT_PATH` | Default `/chatgpt-callback.html`; the redirect URI is `APP_ORIGIN` plus this path (the generated page is `chatgpt-callback.html`) |
-
-**What the owner must do.**
-1. Apply through OpenAI's Sign in with ChatGPT interest form for hosted/commercial apps (currently a limited trial) and obtain a client id.
-2. Register the redirect URI `<APP_ORIGIN>/chatgpt-callback.html` for each environment (production, staging, local).
-3. Set `SIWC_CLIENT_ID` (and `SIWC_SCOPES` as issued) and restart. The Preferences card then appears.
+Only the Claude provider uses it; the local generator is unaffected.
 
 ## Deployment settings
 
@@ -166,6 +143,15 @@ Visitors can sign in with ChatGPT (OpenAI's "Sign in with ChatGPT", OAuth 2.0 Au
 - Saved Google photo links are re-signed each time a record is read, so they do not expire in storage; a shared trip's photos load through `/api/shared/:token/photo/...`.
 - Errors the server did not expect are written to stderr (`console.error`), without request bodies or keys.
 - `npm test` runs `node --test tests/*.test.mjs`; `npm run test:hexclave` runs the same suite with trips on a fake Hexclave vault.
+
+## Scheduled jobs
+
+The host scales to zero, so in-process timers are unreliable. `.github/workflows/scheduled-jobs.yml` wakes the service and calls `POST /api/cron/briefings` (daily 03:30 UTC / 09:00 IST), `/api/cron/quote-digest` (daily 04:00 UTC) and `/api/cron/guide-feedback-digest` (Mondays 03:30 UTC). Each returns a JSON summary and is idempotent per day or week, so retries and manual runs never double-send. The job can also be started from the Actions tab (workflow_dispatch).
+
+The owner must set the same secret in two places:
+
+1. `FRIDAY_CRON_SECRET` (32+ characters) in the Hexclave project secrets. Unset or shorter, the cron routes return 404.
+2. `FRIDAY_CRON_SECRET` as a GitHub repository secret (Settings, Secrets and variables, Actions) with the identical value. The workflow fails early if it is missing.
 
 ## Rebuild the public pages
 

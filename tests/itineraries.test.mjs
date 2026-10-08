@@ -146,11 +146,11 @@ test('the store only accepts minted ids', async (t) => {
 
 test('the itinerary provider is validated at startup, separately from AI_PROVIDER', async (t) => {
   assert.throws(() => createApp({ origin: 'http://localhost:4871', memory: true, env: { ITINERARY_PROVIDER: 'bard' } }), /ITINERARY_PROVIDER/);
-  assert.throws(() => createApp({ origin: 'http://localhost:4871', memory: true, env: { OPENAI_AUTH: 'chatgpt' } }), /OPENAI_AUTH/);
+  assert.throws(() => createApp({ origin: 'http://localhost:4871', memory: true, env: { ITINERARY_PROVIDER: 'gpt' } }), /ITINERARY_PROVIDER/);
   const a = await startApp(t, { env: { ITINERARY_PROVIDER: '' } });
-  const b = await startApp(t, { env: { ITINERARY_PROVIDER: '', OPENAI_API_KEY: 'sk-test' } });
-  const c = await startApp(t, { env: { ITINERARY_PROVIDER: '', OPENAI_API_KEY: 'sk-test', AI_PROVIDER: 'perplexity' } });
+  const b = await startApp(t, { env: { ITINERARY_PROVIDER: '', ANTHROPIC_API_KEY: 'sk-test' } });
+  const c = await startApp(t, { env: { ITINERARY_PROVIDER: '', ANTHROPIC_API_KEY: 'sk-test', AI_PROVIDER: 'perplexity' } });
   assert.equal((await a.request('/api/health')).result.itineraryProvider, 'local');
-  assert.equal((await b.request('/api/health')).result.itineraryProvider, 'openai');
-  assert.equal((await c.request('/api/health')).result.itineraryProvider, 'openai');
+  assert.equal((await b.request('/api/health')).result.itineraryProvider, 'claude');
+  assert.equal((await c.request('/api/health')).result.itineraryProvider, 'claude');
 });
