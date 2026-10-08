@@ -32,7 +32,7 @@ test('chat collects, researches, revises and explicitly hands off the exact revi
 test('unreadable reel requires a distinct explicit fallback; model ambiguity never grants consent',async t=>{
  const {request}=await startApp(t,options());const a=await signUp(request,'Customer');
  const send=message=>request('/api/friday/reel-chat','POST',{conversationId:'fallback',message},{cookie:a.cookie});
- await send('https://instagram.com/reel/unavailable Garden');let r=await send('Generate itinerary');assert.deepEqual(r.result.suggestions,['Use confirmed place']);
+ await send('https://instagram.com/reel/unavailable Garden');let r=await send('Generate itinerary');assert.deepEqual(r.result.suggestions,['Use confirmed place','Match the vibe']);
  assert.equal((await request('/api/friday/drafts','GET',undefined,{cookie:a.cookie})).result.drafts.length,0);
  r=await send('Use confirmed place');assert.equal(r.result.draft.source.status,'user_attested_only');
 });
@@ -40,7 +40,7 @@ test('unreadable reel requires a distinct explicit fallback; model ambiguity nev
 test('draft validator rejects prices, unknown sources, wrong day counts and missing anchor',async t=>{
  for(const mode of ['price','source','days','anchor']){
   const opts=options();const base=opts.reelResearch;opts.reelResearch=async input=>{const r=await base(input);if(mode==='price')r.days[0].items[0].description='100 euros';if(mode==='source')r.days[0].items[0].sourceUrl='https://invented.example';if(mode==='days')r.days.pop();if(mode==='anchor')r.days[0].items[0].title='Something else';return r;};
-  const {request}=await startApp(t,opts);const a=await signUp(request,'Customer');const r=await request('/api/friday/reels','POST',{...brief,url:'https://instagram.com/reel/test',pace:'balanced',destinationConfirmed:true},{cookie:a.cookie});assert.ok(r.status===422||r.status===502,mode);assert.equal((await request('/api/friday/drafts','GET',undefined,{cookie:a.cookie})).result.drafts.length,0);
+  const {request}=await startApp(t,opts);const a=await signUp(request,'Customer');const r=await request('/api/friday/reels','POST',{...brief,url:'https://instagram.com/reel/test',pace:'balanced',destinationConfirmed:true},{cookie:a.cookie});if(mode==='anchor')assert.equal(r.result.needsClarification,true);else assert.ok(r.status===422||r.status===502,mode);assert.equal((await request('/api/friday/drafts','GET',undefined,{cookie:a.cookie})).result.drafts.length,0);
  }
 });
 
@@ -66,41 +66,47 @@ test('a concurrent draft edit invalidates chat approval; scientific uncertainty 
  const r=await second.request('/api/friday/reels','POST',{...brief,url:'https://instagram.com/reel/test',pace:'balanced',destinationConfirmed:true},{cookie:b.cookie});assert.equal(r.result.needsClarification,true);assert.equal(r.result.needsConfirmation,undefined);
 });
 
-import {createReelCoverage} from '../server/reel-coverage.mjs';
-const place=(lat,lon,region='',country='')=>({city:'x',region,country,countryCode:'',lat,lon});
-const baliLookup=async q=>/bali/i.test(q)?[place(-8.4,115.2,'Bali','Indonesia')]:[];
-const baliBrief={placeName:'Uluwatu Temple',destination:'Bali, Indonesia',days:2,travelers:2,startDate:'2027-04-01'};
+const research=(calls,title)=>async input=>{calls.push(input);return {text:'Sourced draft',sources:[{url:source}],questions:[],days:Array.from({length:input.trip.days},(_,i)=>({title:'Day '+(i+1),notes:'Check access.',items:[{title:i===0?title:'Walk '+i,description:'A visit.',sourceUrl:source}]}))};};
+const baliBrief={placeName:'Tegallalang Rice Terraces',destination:'Bali, Indonesia',days:2,travelers:2,startDate:'2027-04-01'};
 
-test('reel coverage maps uncovered places to the closest covered destinations',async()=>{
- let calls=0;const lookups={'bali':[place(-8.4,115.2,'Bali','Indonesia')],'tokyo':[place(35.68,139.7,'Tokyo','Japan')],'munnar':[place(10.09,77.06,'Kerala','India')]};
- const c=createReelCoverage({lookup:async q=>{calls++;return lookups[q.toLowerCase()]||[];}});
- assert.deepEqual((await c.resolve('Bali, Indonesia')).alternatives.map(a=>a.id),['srilanka','kerala']);
- const before=calls;assert.equal((await c.resolve('Udaipur, India')).covered.id,'rajasthan');assert.equal(calls,before);
- assert.equal((await c.resolve('Kyoto, Japan')).covered.id,'kyoto');
- assert.equal((await c.resolve('Tokyo, Japan')).alternatives[0].id,'kyoto');
- assert.equal((await c.resolve('Munnar hills')).covered.id,'kerala');
- const m=createReelCoverage({lookup:async()=>lookups.munnar});assert.equal((await m.resolve('Somewhere, India')).covered.id,'kerala');
- assert.deepEqual(await createReelCoverage({lookup:async()=>[]}).resolve('Nowhere'),{alternatives:[],unknown:true});
-});
-
-test('uncovered reel is rerouted to a covered destination version',async t=>{
- const calls=[];const {request}=await startApp(t,options({reelCoverage:createReelCoverage({lookup:baliLookup}),researchLink:async({url})=>({url,extracted:true,places:[{title:'Uluwatu Temple',sourceUrl:url}],sources:[{url}]}),reelInterpret:async text=>({fields:text.startsWith('https:')?baliBrief:{},edit:false}),reelResearch:async input=>{calls.push(input);return {text:'Sri Lankan equivalents',sources:[{url:source}],questions:[],days:Array.from({length:input.trip.days},(_,i)=>({title:'Day '+(i+1),notes:'Check access.',items:[{title:'Temple '+i,description:'A cliffside visit.',sourceUrl:source}]}))};}}));
+test('a reel from anywhere in the world is planned in its own place',async t=>{
+ const calls=[];const {request}=await startApp(t,options({researchLink:async({url})=>({url,extracted:true,places:[{title:'Tegallalang Rice Terraces',sourceUrl:url}],sources:[{url}]}),reelInterpret:async text=>({fields:text.startsWith('https:')?baliBrief:{},edit:false}),reelResearch:research(calls,'Tegallalang Rice Terraces')}));
  const a=await signUp(request,'Customer');const send=message=>request('/api/friday/reel-chat','POST',{conversationId:'bali',message},{cookie:a.cookie});
- let r=await send('https://instagram.com/reel/bali Uluwatu Temple');
- assert.deepEqual(r.result.suggestions,['Plan a Sri Lanka version','Plan a Kerala version']);assert.match(r.result.text,/doesn't plan trips in Bali, Indonesia/);
- r=await send('Plan a Kerala version');assert.deepEqual(r.result.suggestions,['Generate itinerary']);assert.match(r.result.text,/Kerala version of Uluwatu Temple/);
+ let r=await send('https://instagram.com/reel/bali Tegallalang Rice Terraces');assert.deepEqual(r.result.suggestions,['Generate itinerary']);
  const d=(r=await send('Generate itinerary')).result.draft;
- assert.equal(d.destination,'Kerala');assert.equal(d.inspiredBy.destination,'Bali, Indonesia');assert.equal(d.placeName,'Uluwatu Temple');assert.match(r.result.text,/Kerala version of a Bali, Indonesia reel/);
- assert.equal(calls.length,1);assert.equal(calls[0].trip.destination,'Kerala');assert.match(calls[0].prompt,/Never claim Uluwatu Temple is in Kerala/);
- assert.ok(d.warnings.some(w=>/Kerala version of a reel from Bali/.test(w)));
+ assert.equal(d.destination,'Bali, Indonesia');assert.equal(d.inspiredBy,undefined);assert.equal(calls.length,1);assert.equal(calls[0].trip.destination,'Bali, Indonesia');
 });
 
-test('direct reel planning requires a covered destination and a valid coverId',async t=>{
- const {request}=await startApp(t,options({reelCoverage:createReelCoverage({lookup:baliLookup})}));const a=await signUp(request,'Customer');
- const body={...baliBrief,url:'https://instagram.com/reel/bali',pace:'balanced',destinationConfirmed:true};
- let r=await request('/api/friday/reels','POST',body,{cookie:a.cookie});assert.equal(r.status,200);assert.equal(r.result.needsAlternative,true);assert.deepEqual(r.result.alternatives.map(x=>x.id),['srilanka','kerala']);
+test('unknown place is matched by vibe to any place in the world',async t=>{
+ const calls=[],picks=[];const {request}=await startApp(t,options({reelInterpret:async text=>({fields:text.startsWith('https:')?{days:2,travelers:2,unknownPlace:true,vibe:'terraced coast'}:{},edit:false}),reelPickVibe:async i=>{picks.push(i);return {destination:'Lisbon, Portugal',reason:'Sunny hillside city with sea views.'};},reelResearch:research(calls,'Alfama'),researchLink:async({url})=>({url,extracted:true,title:'Coastal cafe',places:[],sources:[{url}]})}));
+ const a=await signUp(request,'Customer');assert.equal((await request('/api/profile','PATCH',{hotels:'Boutique stays'},{cookie:a.cookie})).status,200);
+ const send=message=>request('/api/friday/reel-chat','POST',{conversationId:'vibe',message},{cookie:a.cookie});
+ let r=await send('https://instagram.com/reel/x I do not know where this is');assert.match(r.result.text,/anywhere in the world with the same vibe/);assert.deepEqual(r.result.suggestions,['Generate itinerary']);
+ r=await send('Generate itinerary');const d=r.result.draft;
+ assert.equal(d.destination,'Lisbon, Portugal');assert.equal(d.inspiredBy.mode,'vibe');assert.equal(calls[0].trip.destination,'Lisbon, Portugal');assert.match(r.result.text,/matched to the reel's vibe/);assert.match(r.result.text,/chosen for a similar vibe|similar vibe/);
+ assert.equal(picks[0].prefs.hotels,'Boutique stays');assert.equal(picks[0].hints.vibe,'terraced coast');assert.ok(d.warnings.some(w=>/couldn't identify/.test(w)));
+});
+
+test('"Match the vibe" works after the place question',async t=>{
+ const calls=[];const {request}=await startApp(t,options({reelInterpret:async text=>({fields:text.startsWith('https:')?{days:2,travelers:2}:{},edit:false}),reelPickVibe:async()=>({destination:'Lisbon, Portugal',reason:'Similar feel.'}),reelResearch:research(calls,'Alfama')}));
+ const a=await signUp(request,'Customer');const send=message=>request('/api/friday/reel-chat','POST',{conversationId:'cmd',message},{cookie:a.cookie});
+ let r=await send('https://instagram.com/reel/x');assert.deepEqual(r.result.suggestions,['Match the vibe']);assert.match(r.result.text,/Match the vibe/);
+ r=await send('Match the vibe');assert.match(r.result.text,/anywhere in the world/);r=await send('Generate itinerary');assert.equal(r.result.draft.destination,'Lisbon, Portugal');
+});
+
+test('an unverifiable anchor asks for clarification or a vibe match and saves nothing',async t=>{
+ const calls=[];const {request}=await startApp(t,options({reelResearch:async i=>{const r=await research(calls,'Something else')(i);return r;}}));const a=await signUp(request,'Customer');
+ const r=await request('/api/friday/reels','POST',{...brief,url:'https://instagram.com/reel/test',pace:'balanced',destinationConfirmed:true},{cookie:a.cookie});
+ assert.equal(r.status,200);assert.equal(r.result.needsClarification,true);assert.equal(r.result.canMatchVibe,true);
  assert.equal((await request('/api/friday/drafts','GET',undefined,{cookie:a.cookie})).result.drafts.length,0);
- assert.equal((await request('/api/friday/reels','POST',{...body,coverId:'atlantis'},{cookie:a.cookie})).status,422);
+ const send=message=>request('/api/friday/reel-chat','POST',{conversationId:'anchor',message},{cookie:a.cookie});
+ await send('https://instagram.com/reel/test Garden');const c=await send('Generate itinerary');assert.deepEqual(c.result.suggestions,['Match the vibe']);assert.match(c.result.text,/Match the vibe/);
+});
+
+test('vibe mode with an unreadable reel and no hints is rejected',async t=>{
+ const {request}=await startApp(t,options({reelPickVibe:async()=>({destination:'Lisbon, Portugal',reason:'x'}),researchLink:async()=>{throw Object.assign(new Error('down'),{status:502});}}));const a=await signUp(request,'Customer');
+ const r=await request('/api/friday/reels','POST',{url:'https://instagram.com/reel/x',days:2,travelers:2,pace:'balanced',matchVibe:true},{cookie:a.cookie});
+ assert.equal(r.status,422);assert.equal((await request('/api/friday/drafts','GET',undefined,{cookie:a.cookie})).result.drafts.length,0);
 });
 
 test('saved traveler preferences reach reel research without notifications',async t=>{

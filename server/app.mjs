@@ -24,7 +24,6 @@ import { resolveTripStorage, createTripStore, VaultError } from './storage/index
 import { validateVillaInput, validateVillaSubmission, publicVilla, adminVilla, privateSubmission, distanceMeters, localVillaPlan } from './villas.mjs';
 import { createFridayWorkflow } from './friday-workflow.mjs';
 import { createReelWorkflow } from './reel-workflow.mjs';
-import { createReelCoverage } from './reel-coverage.mjs';
 import { createHexclaveAuth } from './hexclave/auth.mjs';
 import { createHexclaveEmailService } from './hexclave/email.mjs';
 import { briefingEmail, prepareBriefing } from './briefing.mjs';
@@ -164,8 +163,7 @@ export function createApp(options = {}) {
   const researchLinkFn=options.researchLink||researchLink;
   const friday=createFridayWorkflow({db,store,env,fetch:options.fetch,tripFind:async(id,uid)=>trips.find(id,uid),aiConfig:config,email:emailService});
   const airportLookup=createAirportLookup({fetch:options.airportFetch||globalThis.fetch});
-  const reelCoverage=options.reelCoverage||createReelCoverage({lookup:q=>airportLookup.lookup(q)});
-  const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,coverage:reelCoverage,aiConfig:config,log});
+  const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,pickVibe:options.reelPickVibe,aiConfig:config,log});
   const reelChat=createReelChat({db,reels,friday,email:emailService,env,config,interpret:options.reelInterpret});
   const parseAdminEmails = value => String(value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
   const generalAdminEmails = parseAdminEmails(env.ADMIN_EMAILS);
