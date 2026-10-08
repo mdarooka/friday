@@ -65,3 +65,49 @@ test('a concurrent draft edit invalidates chat approval; scientific uncertainty 
  const second=await startApp(t,options({reelResearch:async()=>({questions:['Which Garden do you mean?'],days:[],sources:[]})}));const b=await signUp(second.request,'Other');
  const r=await second.request('/api/friday/reels','POST',{...brief,url:'https://instagram.com/reel/test',pace:'balanced',destinationConfirmed:true},{cookie:b.cookie});assert.equal(r.result.needsClarification,true);assert.equal(r.result.needsConfirmation,undefined);
 });
+
+import {createReelCoverage} from '../server/reel-coverage.mjs';
+const place=(lat,lon,region='',country='')=>({city:'x',region,country,countryCode:'',lat,lon});
+const baliLookup=async q=>/bali/i.test(q)?[place(-8.4,115.2,'Bali','Indonesia')]:[];
+const baliBrief={placeName:'Uluwatu Temple',destination:'Bali, Indonesia',days:2,travelers:2,startDate:'2027-04-01'};
+
+test('reel coverage maps uncovered places to the closest covered destinations',async()=>{
+ let calls=0;const lookups={'bali':[place(-8.4,115.2,'Bali','Indonesia')],'tokyo':[place(35.68,139.7,'Tokyo','Japan')],'munnar':[place(10.09,77.06,'Kerala','India')]};
+ const c=createReelCoverage({lookup:async q=>{calls++;return lookups[q.toLowerCase()]||[];}});
+ assert.deepEqual((await c.resolve('Bali, Indonesia')).alternatives.map(a=>a.id),['srilanka','kerala']);
+ const before=calls;assert.equal((await c.resolve('Udaipur, India')).covered.id,'rajasthan');assert.equal(calls,before);
+ assert.equal((await c.resolve('Kyoto, Japan')).covered.id,'kyoto');
+ assert.equal((await c.resolve('Tokyo, Japan')).alternatives[0].id,'kyoto');
+ assert.equal((await c.resolve('Munnar hills')).covered.id,'kerala');
+ const m=createReelCoverage({lookup:async()=>lookups.munnar});assert.equal((await m.resolve('Somewhere, India')).covered.id,'kerala');
+ assert.deepEqual(await createReelCoverage({lookup:async()=>[]}).resolve('Nowhere'),{alternatives:[],unknown:true});
+});
+
+test('uncovered reel is rerouted to a covered destination version',async t=>{
+ const calls=[];const {request}=await startApp(t,options({reelCoverage:createReelCoverage({lookup:baliLookup}),researchLink:async({url})=>({url,extracted:true,places:[{title:'Uluwatu Temple',sourceUrl:url}],sources:[{url}]}),reelInterpret:async text=>({fields:text.startsWith('https:')?baliBrief:{},edit:false}),reelResearch:async input=>{calls.push(input);return {text:'Sri Lankan equivalents',sources:[{url:source}],questions:[],days:Array.from({length:input.trip.days},(_,i)=>({title:'Day '+(i+1),notes:'Check access.',items:[{title:'Temple '+i,description:'A cliffside visit.',sourceUrl:source}]}))};}}));
+ const a=await signUp(request,'Customer');const send=message=>request('/api/friday/reel-chat','POST',{conversationId:'bali',message},{cookie:a.cookie});
+ let r=await send('https://instagram.com/reel/bali Uluwatu Temple');
+ assert.deepEqual(r.result.suggestions,['Plan a Sri Lanka version','Plan a Kerala version']);assert.match(r.result.text,/doesn't plan trips in Bali, Indonesia/);
+ r=await send('Plan a Kerala version');assert.deepEqual(r.result.suggestions,['Generate itinerary']);assert.match(r.result.text,/Kerala version of Uluwatu Temple/);
+ const d=(r=await send('Generate itinerary')).result.draft;
+ assert.equal(d.destination,'Kerala');assert.equal(d.inspiredBy.destination,'Bali, Indonesia');assert.equal(d.placeName,'Uluwatu Temple');assert.match(r.result.text,/Kerala version of a Bali, Indonesia reel/);
+ assert.equal(calls.length,1);assert.equal(calls[0].trip.destination,'Kerala');assert.match(calls[0].prompt,/Never claim Uluwatu Temple is in Kerala/);
+ assert.ok(d.warnings.some(w=>/Kerala version of a reel from Bali/.test(w)));
+});
+
+test('direct reel planning requires a covered destination and a valid coverId',async t=>{
+ const {request}=await startApp(t,options({reelCoverage:createReelCoverage({lookup:baliLookup})}));const a=await signUp(request,'Customer');
+ const body={...baliBrief,url:'https://instagram.com/reel/bali',pace:'balanced',destinationConfirmed:true};
+ let r=await request('/api/friday/reels','POST',body,{cookie:a.cookie});assert.equal(r.status,200);assert.equal(r.result.needsAlternative,true);assert.deepEqual(r.result.alternatives.map(x=>x.id),['srilanka','kerala']);
+ assert.equal((await request('/api/friday/drafts','GET',undefined,{cookie:a.cookie})).result.drafts.length,0);
+ assert.equal((await request('/api/friday/reels','POST',{...body,coverId:'atlantis'},{cookie:a.cookie})).status,422);
+});
+
+test('saved traveler preferences reach reel research without notifications',async t=>{
+ const calls=[];const base=options().reelResearch;const {request}=await startApp(t,options({reelResearch:async i=>{calls.push(i);return base(i);}}));const a=await signUp(request,'Customer');
+ assert.equal((await request('/api/profile','PATCH',{hotels:'Boutique heritage stays',other:'Vegetarian',notifications:'weekly'},{cookie:a.cookie})).status,200);
+ const send=message=>request('/api/friday/reel-chat','POST',{conversationId:'prefs',message},{cookie:a.cookie});
+ await send('https://instagram.com/reel/test Garden');assert.equal((await send('Generate itinerary')).status,200);
+ const p=calls[0].profile;assert.equal(p.hotels,'Boutique heritage stays');assert.equal(p.other,'Vegetarian');assert.equal('notifications' in p,false);assert.equal('onboarded' in p,false);
+ assert.match(calls[0].prompt,/Boutique heritage stays/);assert.match(calls[0].prompt,/never state amounts or prices/);
+});

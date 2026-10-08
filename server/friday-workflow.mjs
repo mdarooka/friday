@@ -46,7 +46,7 @@ async function bookingFacts(store, db, ownerId, scope) {
   });
 }
 
-export function reelText(d){return [`Reel: ${d.source?.url||''} (${d.source?.status==='public_post_cited'?'Public post cited; video not independently verified':'Based on traveler-confirmed place'})`,...(d.days||[]).map((day,i)=>`Day ${i+1}: ${day.title} ${day.date||''}\n${day.notes||''}\n${(day.items||[]).map(it=>`• ${it.title} — ${it.description||''}\n  Source: ${it.sourceUrl||''}`).join('\n')}`),...(d.warnings||[]),`Traveler changes: ${d.instructions||'None'}`].join('\n\n');}
+export function reelText(d){return [...(d.inspiredBy?[`Note: this is a ${d.destination} version of a reel from ${d.inspiredBy.destination} (${d.inspiredBy.placeName}), which Friday does not cover.`]:[]),`Reel: ${d.source?.url||''} (${d.source?.status==='public_post_cited'?'Public post cited; video not independently verified':'Based on traveler-confirmed place'})`,...(d.days||[]).map((day,i)=>`Day ${i+1}: ${day.title} ${day.date||''}\n${day.notes||''}\n${(day.items||[]).map(it=>`• ${it.title} — ${it.description||''}\n  Source: ${it.sourceUrl||''}`).join('\n')}`),...(d.warnings||[]),`Traveler changes: ${d.instructions||'None'}`].join('\n\n');}
 
 export function createFridayWorkflow({db,store,env=process.env,fetch:fetcher=fetch,tripFind,aiConfig={},email}) {
   const getDraft=async(id,owner)=>{const r=await store.getFridayDraft(db,id,owner);return r&&{id:r.id,version:r.version,...JSON.parse(r.data),createdAt:r.created,updatedAt:r.updated};};
