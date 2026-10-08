@@ -1081,7 +1081,7 @@
      router
      ====================================================================== */
 
-  const PAGE_OF = { home: 'home', new: 'new', bookings: 'bookings', saved: 'saved', notifications: 'notifications', preferences: 'preferences', trip: 'trip' };
+  const PAGE_OF = { home: 'home', new: 'new', trips: 'trips', bookings: 'bookings', saved: 'saved', notifications: 'notifications', preferences: 'preferences', trip: 'trip' };
   let route = { name: 'home', id: null };
   let appliedKey = null;
 
@@ -1090,7 +1090,7 @@
     if (!h) h = '/';
     const m = /^\/trip\/([^/]+)$/.exec(h);
     if (m) { let id = m[1]; try { id = decodeURIComponent(id); } catch (e) { /* keep raw */ } return { name: 'trip', id }; }
-    const name = { '/': 'home', '/new': 'new', '/bookings': 'bookings', '/saved': 'saved', '/notifications': 'notifications', '/preferences': 'preferences' }[h];
+    const name = { '/': 'home', '/new': 'new', '/trips': 'trips', '/bookings': 'bookings', '/saved': 'saved', '/notifications': 'notifications', '/preferences': 'preferences' }[h];
     return { name: name || 'home', id: null };
   }
   const keyOf = (r) => r.name + (r.id ? '/' + r.id : '');
@@ -1147,7 +1147,7 @@
       doc.title = (t ? t.title : 'Trip') + ' · Friday';
       if (FT.workspace && typeof FT.workspace.open === 'function') { try { FT.workspace.open(r.id); } catch (e) { console.error(e); } }
     } else {
-      const TITLES = { new: 'New trip', bookings: 'Bookings', saved: 'Saved', notifications: 'Notifications', preferences: 'Preferences' };
+      const TITLES = { new: 'New trip', trips: 'My trips', bookings: 'Bookings', saved: 'Saved', notifications: 'Notifications', preferences: 'Preferences' };
       doc.title = TITLES[pageName] ? TITLES[pageName] + ' \u00B7 Friday' : 'Plan a trip \u00B7 Friday';
     }
     renderSidebar(true);
@@ -1162,10 +1162,11 @@
   let drawerOpen = false;
   let lastSideSig = '';
 
+  const titleCity = (v) => (FT.titleCity ? FT.titleCity(v) : String(v || ''));
   const homeLabel = () => {
     const p = state.prefs;
     const ap = (p.airports || []).join(', ');
-    return p.homeCity ? p.homeCity + (ap ? ' · ' + ap : '') : ap || 'Set your home city';
+    return p.homeCity ? titleCity(p.homeCity) + (ap ? ' · ' + ap : '') : ap || 'Set your home city';
   };
 
   function syncFrame() {
@@ -1206,15 +1207,16 @@
     const on = (n) => route.name === n || (n === 'home' && route.name === 'home');
     const scrollTop = ($('.fx-side__scroll', side) || {}).scrollTop || 0;
 
-    const startView = route.name === 'new' || (route.name === 'home' && !trips.length);
+    const startView = route.name === 'new' || (route.name === 'home' && !trips.length) || (route.name === 'trips' && !trips.length);
+    const onTrips = route.name === 'trips';
     if (startView) {
       const row = (href, label, glyph, active) => '<a class="fx-start-side__link' + (active ? ' is-active' : '') + '" href="' + href + '"' + (active ? ' aria-current="page"' : '') + '>' + icon(glyph, 22) + '<span>' + label + '</span></a>';
       side.innerHTML =
         '<div class="fx-side__in fx-side__in--start">' +
         '<button class="sr fx-start-side__collapse" type="button" data-act="toggle-side" aria-label="Collapse sidebar">' + icon('sidebar', 18) + '</button>' +
         '<nav class="fx-start-side" aria-label="Planner navigation">' +
-        row('#/new', 'New trip', 'suitcase', true) +
-        row('#/', 'My trips', 'map', false) +
+        row('#/new', 'New trip', 'suitcase', !onTrips) +
+        row('#/trips', 'My trips', 'map', onTrips) +
         row('#/saved', 'Saved places', 'heart', false) +
         row('#/bookings', 'Bookings', 'calendar', false) +
         '</nav>' +
@@ -1341,43 +1343,6 @@
   }
   FT.placeModal = placeModal;
 
-  function homeCityModal() {
-    const p = state.prefs;
-    const body = doc.createElement('div');
-    body.className = 'fx-form';
-    body.innerHTML =
-      '<div class="fx-field"><label class="fx-label" for="hc-city">Home city</label><input class="fx-input" id="hc-city" maxlength="60" autocomplete="off" value="' + esc(p.homeCity) + '" placeholder="Enter a city"></div>' +
-      '<div class="fx-field"><label class="fx-label" for="hc-air">Airports</label><input class="fx-input" id="hc-air" maxlength="40" autocomplete="off" value="' + esc((p.airports || []).join(', ')) + '" placeholder="BOM, PNQ">' +
-      '<p class="fx-hint">Three-letter IATA codes, separated by commas.</p></div><p class="fx-error" role="alert" hidden></p>';
-    const city = $('#hc-city', body);
-    const air = $('#hc-air', body);
-    const err = $('.fx-error', body);
-    air.addEventListener('input', () => { const s = air.selectionStart; air.value = air.value.toUpperCase(); try { air.setSelectionRange(s, s); } catch (e) { /* ignore */ } });
-    modal({
-      title: 'Home city',
-      body,
-      actions: [
-        { label: 'Cancel' },
-        {
-          label: 'Save', primary: true,
-          onClick: (close) => {
-            const c = city.value.trim();
-            const codes = air.value.split(/[,\s]+/).filter(Boolean).map((x) => x.toUpperCase());
-            const fail = (m, f) => { err.textContent = m; err.hidden = false; f.focus(); };
-            if (!c) return fail('Add your home city.', city);
-            if (codes.some((x) => !/^[A-Z]{3}$/.test(x))) return fail('Airport codes are three letters, separated by commas, for example BOM, PNQ.', air);
-            store.update((s) => {
-              s.prefs.homeCity = c;
-              s.prefs.airports = codes.filter((x, i, a) => a.indexOf(x) === i);
-              s.notifications.forEach((n) => { if (n.kind === 'home-city') n.done = true; });
-            });
-            close();
-            toast('Home city saved');
-          },
-        },
-      ],
-    });
-  }
   FT.homeCityModal = homeCityModal;
 
   function pageHead(title, right) {
@@ -1387,6 +1352,22 @@
   /* ======================================================================
      page: New trip (also Home when there are no trips)
      ====================================================================== */
+
+  /* One document-level listener (registered once, so re-renders never stack handlers): a click outside an open
+     "Friday remembers" panel, or Escape, closes it. Escape also returns focus to the summary. */
+  function wireMemoryDisclosure() {
+    doc.addEventListener('click', (e) => {
+      $$('.fx-new__memory[open]').forEach((d) => { if (!d.contains(e.target)) d.open = false; });
+    });
+    doc.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const d = $('.fx-new__memory[open]');
+      if (!d) return;
+      d.open = false;
+      const sum = $('summary', d);
+      if (sum) sum.focus();
+    });
+  }
 
   pages.new = {
     render() {
@@ -1404,7 +1385,7 @@
         const choices = remembered.length
           ? '<p class="fx-memory__intro">Keep the notes that should shape this trip. Turn off anything that does not fit.</p><fieldset class="fx-memory__choices"><legend class="fx-memory__legend">Choose this trip’s notes</legend>' + remembered.map((item, index) => '<label class="fx-memory__choice" for="fx-memory-' + index + '"><input id="fx-memory-' + index + '" type="checkbox" data-memory-pick="' + esc(item.key) + '" checked><span class="fx-memory__value"><span class="fx-memory__kind">' + esc(item.label) + '</span><span>' + esc(item.text) + '</span></span></label>').join('') + '</fieldset>'
           : '<div class="fx-memory__empty"><strong>' + esc(blankTitle) + '</strong><p>' + esc(blankCopy) + '</p></div>';
-        return '<details class="fx-new__memory"><summary><span class="fx-memory__mark" aria-hidden="true"></span><span class="fx-memory__summary"><span class="fx-memory__title">Friday remembers</span><span class="fx-memory__line" data-memory-summary aria-live="polite">' + esc(selectedSummary) + '</span></span><span class="fx-memory__chevron" aria-hidden="true">⌄</span></summary><div class="fx-memory__panel">' + choices + '<button class="fx-btn fx-btn--line fx-memory__done" type="button" data-memory-done>Done choosing</button><a class="fx-memory__manage" href="#/preferences">Edit preferences or forget a memory</a><p class="fx-memory__privacy">Only checked notes shape this trip. They reach a travel designer only if you ask Friday for a quote.</p></div></details>';
+        return '<details class="fx-new__memory"><summary><span class="fx-memory__mark" aria-hidden="true"></span><span class="fx-memory__summary"><span class="fx-memory__title">Friday remembers</span><span class="fx-memory__line" data-memory-summary aria-live="polite">' + esc(selectedSummary) + '</span></span><span class="fx-memory__chevron" aria-hidden="true">' + icon('chevron-down', 16) + '</span></summary><div class="fx-memory__panel">' + choices + '<button class="fx-btn fx-btn--line fx-memory__done" type="button" data-memory-done>Done choosing</button><a class="fx-memory__manage" href="#/preferences">Edit preferences or forget a memory</a><p class="fx-memory__privacy">Only checked notes shape this trip. They reach a travel designer only if you ask Friday for a quote.</p></div></details>';
       };
       el.innerHTML =
         '<div class="fx-new"><div class="fx-new__in">' +
@@ -1642,6 +1623,29 @@
       }
     },
   };
+
+  /* ======================================================================
+     page: My trips (every trip, newest first)
+     ====================================================================== */
+
+  pages.trips = {
+    render() {
+      const el = pageEl('trips');
+      const trips = sortedTrips();
+      const add = '<a class="fx-btn fx-btn--ink" href="#/new">' + icon('plus', 16) + '<span>New trip</span></a>';
+      if (!trips.length) {
+        el.innerHTML = '<div class="fx-wrap">' + pageHead('My trips', add) + '<div class="fx-empty">' + SUITCASE + '<h2 class="fx-empty__t">No trips yet</h2><p class="fx-empty__d">Tell Friday where you want to go and your first plan will appear here.</p>' +
+          '<a class="fx-btn fx-btn--ink" href="#/new">Plan a trip</a></div></div>';
+        return;
+      }
+      el.innerHTML = '<div class="fx-wrap">' + pageHead('My trips', add) + '<ul class="fx-recent">' + trips.map((t) =>
+        '<li><button class="fx-recent__row" type="button" data-trip="' + esc(t.id) + '"><span class="fx-recent__ic">' + icon('map', 22) + '</span><span class="fx-recent__tx"><span class="fx-recent__t">' + esc(t.title) + '<em>' + esc(timeAgo(t.updatedAt)) + '</em></span><span class="fx-recent__s">' + esc(tripRangeLabel(t)) + '</span></span></button></li>').join('') + '</ul></div>';
+    },
+  };
+
+  function wireTrips() {
+    delegate(pageEl('trips'), 'click', '[data-trip]', (e, b) => router.go('#/trip/' + b.dataset.trip));
+  }
 
   function wireHome() {
     const el = pageEl('home');
@@ -1903,7 +1907,7 @@
   function wireNotifs() {
     const el = pageEl('notifications');
     delegate(el, 'click', '[data-act="fare-watches"]', () => { if (FT.integrations) FT.integrations.openFareWatches(); });
-    delegate(el, 'click', '[data-act="home-city"]', homeCityModal);
+    delegate(el, 'click', '[data-act="home-city"]', () => homeCityModal({ force: true }));
     delegate(el, 'click', '[data-act="open-trip"]', (e, b) => {
       const n = state.notifications.find((x) => x.id === b.dataset.id);
       if (!n) return;
@@ -1939,7 +1943,7 @@
       }).join('');
       const mem = state.memory.slice().sort((a, b) => (b.at || '').localeCompare(a.at || ''));
       el.innerHTML = '<div class="fx-wrap"><div class="fx-prefs"><aside class="fx-prefs__side"><h1 class="fx-h1">Your preferences</h1>' +
-        '<p class="fx-prefs__line">' + icon('home', 18) + '<span>' + (p.homeCity ? esc(p.homeCity) : '<span class="fx-muted">No home city yet</span>') + '</span></p>' +
+        '<p class="fx-prefs__line">' + icon('home', 18) + '<span>' + (p.homeCity ? esc(titleCity(p.homeCity)) : '<span class="fx-muted">No home city yet</span>') + '</span></p>' +
         '<p class="fx-prefs__line">' + icon('plane', 18) + (chips || '<span class="fx-muted">No airports yet</span>') + '</p>' +
         '<button class="fx-btn fx-btn--line" type="button" data-act="home-city">Edit</button></aside>' +
         '<div class="fx-prefs__main"><section aria-labelledby="fx-tp-h"><div class="fx-prefs__head"><h2 class="fx-h2" id="fx-tp-h">Travel preferences</h2>' +
@@ -1999,7 +2003,7 @@
           FT.backend.createDeletionRequest().then(() => { toast('Deletion request sent. You can see its status here.'); refreshPrivacyRequestStatus(el); }).catch((error) => toast(error.message || 'Could not submit your request.')).finally(() => { b.disabled = false; });
         });
       }
-      else if (a === 'home-city') homeCityModal();
+      else if (a === 'home-city') homeCityModal({ force: true });
       else if (a === 'chatgpt-connect') {
         b.disabled = true;
         FT.chatgpt.connect().then(() => toast('ChatGPT connected'), (err) => { if (!err || err.code !== 'cancelled') toast('Could not connect ChatGPT'); }).then(() => { if (route.name === 'preferences' && !prefsEditing) pages.preferences.render(); });
@@ -2147,17 +2151,126 @@
     });
     draw();
   }
-  function homeCityModal() {
-    const user=FT.backend && FT.backend.user; if (!user || user.profile?.onboarded) return;
-    let city=user.profile?.city||user.profile?.homeCity||'', airports=[...(user.profile?.airports||[])], timer;
-    function chips(){const el=doc.querySelector('[data-home-airports]');if(el)el.innerHTML=airports.map((code)=>'<button type="button" class="fx-chip" data-remove-airport="'+esc(code)+'" aria-label="Remove '+esc(code)+' airport">'+esc(code)+' <span aria-hidden="true">×</span></button>').join('')||'<p class="fx-hint">No departure airports selected.</p>';}
-    const body=doc.createElement('div');
-    body.innerHTML='<p class="fx-hint">Your home city helps Friday suggest nearby departure airports. Remove any you prefer to avoid.</p><div class="fx-field"><label class="fx-label" for="home-city">Home city</label><input class="fx-input" id="home-city" value="'+esc(city)+'" autocomplete="address-level2"></div><div data-city-suggestions></div><div class="fx-field" data-home-airports></div>';
-    const modal=FT.ui.modal({title:'Where are you based?',body,actions:[{label:'Save location',primary:true,onClick:async(close)=>{const value=$('#home-city',body).value.trim();if(!value)return;try{await FT.backend.saveProfile({city:value,airports});store.update((s)=>{s.prefs.homeCity=value;s.prefs.airports=airports.slice();s.notifications=(s.notifications||[]).filter((n)=>n.kind!=='home-city');});close();}catch(err){const note=$('[data-city-suggestions]',body);note.textContent=err.message;}}}]});
-    chips();
-    body.addEventListener('click',async(e)=>{const rm=e.target.closest('[data-remove-airport]');if(rm){airports=airports.filter((a)=>a!==rm.dataset.removeAirport);chips();return;}const choose=e.target.closest('[data-city]');if(choose){city=choose.dataset.city;$('#home-city',body).value=city;airports=JSON.parse(choose.dataset.airports);chips();}});
-    $('#home-city',body).addEventListener('input',()=>{clearTimeout(timer);const q=$('#home-city',body).value.trim();airports=[];chips();if(q.length<2)return;timer=setTimeout(async()=>{try{const metros=await FT.backend.airports(q);if($('#home-city',body).value.trim()!==q)return;const exact=(metros||[]).find((m)=>[m.city].concat(m.aliases||[]).some((x)=>String(x).toLowerCase()===q.toLowerCase()));const box=$('[data-city-suggestions]',body);if(exact){city=exact.city;airports=(exact.airports||[]).slice();chips();box.innerHTML='<p class="fx-hint">Nearby airports · remove any you prefer to avoid.</p>';return;}box.innerHTML=(metros||[]).map((m)=>'<button type="button" class="fx-link" data-city="'+esc(m.city)+'" data-airports="'+esc(JSON.stringify(m.airports||[]))+'">'+esc(m.city)+' · '+esc((m.airports||[]).join(', '))+'</button>').join('')||'<p class="fx-hint">No nearby airport group found yet. You can still save your city.</p>';}catch(err){$('[data-city-suggestions]',body).textContent=err.message;}},250);});
-    return modal;
+  /* Home city + departure airports. Cities are resolved by the server (geocoder + OurAirports dataset); airports within 80 km
+     are suggested as removable chips, and any airport can be added through search. Cities with no airport nearby must pick one.
+     Called at boot for new accounts (skips onboarded users) and from Preferences with { force: true }. */
+  function homeCityModal(opts) {
+    const user = FT.backend && FT.backend.user;
+    if (!user || (user.profile?.onboarded && !(opts && opts.force))) return;
+    const MAX_AIRPORTS = 6;
+    let airports = [...(user.profile?.airports || [])], places = [], selected = null, looked = false, cityTimer, airTimer, airResults = [], seq = 0, airSeq = 0;
+    const info = {}; // code -> { name, city } for chip tooltips and suggestions
+    const remember = (a) => { if (a && a.code) info[a.code] = a; };
+    const body = doc.createElement('div');
+    body.innerHTML =
+      '<p class="fx-hint">Your home city helps Friday suggest nearby departure airports. Remove any you prefer to avoid.</p>' +
+      '<div class="fx-field"><label class="fx-label" for="home-city">Home city</label><input class="fx-input" id="home-city" maxlength="80" value="' + esc(titleCity(user.profile?.city || user.profile?.homeCity || '')) + '" autocomplete="off"></div>' +
+      '<div data-city-suggestions></div><div class="fx-field" data-home-airports></div>' +
+      '<div data-airport-needed></div>' +
+      '<div class="fx-field"><label class="fx-label" for="home-airport-search">Add another airport</label><input class="fx-input" id="home-airport-search" maxlength="80" autocomplete="off" placeholder="City, airport name or code"></div>' +
+      '<div data-airport-results></div><p class="fx-error" role="alert" data-home-error hidden></p>';
+    const cityInput = $('#home-city', body), searchInput = $('#home-airport-search', body), errEl = $('[data-home-error]', body);
+    const placeText = (pl) => [pl.city, pl.region, pl.country].filter(Boolean).join(', ') + (pl.airports && pl.airports.length ? ' · ' + pl.airports.map((a) => a.code).join(', ') : '');
+    const airportText = (a) => a.code + ' · ' + a.name + (a.city ? ' · ' + a.city : '') + (a.km !== undefined ? ' · ' + a.km + ' km' : '');
+    const showError = (m) => { errEl.textContent = m || ''; errEl.hidden = !m; };
+
+    function drawChips() {
+      $('[data-home-airports]', body).innerHTML = airports.map((code) => '<button type="button" class="fx-chip" data-remove-airport="' + esc(code) + '" title="' + esc(info[code] ? info[code].name : code) + '" aria-label="Remove ' + esc(code) + ' airport">' + esc(code) + ' <span aria-hidden="true">×</span></button>').join('') || '<p class="fx-hint">No departure airports selected.</p>';
+    }
+    function drawPlaces() {
+      const box = $('[data-city-suggestions]', body);
+      if (!places.length) { box.innerHTML = ''; return; }
+      box.innerHTML = (selected ? '' : '<p class="fx-hint">Choose your city.</p>') + places.map((pl, i) => '<div><button type="button" class="fx-link" data-place-index="' + i + '"' + (pl === selected ? ' aria-pressed="true"' : '') + '>' + (pl === selected ? '<strong>' + esc(placeText(pl)) + '</strong>' : esc(placeText(pl))) + '</button></div>').join('');
+    }
+    function drawNeeded() {
+      const box = $('[data-airport-needed]', body);
+      if (!selected && cityInput.value.trim().length >= 2 && !places.length && !airports.length && looked) { box.innerHTML = '<p class="fx-hint">Friday could not find airports for this city. Which airport do you usually fly from? Search for it below.</p>'; return; }
+      if (!selected || !selected.needsAirport) { box.innerHTML = ''; return; }
+      box.innerHTML = '<p class="fx-hint">No airport in ' + esc(selected.city) + '. Which airport do you usually fly from?</p>' +
+        (selected.nearest || []).map((a) => '<div><button type="button" class="fx-link" data-add-airport="' + esc(a.code) + '">' + esc(airportText(a)) + '</button></div>').join('');
+    }
+    function drawResults() {
+      $('[data-airport-results]', body).innerHTML = airResults.map((a) => '<div><button type="button" class="fx-link" data-add-airport="' + esc(a.code) + '">' + esc(airportText(a)) + '</button></div>').join('');
+    }
+    function select(pl) {
+      selected = pl;
+      (pl.airports || []).concat(pl.nearest || []).forEach(remember);
+      airports = (pl.airports || []).map((a) => a.code);
+      showError('');
+      drawPlaces(); drawChips(); drawNeeded();
+    }
+    function addAirport(code) {
+      if (airports.includes(code)) { showError(''); return; }
+      if (airports.length >= MAX_AIRPORTS) { showError('You can keep up to ' + MAX_AIRPORTS + ' airports. Remove one first.'); return; }
+      airports.push(code); showError(''); drawChips(); drawNeeded();
+    }
+
+    const dlg = modal({
+      title: 'Where are you based?', body,
+      actions: [{
+        label: 'Save location', primary: true,
+        onClick: async (close) => {
+          const typed = cityInput.value.trim();
+          if (!typed) { showError('Enter your home city.'); cityInput.focus(); return; }
+          if (!selected && places.length) {
+            const exact = places.find((pl) => pl.city.toLowerCase() === typed.toLowerCase());
+            if (exact || places.length === 1) select(exact || places[0]);
+            else { showError('Choose your city from the suggestions above.'); return; }
+          }
+          if ((!selected || selected.needsAirport) && !airports.length) { showError('Choose the airport you usually fly from before saving.'); searchInput.focus(); return; }
+          const city = selected ? selected.city : titleCity(typed);
+          try {
+            const saved = await FT.backend.saveProfile({ city, airports });
+            const finalCity = (saved && saved.profile && saved.profile.city) || city;
+            const finalAirports = (saved && saved.profile && saved.profile.airports) || airports;
+            store.update((s) => { s.prefs.homeCity = finalCity; s.prefs.airports = finalAirports.slice(); s.notifications = (s.notifications || []).filter((n) => n.kind !== 'home-city'); });
+            close();
+          } catch (err) { showError(err.message || 'Could not save your location.'); }
+        },
+      }],
+    });
+    drawChips();
+
+    body.addEventListener('click', (e) => {
+      const rm = e.target.closest('[data-remove-airport]');
+      if (rm) { airports = airports.filter((a) => a !== rm.dataset.removeAirport); drawChips(); return; }
+      const pick = e.target.closest('[data-place-index]');
+      if (pick) { const pl = places[+pick.dataset.placeIndex]; if (pl) { cityInput.value = pl.city; select(pl); } return; }
+      const add = e.target.closest('[data-add-airport]');
+      if (add) { addAirport(add.dataset.addAirport); }
+    });
+    cityInput.addEventListener('input', () => {
+      clearTimeout(cityTimer);
+      const q = cityInput.value.trim();
+      selected = null; airports = []; places = []; looked = false; showError('');
+      drawPlaces(); drawChips(); drawNeeded();
+      if (q.length < 2) return;
+      cityTimer = setTimeout(async () => {
+        const mine = ++seq;
+        try {
+          const found = await FT.backend.airports(q);
+          if (mine !== seq || cityInput.value.trim() !== q) return;
+          places = found || []; looked = true;
+          const top = places[0];
+          if (top && top.city.toLowerCase() === q.toLowerCase()) select(top); else { drawPlaces(); drawNeeded(); }
+        } catch (err) { if (mine === seq) showError('Could not look up airports. You can still search for one below.'); }
+      }, 300);
+    });
+    searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); } });
+    searchInput.addEventListener('input', () => {
+      clearTimeout(airTimer);
+      const q = searchInput.value.trim();
+      if (q.length < 2) { airResults = []; drawResults(); return; }
+      airTimer = setTimeout(async () => {
+        const mine = ++airSeq;
+        try {
+          const found = await FT.backend.searchAirports(q);
+          if (mine !== airSeq || searchInput.value.trim() !== q) return;
+          airResults = found || []; airResults.forEach(remember); drawResults();
+        } catch (err) { if (mine === airSeq) showError('Could not search airports right now.'); }
+      }, 300);
+    });
+    return dlg;
   }
   function sharedTripView(main, trip, shareToken) {
     store.replaceState(defaults(), { persist: false });
@@ -2269,7 +2382,7 @@
 
     // 1. restore state (done at load), 2. sidebar, 3. workspace, 4. route
     if (FT.workspace) doc.body.classList.add('fx-ws'); // the workspace brings its own sidebar button on the trip route
-    wireSidebar(); wireHome(); wireBookings(); wireSaved(); wireNotifs(); wirePrefs();
+    wireSidebar(); wireHome(); wireTrips(); wireMemoryDisclosure(); wireBookings(); wireSaved(); wireNotifs(); wirePrefs();
     renderSidebar(true);
     syncFrame();
     if (FT.workspace && typeof FT.workspace.mount === 'function') {

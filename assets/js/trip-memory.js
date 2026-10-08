@@ -2,11 +2,17 @@
 (function () {
   'use strict';
   var FT = window.FridayTrip = window.FridayTrip || {};
+  /* Display-time city capitalisation ("mumbai" -> "Mumbai"); words that already mix cases ("McAllen") are kept. Mirrors server/airports.mjs. */
+  FT.titleCity = function (value) {
+    return String(value == null ? '' : value).trim().replace(/\s+/g, ' ').split(' ').map(function (w) {
+      return /[a-z][A-Z]/.test(w) ? w : w.toLowerCase().replace(/(^|[\-'\u2019.(\/])(\p{L})/gu, function (m, sep, ch) { return sep + ch.toUpperCase(); });
+    }).join(' ');
+  };
   function list(state) {
     state = state || {};
     var prefs = state.prefs || {};
     var profile = [
-      ['Home city', prefs.homeCity], ['Departure airports', Array.isArray(prefs.airports) ? prefs.airports.join(', ') : ''],
+      ['Home city', FT.titleCity(prefs.homeCity)], ['Departure airports', Array.isArray(prefs.airports) ? prefs.airports.join(', ') : ''],
       ['Airlines', prefs.airlines], ['Airlines to avoid', prefs.avoidAirlines], ['Hotels', prefs.hotels], ['Hotel budget', prefs.hotelBudget],
       ['Business travel', prefs.business], ['Other preferences', prefs.other],
     ].filter(function (item) { return String(item[1] || '').trim(); }).map(function (item, index) {

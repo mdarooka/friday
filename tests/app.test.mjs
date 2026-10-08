@@ -5,7 +5,7 @@ import { createApp } from '../server/app.mjs';
 import { vaultModeOptions } from './fake-vault.mjs';
 const origin='http://localhost:4871';
 async function fixture(t,options={}) {
-  const server=createApp({memory:true,origin,...options,...vaultModeOptions(options)});
+  const server=createApp({memory:true,origin,airportFetch:async()=>{throw new Error('geocoder disabled in tests');},...options,...vaultModeOptions(options)});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
   t.after(async()=>{await new Promise(resolve=>server.close(resolve));});
@@ -24,7 +24,8 @@ test('signup, airport exclusions, persistent login and logout',async t=>{
   assert.equal(a.result.user.profile.onboarded,undefined);
   const profile=await request('/api/profile','PATCH',{city:'San Francisco',airports:['SFO','SJC']},a.cookie);
   assert.equal(profile.status,200);assert.deepEqual(profile.result.user.profile.airports,['SFO','SJC']);
-  assert.equal((await request('/api/profile','PATCH',{airports:['JFK']},a.cookie)).status,422);
+  assert.equal((await request('/api/profile','PATCH',{airports:['ZZZ']},a.cookie)).status,422);
+  assert.equal((await request('/api/profile','PATCH',{airports:['JFK']},a.cookie)).status,200);
   assert.equal((await request('/api/profile','PATCH',{airports:[]},a.cookie)).status,200);
   const me=await request('/api/auth/me','GET',undefined,a.cookie);assert.deepEqual(me.result.user.profile.airports,[]);
   await request('/api/auth/logout','POST',{},a.cookie);

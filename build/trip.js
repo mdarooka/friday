@@ -97,6 +97,7 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
   <main class="fx-main" data-main>
     <section class="fx-page" data-page="home" hidden></section>
     <section class="fx-page" data-page="new" hidden></section>
+    <section class="fx-page" data-page="trips" hidden></section>
     <section class="fx-page" data-page="bookings" hidden></section>
     <section class="fx-page" data-page="saved" hidden></section>
     <section class="fx-page" data-page="notifications" hidden></section>
