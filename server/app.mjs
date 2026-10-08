@@ -343,7 +343,9 @@ export function createApp(options = {}) {
           const meta=shared||(relative==='trip.html'?socialMeta.destinationMeta(url.searchParams.get('destination'),origin):null);
           if(meta) content=Buffer.from(socialMeta.injectSocialMeta(content.toString('utf8'),meta,shareFallback));
         }
-        res.writeHead(200,{'Content-Type':types[path.extname(full)]+'; charset=utf-8'}); res.end(method==='HEAD'?undefined:content);return;
+        // Photographs are large and rarely change: let browsers and CDNs keep them for a day (file names are not hashed, so no longer).
+        const cacheControl=/^assets\/images\/[^/]+\.(jpg|jpeg|png|webp)$/.test(relative)?{'Cache-Control':'public, max-age=86400'}:{};
+        res.writeHead(200,{'Content-Type':types[path.extname(full)]+'; charset=utf-8',...cacheControl}); res.end(method==='HEAD'?undefined:content);return;
       }
       rate('api:'+ip,240);
       /* Liveness does not touch the database, so the container stays healthy while a scaled-to-zero database service wakes up. */

@@ -37,6 +37,37 @@ function Plate(seed, opts = {}) {
   })}</div>`;
 }
 
+/* ---------------------------------------------------------------- photographs
+ * Real photographs live in assets/images/<base>-<width>.jpg (one file per width) and are credited in
+ * assets/images/CREDITS.md. Photo() wraps one in the same .plate frame the generated prints use, with the
+ * .plate--photo modifier that switches off the grain/halftone overlays; the <img> keeps the plate__svg class so
+ * the existing sizing, hover and hero drift rules apply unchanged. PhotoPreload() returns the matching
+ * <link rel="preload"> for a page's head (pass it as `extraHead`) when the photo is the first thing painted. */
+function photoSources(base, widths) {
+  const sorted = [...widths].sort((a, b) => a - b);
+  const file = (w) => `assets/images/${base}-${w}.jpg`;
+  /* The fallback src (browsers without srcset support) is the 1920 file, or the largest below it. */
+  const fallback = sorted.filter((w) => w <= 1920).pop() || sorted[0];
+  return { src: file(fallback), srcset: sorted.map((w) => `${file(w)} ${w}w`).join(', ') };
+}
+
+/** A credited photograph in a plate frame. `width`/`height` are the pixel size of the largest file. */
+function Photo({ base, widths, alt = '', width, height, sizes = '100vw', position = '50% 50%', fill = false, ratio, priority = false, class: extra }) {
+  const { src, srcset } = photoSources(base, widths);
+  const cls = ['plate', 'plate--photo'];
+  if (ratio) cls.push(`plate--ratio-${ratio}`);
+  if (fill) cls.push('plate--fill');
+  if (extra) cls.push(extra);
+  const loading = priority ? 'fetchpriority="high" decoding="async"' : 'loading="lazy" decoding="async"';
+  return `<div class="${cls.join(' ')}"><img class="plate__svg" src="${src}" srcset="${srcset}" sizes="${esc(sizes)}" alt="${esc(alt)}" width="${width}" height="${height}" ${loading} style="object-position:${esc(position)}"></div>`;
+}
+
+/** <link rel="preload"> for a Photo() that is above the fold. */
+function PhotoPreload({ base, widths, sizes = '100vw' }) {
+  const { src, srcset } = photoSources(base, widths);
+  return `<link rel="preload" as="image" href="${src}" imagesrcset="${srcset}" imagesizes="${esc(sizes)}" fetchpriority="high">`;
+}
+
 /** Section header: hairline, eyebrow + note on the left, statement on the right. */
 function SecHead({ eyebrow: eb, note, title, link, cta }) {
   return `<div class="sec-head" data-reveal>
@@ -186,7 +217,7 @@ function Footer() {
 
 /* ------------------------------------------------------------ the shell */
 
-function layout({ title, description, body, active, lightHead, canonical, social, robots, extraStyles = [], extraScripts = [] }) {
+function layout({ title, description, body, active, lightHead, canonical, social, robots, extraStyles = [], extraScripts = [], extraHead = '' }) {
   /* `social` = { image, alt } overrides the default share card (see build/social-cards.js). `image` must be absolute. */
   const socialImage = (social && social.image) || SOCIAL_IMAGE;
   const socialAlt = (social && social.alt) || 'A coastal travel scene with Friday’s thoughtful journeys message';
@@ -212,7 +243,7 @@ ${robots ? `<meta name="robots" content="${esc(robots)}">\n` : ''}<meta name="th
 <meta name="twitter:image" content="${esc(socialImage)}">
 ${canonicalHref ? `<link rel="canonical" href="${esc(canonicalHref)}">\n<meta property="og:url" content="${esc(canonicalHref)}">\n<meta name="twitter:url" content="${esc(canonicalHref)}">` : ''}
 ${FONT_LINKS}
-<link rel="stylesheet" href="assets/css/friday.css">
+${extraHead ? `${extraHead}\n` : ''}<link rel="stylesheet" href="assets/css/friday.css">
 ${extraStyles.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')}
 <style>${PLAN_CTA_CSS}</style>
 </head>
@@ -297,6 +328,6 @@ function Catalogue(items, { previewClass = '' } = {}) {
 }
 
 module.exports = {
-  FONT_LINKS, esc, eyebrow, Plate, SecHead, facts, practice, places, quote, glyph,
+  FONT_LINKS, esc, eyebrow, Plate, Photo, PhotoPreload, SecHead, facts, practice, places, quote, glyph,
   layout, PageHero, Closer, Catalogue, D,
 };
