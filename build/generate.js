@@ -29,9 +29,9 @@ const legacyPage = /^(?:ethos|method|designers|alliances|compositions|wild|drive
 const page = (file, opts) => {
   if (legacyPage.test(file)) return;
   const privatePage = file === 'admin.html' || file === 'admin-villas.html';
-  if (!privatePage) publicPages.push(file);
+  if (!privatePage && !opts.robots) publicPages.push(file);
   const extraScripts = [...(privatePage ? [] : ['assets/js/guide-analytics.js']), ...(opts.extraScripts || [])];
-  written.push(write(file, layout({ ...opts, canonical: privatePage ? null : file, robots: privatePage ? 'noindex, nofollow' : null, extraScripts })));
+  written.push(write(file, layout({ ...opts, canonical: privatePage || opts.robots ? null : file, robots: privatePage ? 'noindex, nofollow' : (opts.robots || null), extraScripts })));
 };
 
 /* ========================================================== 1. Home */
@@ -468,8 +468,8 @@ page(LW.PAGE, {
 page('partner.html', { title: 'List your villa', description: 'Introduce your villa to Friday for consideration in its collection of considered places to stay.', body: partnerBody(), active: 'partner.html', lightHead: true, extraStyles: ['assets/css/partner.css'], extraScripts: ['assets/js/partner.js'] });
 
 if (Villas.villasBody && Villas.villaBody && Villas.adminVillasBody) {
-  page('villas.html', { title: 'Friday Villas', description: 'Considered villas and places to stay, chosen with care.', body: Villas.villasBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
-  page('villa.html', { title: 'A Friday Villa', description: 'Explore a place to stay with Friday.', body: Villas.villaBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
+  page('villas.html', { title: 'Friday Villas', description: 'Considered villas and places to stay, chosen with care.', body: Villas.villasBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js', 'assets/js/native-page-analytics.js'] });
+  page('villa.html', { title: 'A Friday Villa', description: 'Explore a place to stay with Friday.', body: Villas.villaBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js', 'assets/js/native-page-analytics.js'] });
   page('admin-villas.html', { title: 'Villa submissions', description: 'Review villa owner introductions.', body: Villas.adminVillasBody(), lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
 }
 
@@ -997,6 +997,7 @@ ${PageHero({
   title: 'Journeys to<br>start with.',
   lede: 'Explore example itineraries as inspiration for your own plans. Dates, pricing, inclusions and availability are not confirmed; contact Friday for current details.',
 })}
+<div class="wrap" style="margin-bottom:2rem"><p><a class="link" href="guides.html">Don’t see your destination? Request a destination <span class="arrow">&rarr;</span></a></p></div>
 
 <section class="section section--flush-top">
   <div class="wrap">
@@ -1186,6 +1187,26 @@ const publicGuidePages = () => written
     return { file, title, scene: catalog?.scene || 'forest', tone: catalog?.tone || 'moss' };
   });
 
+/* General "Request a destination" form: not tied to any departure. Posts to /api/destination-requests, which lands in the Quotes queue. */
+const destinationRequestForm = (id) => `<section class="destination-request" aria-labelledby="${id}-title" style="border:1px solid var(--rule);padding:clamp(1.25rem,3vw,2rem);margin-bottom:2rem">
+  <p class="eyebrow">Ask for a place</p>
+  <h2 class="h3" id="${id}-title" style="margin-top:.6rem">Request a destination.</h2>
+  <p class="card__d" style="margin:.5rem 0 1rem">Tell Friday where you would like to see a journey. The team reads every request and replies with what is possible. Add an email address or a phone number so we can reply.</p>
+  <form class="form destination-form" data-destination-form novalidate>
+    <div class="grid" style="gap:1rem var(--gap)">
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="${id}-destination">Destination</label><input class="field__input" id="${id}-destination" name="destination" type="text" maxlength="120" required placeholder="A country, region or place"></div>
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="${id}-month">When, if you know</label><input class="field__input" id="${id}-month" name="month" type="text" maxlength="40" placeholder="A month, season or flexible"></div>
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="${id}-group">How many travel</label><select class="field__select" id="${id}-group" name="groupSize"><option value="">Not sure yet</option><option>Two</option><option>Three to five</option><option>Six or more</option></select></div>
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="${id}-name">Your name</label><input class="field__input" id="${id}-name" name="name" type="text" maxlength="100" required autocomplete="name"></div>
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="${id}-email">Email</label><input class="field__input" id="${id}-email" name="email" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com"></div>
+      <div class="c-6 c-sm-12 field"><label class="field__label" for="${id}-phone">Phone number</label><input class="field__input" id="${id}-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="10 digits or +91" maxlength="18"></div>
+    </div>
+    <div class="field"><label class="field__label" for="${id}-notes">Anything else? (optional)</label><textarea class="field__area" id="${id}-notes" name="notes" maxlength="1000"></textarea></div>
+    <button class="btn btn--solid" type="submit">Send request <span class="arrow">&rarr;</span></button>
+    <p class="card__d" data-destination-status role="status" aria-live="polite"></p>
+  </form>
+</section>`;
+
 const guidesHub = `
 ${PageHero({
   eyebrow: 'Explore Friday',
@@ -1205,10 +1226,19 @@ ${PageHero({
   </div>
   <p class="lede" style="margin-top:2rem">Guides are starting points, not live availability or booking details. Check current conditions and confirm arrangements before you travel.</p>
 </div></section>
+<section class="section section--flush-top"><div class="wrap">${destinationRequestForm('guides-destination')}</div></section>
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Keep going</p><h2 class="h2">A note, then<br>a plan of your own.</h2><p class="lede" style="margin-top:1rem">Browse Field Notes for short ideas grounded in Friday’s guides and destination catalogue.</p></div>
   <div class="c-5 c-md-12"><a class="btn" href="field-notes.html">Read Field Notes <span class="arrow">&rarr;</span></a> <a class="link" style="margin-left:1rem" href="trip.html">Plan a trip <span class="arrow">&rarr;</span></a></div>
 </div></section>`;
+/* Thank-you state after a destination request. Its page view is the conversion event (Hexclave Analytics accepts page views and clicks). */
+page('request-destination-thanks.html', { title: 'Request received', description: 'Friday has your destination request.', robots: 'noindex, nofollow', lightHead: true, extraScripts: ['assets/js/native-page-analytics.js'], body: `
+<section class="section section--flush-top"><div class="wrap">
+  <p class="eyebrow">Request received</p>
+  <h1 class="h2" style="margin-top:.6rem">Thank you.</h1>
+  <p class="lede" style="margin-top:1rem">Friday has your destination request. The team reads each one and replies by email or phone, whichever you left.</p>
+  <p style="margin-top:2rem"><a class="btn" href="guides.html">Browse destination guides <span class="arrow">&rarr;</span></a> <a class="link" style="margin-left:1rem" href="contact.html">Back to contact <span class="arrow">&rarr;</span></a></p>
+</div></section>` });
 page('guides.html', { title: 'Travel Guides', description: 'Browse Friday’s public destination guides and find a starting point for planning your trip.', body: guidesHub, canonical: 'guides.html' });
 
 const notesIndex = `
@@ -1285,6 +1315,7 @@ ${PageHero({
             <p class="card__d" data-callback-status role="status" aria-live="polite"></p>
           </form>
         </section>
+        ${destinationRequestForm('contact-destination')}
         <form class="form" id="quote" data-commission novalidate>
           <div class="grid" style="gap:2.1rem var(--gap)">
             <div class="c-6 c-sm-12 field">
@@ -1368,7 +1399,7 @@ ${PageHero({
 </section>
 
 `;
-page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true, extraScripts: ['assets/js/callback-analytics.js', 'assets/js/trip-prequote.js'] });
+page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true, extraScripts: ['assets/js/callback-analytics.js', 'assets/js/trip-prequote.js', 'assets/js/native-page-analytics.js'] });
 
 /* ======================================================= 12. Privacy and terms */
 
@@ -1395,7 +1426,7 @@ ${PageHero({
   <p>Friday saves the messages in your AI planning conversations, including what you send and Friday’s replies. A small team of people on Friday’s allowlist can read these saved messages to improve trip suggestions and service quality, and to prepare quotes you request. Chats have no automatic deletion period; they are removed when your account deletion request is completed. You can request deletion in Preferences under Your data, or email <a href="mailto:manavdarooka1@gmail.com">manavdarooka1@gmail.com</a> as a fallback. Copies in backups may remain for the period stated below.</p>
   <h2 class="h3" style="margin:2.5rem 0 .8rem">Who processes information</h2>
   <ul>
-    <li><strong>Hexclave</strong> hosts Friday’s website and server-side services, and provides account authentication, email delivery through its shared email service, and, if configured, encrypted trip storage in its Data Vault. The exact data region is not confirmed; data may be stored in India or abroad, with safeguards to protect it. On account pages where Friday’s Hexclave browser app runs, its current settings enable automatic usage analytics and session replay. Those records may include page visits, URLs, click locations, clicked text and links, and the page content shown during a replay, such as trip details and visible chat messages; the SDK masks form inputs by default. Hexclave Clickmaps can show aggregate patterns from these click events. When quote-request measurement is active, Hexclave Analytics receives a quote event with a request reference, the page category (enquiry, planner, villa or package), first-visit campaign source, medium and campaign, and the referring-site hostname; the event does not include your name, email, phone number or message text. The browser stores this attribution and a short event queue in local storage until cleared. The separate client that sends quote events turns off its own automatic analytics and replay capture. When you choose Google or Microsoft sign-in, that provider processes your sign-in and profile details.</li>
+    <li><strong>Hexclave</strong> hosts Friday’s website and server-side services, and provides account authentication, email delivery through its shared email service, and, if configured, encrypted trip storage in its Data Vault. The exact data region is not confirmed; data may be stored in India or abroad, with safeguards to protect it. On account pages where Friday’s Hexclave browser app runs, its current settings enable automatic usage analytics and session replay. Friday’s villa and contact pages also record page visits and clicks through Hexclave Analytics. Those records may include page visits, URLs, click locations, clicked text and links, and the page content shown during a replay, such as trip details and visible chat messages; the SDK masks form inputs by default. Hexclave Clickmaps can show aggregate patterns from these click events. When quote-request measurement is active, Hexclave Analytics receives a quote event with a request reference, the page category (enquiry, planner, villa or package), first-visit campaign source, medium and campaign, and the referring-site hostname; the event does not include your name, email, phone number or message text. The browser stores this attribution and a short event queue in local storage until cleared. The separate client that sends quote events turns off its own automatic analytics and replay capture. When you choose Google or Microsoft sign-in, that provider processes your sign-in and profile details.</li>
     <li><strong>Google</strong> provides the Gmail and Calendar APIs you choose to connect, Google Places search and details, and Google Fonts used to display the site. Opening a Google Maps link takes you to Google.</li>
     <li><strong>Anthropic</strong>, <strong>Perplexity</strong> and <strong>OpenAI</strong> process prompts or drafts only when the relevant AI feature and provider are configured or when you choose your own ChatGPT account.</li>
   </ul>

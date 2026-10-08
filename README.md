@@ -62,6 +62,25 @@ pg_restore --clean --if-exists --no-owner -d <database-url> friday.dump
 
 Restore into a scratch database first, and delete `friday.dump` afterwards because it is unencrypted.
 
+#### Weekly restore check
+
+`.github/workflows/backup-restore-check.yml` runs every Monday at 06:00 UTC (and on Run workflow). It checks that the newest nightly backup is less than 36 hours old, downloads and decrypts it, restores it into a scratch PostgreSQL 17 container, counts rows in the core tables (`users` must not be empty), and writes the timing and counts to the run's summary. The scratch container is removed afterwards.
+
+It fails, and so emails the person who last changed the schedule (GitHub's failure notice), when the backup is missing or stale, the decrypt fails, or the restore or a table check fails. The nightly backup fails the same way. For a faster alert, set `BACKUP_ALERT_WEBHOOK_URL` (optional) to an incoming-webhook URL from Slack, Discord or any service that accepts a JSON POST with `text` or `content`; both workflows post to it on failure and skip it when it is unset.
+
+Secrets used by the two workflows (Settings → Secrets and variables → Actions):
+
+- `FRIDAY_BACKUP_SECRET` and `BACKUP_PASSPHRASE`: the nightly backup needs both; the restore check needs `BACKUP_PASSPHRASE`.
+- `BACKUP_ALERT_WEBHOOK_URL`: optional.
+
+**First manual restore test (do this once, before you rely on backups):**
+
+1. Make sure a nightly backup exists: Actions → Nightly database backup → Run workflow, and wait for it to pass.
+2. Actions → Weekly backup restore check → Run workflow. Open the run; the summary shows "Restore test: OK" with the row counts. If it says FAILED, the summary lists what is wrong.
+3. To restore by hand (for example into a database you control), use the commands in the section above with `BACKUP_PASSPHRASE` set in your shell, and never into the live database.
+
+The check itself is `scripts/backup-restore-check.mjs`, covered by `tests/backup-restore-check.test.mjs`. Its table list is `REQUIRED_TABLES` in that file; update it when the schema changes.
+
 ### Self-managed Docker deployment
 
 For a separate Linux Docker host, copy `.env.example` to `.env`, choose `APP_DOMAIN`, set `APP_ORIGIN` to its exact HTTPS origin, and configure the required secrets. The Compose file runs Caddy for HTTPS, runs a `postgres` service with a named Docker volume (`friday-postgres`) and points the app at it. Set `POSTGRES_PASSWORD` in `.env` first; Compose refuses to start without it. On a public host, point DNS at the host and allow inbound ports 80 and 443. Keep `.env` and database dumps out of public storage.

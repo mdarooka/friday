@@ -1,0 +1,115 @@
+name: Weekly backup restore check
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays 06:00 UTC (11:30 IST)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: backup-restore-check
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Check the latest nightly backup is fresh
+        id: fresh
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=friday-db-backup&per_page=10" > artifacts.json
+          node scripts/backup-restore-check.mjs freshness artifacts.json
+
+      - name: Download and decrypt the backup
+        run: |
+          set -euo pipefail
+          umask 077
+          if [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::BACKUP_PASSPHRASE must be set as a repository secret to decrypt the backup."
+            exit 1
+          fi
+          gh run download "$RUN_ID" -n friday-db-backup -D backup
+          enc=$(ls backup/friday-*.dump.enc)
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:BACKUP_PASSPHRASE -in "$enc" -out restore.dump
+          if [ "$(head -c 5 restore.dump)" != "PGDMP" ]; then
+            echo "::error::Decrypted file is not a pg_dump archive. Check that BACKUP_PASSPHRASE matches the one used for the backup."
+            exit 1
+          fi
+          echo "Decrypted $(basename "$enc"): $(wc -c < restore.dump) bytes"
+        env:
+          RUN_ID: ${{ steps.fresh.outputs.run_id }}
+
+      - name: Start a scratch PostgreSQL 17
+        run: |
+          set -euo pipefail
+          docker run -d --name friday-restore-check -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17 >/dev/null
+          for _ in $(seq 1 60); do
+            if docker exec friday-restore-check pg_isready -U postgres >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          docker exec friday-restore-check pg_isready -U postgres
+          docker exec friday-restore-check createdb -U postgres friday_restore
+
+      - name: Restore the backup into the scratch database
+        id: restore
+        run: |
+          set -uo pipefail
+          start=$(date +%s)
+          docker cp restore.dump friday-restore-check:/tmp/restore.dump
+          docker exec friday-restore-check pg_restore --no-owner --no-privileges -U postgres -d friday_restore /tmp/restore.dump > restore.log 2>&1
+          code=$?
+          seconds=$(( $(date +%s) - start ))
+          echo "pg_restore exit code $code after $seconds seconds"
+          tail -n 20 restore.log
+          echo "restore_exit=$code" >> "$GITHUB_OUTPUT"
+          echo "restore_seconds=$seconds" >> "$GITHUB_OUTPUT"
+
+      - name: Sanity-check the restored tables
+        run: |
+          set -uo pipefail
+          : > counts.tsv
+          for table in $(node scripts/backup-restore-check.mjs tables); do
+            exists=$(docker exec friday-restore-check psql -U postgres -d friday_restore -tAc "select to_regclass('public.$table') is not null")
+            if [ "$exists" != "t" ]; then
+              printf '%s\tmissing\n' "$table" >> counts.tsv
+            else
+              printf '%s\t%s\n' "$table" "$(docker exec friday-restore-check psql -U postgres -d friday_restore -tAc "select count(*) from \"$table\"")" >> counts.tsv
+            fi
+          done
+          cat counts.tsv
+          node scripts/backup-restore-check.mjs verify counts.tsv "$RESTORE_EXIT" "$RESTORE_SECONDS"
+        env:
+          RESTORE_EXIT: ${{ steps.restore.outputs.restore_exit }}
+          RESTORE_SECONDS: ${{ steps.restore.outputs.restore_seconds }}
+
+      - name: Clean up plaintext and the scratch database
+        if: always()
+        run: |
+          rm -f restore.dump restore.log counts.tsv
+          rm -rf backup
+          docker rm -f friday-restore-check >/dev/null 2>&1 || true
+
+      - name: Alert the owners (only when a check failed)
+        if: failure()
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.BACKUP_ALERT_WEBHOOK_URL }}
+        run: |
+          echo "::error::Weekly backup restore check failed. See the job summary."
+          if [ -z "$ALERT_WEBHOOK_URL" ]; then
+            echo "BACKUP_ALERT_WEBHOOK_URL is not set; GitHub's failure email is the only alert."
+            exit 0
+          fi
+          body="{\"text\":\"Friday backup restore check FAILED: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\",\"content\":\"Friday backup restore check FAILED: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}"
+          curl --fail --silent --show-error --max-time 30 -H 'Content-Type: application/json' -d "$body" "$ALERT_WEBHOOK_URL" >/dev/null
