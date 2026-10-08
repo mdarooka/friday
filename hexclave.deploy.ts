@@ -41,6 +41,8 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         FRIDAY_ENQUIRY_EMAIL: "manavdarooka1@gmail.com",
         FRIDAY_WHATSAPP_NUMBER: secret("FRIDAY_WHATSAPP_NUMBER", ""),
         QUOTE_ADMIN_EMAILS: "manavdarooka1@gmail.com",
+        // Team accounts that manage villa inventory (comma-separated); empty grants no access.
+        VILLA_ADMIN_EMAILS: secret("VILLA_ADMIN_EMAILS", ""),
         AI_PROVIDER: "openai",
         AI_MODEL: "gpt-5-mini",
         OPENAI_RESEARCH_MODEL: "gpt-5-mini",
