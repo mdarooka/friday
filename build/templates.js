@@ -234,9 +234,13 @@ ${extraScripts.map((src) => `<script src="${esc(src)}"></script>`).join('\n')}
 /* ------------------------------------------------------- shared sections */
 
 /** Interior page masthead. */
-function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedReveal = 'mask', background }) {
-  /* background: a decorative illustration painted behind the hero, full bleed (its sky must start at page paper). */
-  return `${background ? `<div class="phero-bg" style="background-image:url('${esc(background)}')">` : ''}<section class="phero wrap">
+function PageHero({ eyebrow: eb, title, lede, meta, seed, scene, tone, seedReveal = 'mask', background, backgroundFade }) {
+  /* background: a decorative illustration painted behind the hero, full bleed (its sky must start at page paper).
+     backgroundFade: for a 1600x700 panorama whose sky does not start at paper; its top fades into the page. */
+  const bg = background && (backgroundFade
+    ? `<div class="phero-bg phero-bg--fade" style="background-image:linear-gradient(to bottom,var(--paper) 0%,transparent 26%),url('${esc(background)}')">`
+    : `<div class="phero-bg" style="background-image:url('${esc(background)}')">`);
+  return `${bg || ''}<section class="phero wrap">
     <div class="phero__grid">
       <div class="phero__title">
         ${eyebrow(eb)}
