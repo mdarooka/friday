@@ -164,7 +164,8 @@ export function createApp(options = {}) {
   const researchFn=options.research||research;
   const researchLinkFn=options.researchLink||researchLink;
   const friday=createFridayWorkflow({db,store,env,fetch:options.fetch,tripFind:async(id,uid)=>trips.find(id,uid),aiConfig:config,email:emailService});
-  const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,aiConfig:config,log});
+  const airportLookup=createAirportLookup({fetch:options.airportFetch||globalThis.fetch});
+  const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,pickVibe:options.reelPickVibe,aiConfig:config,log});
   const reelChat=createReelChat({db,reels,friday,email:emailService,env,config,interpret:options.reelInterpret});
   const parseAdminEmails = value => String(value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
   const generalAdminEmails = parseAdminEmails(env.ADMIN_EMAILS);
@@ -180,7 +181,6 @@ export function createApp(options = {}) {
   const hasConfiguredRestrictions = allConfiguredAdminEmails.size > 0;
   const villaResearchFn=options.villaResearch||researchFn;
   const google=options.google||createGoogleIntegration({db,origin,findTripId:(userId,tripId)=>trips.findId(tripId,userId),clientId:env.GOOGLE_CLIENT_ID,clientSecret:env.GOOGLE_CLIENT_SECRET,encryptionKey:env.GOOGLE_TOKEN_KEY,fetch:options.fetch});
-  const airportLookup=createAirportLookup({fetch:options.airportFetch||globalThis.fetch});
   const places=options.places||createGooglePlacesIntegration({apiKey:env.GOOGLE_PLACES_API_KEY,fetch:options.fetch});
   const googleOAuthConfigured=options.google?true:!!(env.GOOGLE_CLIENT_ID&&env.GOOGLE_CLIENT_SECRET&&/^[a-f0-9]{64}$/i.test(env.GOOGLE_TOKEN_KEY||''));
   const placesConfigured=options.places?true:!!env.GOOGLE_PLACES_API_KEY;
@@ -1055,7 +1055,7 @@ export function createApp(options = {}) {
         allow('POST');
         if(hexclaveSelected&&!user)fail(401,'Please sign in before planning a trip.');
         rate('itinerary:'+(user?user.id:ip),20);
-        const parsed=parseItineraryRequest(body);
+        const parsed=parseItineraryRequest(body,{freeform:true}); // Friday plans anywhere: a place outside the catalog is planned by OpenAI
         if(parsed.error)fail(parsed.status,parsed.error);
         let out;
         const audit=await startAiAudit(body.conversationId,'itinerary_generation',{request:{...parsed.value,source:body.source||itineraries.name},messageId:body.messageId},body.tripId,body.ownerId);

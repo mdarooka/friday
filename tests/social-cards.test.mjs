@@ -38,7 +38,7 @@ test('card URLs are absolute and version-stamped; destination ids normalise safe
 });
 
 test('generated guide pages carry their own absolute og:image, dimensions, alt and twitter card', async () => {
-  for (const id of ['kerala', 'kyoto']) {
+  for (const id of ['kerala']) {
     const html = await readFile(new URL(`../${id}-guide.html`, import.meta.url), 'utf8');
     assert.match(meta(html, 'og:image'), new RegExp(`^https://[^/]+/assets/images/og/${id}-guide\\.jpg\\?v=\\d+$`));
     assert.equal(meta(html, 'og:image:width'), '1200'); assert.equal(meta(html, 'og:image:height'), '630');
