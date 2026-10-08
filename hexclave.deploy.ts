@@ -52,6 +52,8 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         OPENAI_API_KEY: secret("OPENAI_API_KEY", ""),
         FRIDAY_BRIEFING_AUTOSEND: "dry-run",
         FRIDAY_CRON_SECRET: secret("FRIDAY_CRON_SECRET", ""),
+        // Bearer secret for GET /api/cron/db-backup (the nightly GitHub Actions backup); empty keeps the route off.
+        FRIDAY_BACKUP_SECRET: secret("FRIDAY_BACKUP_SECRET", ""),
       },
     },
     // Private PostgreSQL, reachable only from other services in this project (raw TCP). It scales to zero, so the web
