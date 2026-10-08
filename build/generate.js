@@ -37,6 +37,9 @@ const page = (file, opts) => {
 /* ========================================================== 1. Home */
 
 /* Credited in assets/images/CREDITS.md. */
+const OFFERING_PHOTO_SIZES = '(max-width: 980px) 100vw, 33vw'; /* single column up to 980px, three columns above it */
+const OFFERING_PACKAGES_PHOTO = { base: 'offering-packages-suitcases', widths: [640, 1000, 1600], width: 1600, height: 1067, sizes: OFFERING_PHOTO_SIZES, position: '50% 50%', class: 'card__plate offering-art' };
+const OFFERING_AI_PHOTO = { base: 'offering-ai-map', widths: [640, 1000, 1600], width: 1600, height: 1071, sizes: OFFERING_PHOTO_SIZES, position: '50% 60%', class: 'card__plate offering-art' };
 const HOME_HERO_PHOTO = { base: 'home-hero-jaipur-arch', widths: [800, 1280, 1920, 2880], width: 2880, height: 1879 };
 
 const home = `
@@ -71,13 +74,13 @@ const home = `
         </a>
       </article>
       <article class="c-4 c-md-12" data-reveal style="--i:1">
-        <a class="card" href="departures.html" data-cursor="Explore"><div class="card__plate offering-art"><img src="assets/illustrations/friday-package-parcel.svg" width="1200" height="760" alt="Illustration of a traditional paper-wrapped travel parcel" loading="lazy" decoding="async"></div>
+        <a class="card" href="departures.html" data-cursor="Explore">${Photo(OFFERING_PACKAGES_PHOTO)}
           <p class="eyebrow eyebrow--accent">Packages</p><h3 class="card__t">Begin with a sample<br>journey.</h3>
           <p class="card__d">Use Friday&rsquo;s example itineraries as inspiration. Ask Friday about current dates, pricing and availability.</p>
         </a>
       </article>
       <article class="c-4 c-md-12" data-reveal style="--i:2">
-        <a class="card" href="trip.html" data-cursor="Plan"><div class="card__plate offering-art"><img src="assets/illustrations/friday-folded-itinerary-map.svg" width="1200" height="760" alt="Illustration of an open folded map with an itinerary route and selected stops" loading="lazy" decoding="async"></div>
+        <a class="card" href="trip.html" data-cursor="Plan">${Photo(OFFERING_AI_PHOTO)}
           <p class="eyebrow eyebrow--accent">Friday AI</p><h3 class="card__t">Shape a trip<br>around you.</h3>
           <p class="card__d">Share a destination and the way you want to travel. Friday helps draft and refine your plan.</p>
         </a>
