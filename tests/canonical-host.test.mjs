@@ -147,6 +147,7 @@ test('production redirects non-canonical hosts, noindexes only those responses, 
       NODE_ENV: 'production',
       APP_ORIGIN: canonical,
       APP_ORIGIN_ALIASES: deploy,
+      HEXCLAVE_INTERNAL_HOST: 'hxc-p-81-we-5b6199efcb56de4167.fly.dev',
       TRUST_PROXY: '1',
       SEARCH_INDEXING: 'on',
       AUTH_PROVIDER: 'local',
@@ -189,6 +190,10 @@ test('production redirects non-canonical hosts, noindexes only those responses, 
   assert.equal(proxied.status, 200);
   assert.equal(proxied.headers['x-robots-tag'], undefined);
   assert.match(proxied.body, /<link rel="canonical" href="https:\/\/fridaytravel\.vercel\.app\/about\.html">/);
+
+  const flyProxied = await raw(server, '/about.html', { host: 'hxc-p-81-we-5b6199efcb56de4167.fly.dev', 'x-forwarded-host': 'deploy.example' });
+  assert.equal(flyProxied.status, 200);
+  assert.match(flyProxied.body, /<link rel="canonical" href="https:\/\/fridaytravel\.vercel\.app\/about\.html">/);
 
   const proxiedPeach = await raw(server, '/help.html?via=proxy', { host: 'deploy.example', 'x-forwarded-host': 'friday-travel-peach.vercel.app' });
   assert.equal(proxiedPeach.status, 308);

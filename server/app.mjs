@@ -258,8 +258,15 @@ export function createApp(options = {}) {
     };
     try {
       const url = new URL(req.url,origin), method=req.method;
+      // Hexclave's Fly hop replaces Host with its internal fly.dev name and
+      // X-Forwarded-Host with the Deploy hostname, even for Vercel rewrites.
+      // Treat only this explicitly configured hop as the public proxy; Vercel
+      // redirects its own noncanonical hosts before the request reaches here.
+      const flyHost = String(req.headers.host || '').split(',')[0].trim().toLowerCase();
+      const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim().toLowerCase();
+      const fromPublicProxy = trustProxy && flyHost === String(env.HEXCLAVE_INTERNAL_HOST || '').toLowerCase() && internalHosts.has(forwardedHost);
       const decision = hostPolicy({
-        publicHost: visitorHost({ hostHeader: req.headers.host, forwardedHost: req.headers['x-forwarded-host'], trustProxy, internalHosts }),
+        publicHost: fromPublicProxy ? canonicalUrl.host : visitorHost({ hostHeader: req.headers.host, forwardedHost: req.headers['x-forwarded-host'], trustProxy, internalHosts }),
         canonicalOrigin: canonicalUrl.origin,
         internalHosts,
         pathname: url.pathname,

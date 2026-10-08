@@ -22,6 +22,7 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         // while /api stays reachable for health checks and the Vercel rewrite. Do not add
         // friday-travel-peach.vercel.app or other preview hosts here.
         APP_ORIGIN_ALIASES: "https://p-81-we-5b6199efcb56de4167-c098b2d7396b0066.deploy.built-with-hexclave.com",
+        HEXCLAVE_INTERNAL_HOST: "hxc-p-81-we-5b6199efcb56de4167.fly.dev",
         // All application data lives in the private `database` service below; the web service keeps nothing on its own disk.
         DATABASE_HOST: service("database").hostname(),
         DATABASE_PORT: "5432",
