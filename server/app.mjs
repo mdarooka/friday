@@ -358,7 +358,7 @@ export function createApp(options = {}) {
       let body={};
       if (!['GET','HEAD'].includes(method)) {
         let bytes=0, chunks=[];
-        const limit=url.pathname==='/api/itineraries'||url.pathname==='/api/itineraries/prompt'?65536:1500000;
+        const limit=url.pathname==='/api/itineraries'?65536:1500000;
         // Keep reading (and discarding) an oversized upload so the 413 reaches the client, but only up to a hard cap.
         let tooLarge=false;
         for await(const chunk of req) {bytes+=chunk.length;if(bytes>limit){tooLarge=true;chunks=[];if(bytes>limit+16000000)break;}else chunks.push(chunk);}
