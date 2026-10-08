@@ -34,10 +34,20 @@ export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient,
     const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data || {};
     return { id: row.id, data };
   }).filter(({ data }) => data.tripId === tripId || data.claudeState?.tripId === tripId);
-  const confirmed = linked.filter(({ data }) => bookingDateConfirmed(data) && validDate(data.start || data.date));
+  const confirmed = linked.filter(({ data }) => bookingDateConfirmed(data) && dateAndTime(data.start || data.date).date);
   const tripDate = tripData.startDate || state.startDate || state.prefs?.dates?.start || '';
-  const matching = confirmed.filter(({ data }) => !tripDate || (data.start || data.date) === tripDate);
-  const departureDate = validDate(tripDate) ? tripDate : (matching[0]?.data.start || matching[0]?.data.date || '');
+  const endDate = tripData.endDate || state.endDate || state.prefs?.dates?.end || '';
+  const shiftDay = (date, n) => new Date(Date.parse(`${date}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+  const span = ({ data }) => { const start = dateAndTime(data.start || data.date).date; return { start, end: dateAndTime(data.end).date || start }; };
+  let matching, departureDate;
+  if (validDate(tripDate)) {
+    const windowStart = shiftDay(tripDate, -2), windowEnd = validDate(endDate) && endDate >= tripDate ? endDate : shiftDay(tripDate, 60);
+    matching = confirmed.filter(booking => { const { start, end } = span(booking); return start <= windowEnd && end >= windowStart; });
+    departureDate = tripDate;
+  } else {
+    matching = confirmed;
+    departureDate = matching.map(booking => span(booking).start).filter(Boolean).sort()[0] || '';
+  }
   const daysBeforeDeparture = briefingDaysBefore(departureDate, now.toISOString().slice(0, 10));
   const eligible = !!departureDate && matching.length > 0 && daysBeforeDeparture !== null && daysBeforeDeparture >= 0 && daysBeforeDeparture <= 7;
   const bookings = linked.map(({ id, data }) => {
@@ -75,7 +85,6 @@ export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient,
   const questions = questionList(tripData);
   const title = clean(tripData.title || state.title || tripData.destination || 'Your Friday trip');
   const destination = clean(tripData.destination || state.destination || '', 120);
-  const endDate = tripData.endDate || state.endDate || state.prefs?.dates?.end || '';
   const dateLabel = departureDate ? `${departureDate}${validDate(endDate) ? ` to ${endDate}` : ''}` : 'Dates to confirm';
   const backUrl = `${String(origin || '').replace(/\/$/, '')}/trip-briefing.html?ref=briefing&trip=${encodeURIComponent(tripId)}${/^[a-z]{1,20}$/.test(source) ? `&src=${source}` : ''}`;
   const contact = `${String(origin || '').replace(/\/$/, '')}/contact.html`;
@@ -93,7 +102,7 @@ export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient,
   const subject = `${lead}: ${title}`;
   const text = `Hello,\n\nYour trip ${title} is coming up${departureDate ? ` on ${dateLabel}` : ''}.\n\nDay-by-day plan:\n${dayLines}\n\nWhere you stay:\n${stayLines}\n\nBookings and confirmations:\n${bookingLines}\n\nOpen questions:\n${questionLines}\n\nNeed a hand? Email ${contactEmail} or use ${contact}. ${replyPromise}\n\nOpen your trip briefing: ${backUrl}\n\nFriday`;
   const html = `<p>Hello,</p><p>Your trip <strong>${escapeHtml(title)}</strong> is coming up. <strong>${escapeHtml(dateLabel)}</strong>.</p><h2>Your day-by-day plan</h2>${htmlDays}<h2>Where you stay</h2>${htmlStay}<h2>Bookings and confirmations</h2>${htmlBookings}<h2>Open questions</h2>${htmlQuestions}<p>Need a hand? Email <a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a> or <a href="${escapeHtml(contact)}">contact Friday</a>. ${escapeHtml(replyPromise)}</p><p><a href="${escapeHtml(backUrl)}">Open your trip briefing</a></p><p>Friday</p>`;
-  return { tripId, title, destination, departureDate, endDate: validDate(endDate) ? endDate : '', dateLabel, daysBeforeDeparture, recipient: clean(recipient, 254), eligible, days, stay, bookings, questions, contactEmail, replyPromise, subject, text, html, tripUrl: backUrl };
+  return { tripId, title, destination, departureDate, endDate: validDate(endDate) ? endDate : '', dateLabel, daysBeforeDeparture, recipient: clean(recipient, 254), eligible, matchingBookingIds: matching.map(booking => booking.id), days, stay, bookings, questions, contactEmail, replyPromise, subject, text, html, tripUrl: backUrl };
 }
 
 export function briefingEmail({ dedupeKey, briefing, emailService }) {

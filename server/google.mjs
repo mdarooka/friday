@@ -1,6 +1,6 @@
 import * as store from './store.mjs';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
-import { extractBooking } from './booking-extraction.mjs';
+import { extractBooking, htmlToText, jsonLdObjects } from './booking-extraction.mjs';
 
 const AUTH='https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN='https://oauth2.googleapis.com/token';
@@ -176,5 +176,3 @@ function findBody(payload,mimeType) {
   for(const part of payload?.parts||[]){const text=findBody(part,mimeType);if(text)return text;}
   return '';
 }
-function htmlToText(value){return clean(value.replace(/<\s*br\s*\/?>/gi,'\n').replace(/<\s*\/(?:p|div|tr|li|h[1-6])\s*>/gi,'\n').replace(/<[^>]*>/g,' '));}
-function jsonLdObjects(html){const objects=[];for(const m of html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){try{objects.push(JSON.parse(m[1]));}catch{}}return objects;}

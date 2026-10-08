@@ -27,6 +27,7 @@ import { createReelWorkflow } from './reel-workflow.mjs';
 import { createHexclaveAuth } from './hexclave/auth.mjs';
 import { createHexclaveEmailService } from './hexclave/email.mjs';
 import { briefingEmail, prepareBriefing } from './briefing.mjs';
+import { extractBooking, htmlToText, jsonLdObjects } from './booking-extraction.mjs';
 import { carryVerification, verifyBooking } from './booking-confidence.mjs';
 import { quoteDigestMode, digestRecipient, runQuoteDigest, startQuoteDigestLoop } from './quote-digest.mjs';
 import { PREQUOTE_ITEMS, issueChecklist, saveChecklist, getChecklist } from './prequote-checklist.mjs';
@@ -856,7 +857,7 @@ export function createApp(options = {}) {
             const tripData=JSON.parse(row.data);
             if(tripData.archived||tripData.claudeState?.archived)continue;
             const briefing=prepareBriefing({tripId:row.id,tripData,bookingRows,recipient:owner.email,origin,now:new Date(`${today}T12:00:00Z`)});
-            if(briefing.departureDate&&briefing.daysBeforeDeparture>=0&&briefing.daysBeforeDeparture<=30)results.push({tripId:row.id,title:briefing.title,departureDate:briefing.departureDate,daysBeforeDeparture:briefing.daysBeforeDeparture,bookingCount:briefing.bookings.length,eligible:briefing.eligible,reason:briefing.eligible?'Confirmed date within 7 days':'A linked booking with a confirmed date is required, and sending is limited to 7 days before departure.'});
+            if(briefing.departureDate&&briefing.daysBeforeDeparture>=0&&briefing.daysBeforeDeparture<=30)results.push({tripId:row.id,title:briefing.title,departureDate:briefing.departureDate,daysBeforeDeparture:briefing.daysBeforeDeparture,bookingCount:briefing.bookings.length,eligible:briefing.eligible,reason:briefing.eligible?'Confirmed date within 7 days':'A confirmed booking dated within the trip is required, and sending is limited to 7 days before departure.'});
           }
         }
         results.sort((a,b)=>a.departureDate.localeCompare(b.departureDate)||a.title.localeCompare(b.title));
@@ -947,7 +948,7 @@ export function createApp(options = {}) {
         const requestId=typeof body.requestId==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(body.requestId)?body.requestId:'';
         if(!requestId)fail(422,'A send request id is required.');
         const briefing=prepareBriefing({tripId,tripData:JSON.parse(found.row.data),bookingRows:found.bookingRows,recipient:found.owner.email,origin,source:'admin'});
-        if(!briefing.eligible)fail(409,'Only trips with a linked confirmed booking departing within 7 days can receive a briefing.');
+        if(!briefing.eligible)fail(409,'Only trips with a confirmed booking within the trip dates, departing within 7 days, can receive a briefing.');
         if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(briefing.recipient))fail(409,'This traveller account has no deliverable email address.');
         const row=await briefingEmail({dedupeKey:`briefing:${tripId}:${requestId}`,briefing,emailService});
         if(row?.status!=='provider_accepted')fail(503,'Friday could not confirm the briefing email was accepted. Check the email outbox before trying again.');
@@ -1307,6 +1308,18 @@ export function createApp(options = {}) {
           finally{inFlight.delete(user.id);}
         })();backgroundTasks.add(task);task.finally(()=>backgroundTasks.delete(task));
         return send(202,{job:{id,status:'running',stage:'Starting research'}});
+      }
+      if(p==='/api/bookings/parse-email'){
+        allow('POST');if(!user)fail(401,'Please sign in to add a booking from an email.');rate('parse-email:'+user.id,30);
+        // Preview only: nothing is saved and the pasted text is never logged.
+        const raw=typeof body.text==='string'?body.text.trim():'';
+        if(!raw||raw.length>20000)fail(422,'Paste the confirmation email text (up to 20,000 characters).');
+        if(body.subject!==undefined&&(typeof body.subject!=='string'||body.subject.length>500))fail(422,'The subject is too long.');
+        const isHtml=/<\/?(?:html|body|div|p|table|br|span|a|script)\b/i.test(raw);
+        const plain=isHtml?htmlToText(raw):raw;
+        const subject=(body.subject||'').trim()||(plain.split(/\r?\n/).map(l=>l.trim()).find(Boolean)||'').slice(0,200);
+        const extracted=extractBooking({source:'pasted-email',subject,body:plain.slice(0,12000),schema:isHtml?jsonLdObjects(raw):[],includePast:false,today:new Date().toISOString().slice(0,10)});
+        return send(200,extracted.skip?{skip:extracted.skip}:{booking:extracted.booking});
       }
       const tripBriefing=p.match(/^\/api\/trips\/([a-f0-9-]{36})\/briefing$/i);
       if(tripBriefing){

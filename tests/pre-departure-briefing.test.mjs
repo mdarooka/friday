@@ -119,6 +119,23 @@ test('traveler briefing API returns only the owner’s trip content', async t =>
   assert.equal('recipient' in response.result.briefing, false);
 });
 
+test('briefing booking match uses the trip window, not just the start day', () => {
+  const run = (tripData, bookings, otherTrip = false) => prepareBriefing({
+    tripId, tripData, recipient: 'traveller@example.com', origin: 'https://friday.example', now: new Date(),
+    bookingRows: bookings.map((b, i) => ({ id: `b${i}`, data: { tripId: otherTrip ? 'other-trip' : tripId, title: 'Stay', dateStatus: 'confirmed', ...b } })),
+  });
+  const trip = { title: 'T', startDate: departure(5), endDate: departure(11) };
+  assert.equal(run(trip, [{ type: 'hotel', start: departure(8), end: departure(10) }]).eligible, true);
+  assert.equal(run(trip, [{ start: `${departure(4)}T10:00:00Z` }]).eligible, true);
+  assert.equal(run(trip, [{ start: departure(13) }]).eligible, false);
+  assert.equal(run({ title: 'T', startDate: departure(5) }, [{ start: departure(66) }]).eligible, false);
+  assert.equal(run({ title: 'T', startDate: departure(5) }, [{ start: departure(50) }]).eligible, true);
+  const open = run({ title: 'T' }, [{ start: departure(6) }, { start: departure(3) }]);
+  assert.equal(open.departureDate, departure(3));
+  assert.equal(open.eligible, true);
+  assert.equal(run(trip, [{ start: departure(8) }], true).eligible, false);
+});
+
 test('a manually entered booking with a valid date counts as confirmed; unclear imports do not', () => {
   const start = departure(3);
   const brief = data => prepareBriefing({ tripId, tripData: { title: 'Kerala', startDate: start }, bookingRows: [{ id: 'b', data: JSON.stringify({ tripId, title: 'Flight', start, ...data }) }], recipient: 'a@example.com', origin: 'https://friday.example', now: new Date() });
