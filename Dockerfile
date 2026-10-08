@@ -6,9 +6,10 @@ ENV NODE_ENV=production \
     APP_ORIGIN=https://fridaytravel.vercel.app
 
 # PostgreSQL 17 client (bookworm ships 15, which cannot dump a 17 server) for the nightly backup endpoint.
+# The pgdg script reads HOST as its mirror host, so override the app's HOST=0.0.0.0 for that one command.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates postgresql-common \
-    && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+    && HOST=apt.postgresql.org /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
     && apt-get install -y --no-install-recommends postgresql-client-17 \
     && rm -rf /var/lib/apt/lists/*
 
