@@ -138,6 +138,16 @@ export const setCallbackStatus = async (db, id, status) => changes(await db.quer
 export const listCallbackRequests = db => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,status,created,topic,villa_id,villa_name,villa_city,villa_guests,"from",trip_context FROM callback_requests ORDER BY created DESC');
 export const listOwnerFridayQuotes = (db,owner) => db.all('SELECT id,handoff_id,customer_email,snapshot,status,quote,attempted_at,created FROM friday_quotes WHERE owner_id=$1 ORDER BY created DESC',[owner]);
 export const listOwnerReelChats = (db,owner) => db.all('SELECT conversation_id,data FROM reel_chats WHERE owner_id=$1 ORDER BY conversation_id',[owner]);
+/** Owner ids of travellers who attached this trip to a callback request or a quote request: the only trips an admin may open. */
+export const listTripSharers = async (db, tripId) => {
+  const owners = new Set();
+  for (const row of await db.all('SELECT DISTINCT owner_id FROM callback_requests WHERE trip_id=$1 AND owner_id IS NOT NULL', [tripId])) owners.add(row.owner_id);
+  for (const row of await db.all('SELECT owner_id,snapshot FROM friday_quotes')) {
+    let snap = {}; try { snap = JSON.parse(row.snapshot) || {}; } catch { /* ignore */ }
+    if (snap.tripId === tripId) owners.add(row.owner_id);
+  }
+  return [...owners];
+};
 export const listOwnedCallbackRequests = (db, ownerId) => db.all('SELECT id,name,phone,best_time,entry_point,trip_id,status,created FROM callback_requests WHERE owner_id=$1 ORDER BY created DESC',[ownerId]);
 export const createDataRequest = async (db, row) => { await db.query("INSERT INTO data_requests(id,owner_id,requester_email,request_type,status,created,due_at) VALUES($1,$2,$3,'deletion','requested',$4,$5)",[row.id,row.ownerId,row.email,row.created,row.dueAt]); };
 export const listDataRequests = db => db.all('SELECT id,owner_id,requester_email,request_type,status,created,due_at,completed_at FROM data_requests ORDER BY created DESC');

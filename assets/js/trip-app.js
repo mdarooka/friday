@@ -981,9 +981,14 @@
     },
   };
 
+  /* A booking the traveller typed in themselves has a date they vouch for; imports set their own dateStatus. */
+  const markManualDate = (rec) => {
+    if (rec && !rec.source && !rec.dateStatus && /^\d{4}-\d{2}-\d{2}/.test(rec.start || '')) rec.dateStatus = 'confirmed';
+    return rec;
+  };
   FT.bookings = {
     add(b) {
-      const rec = Object.assign({ id: uid('b'), tripId: null, type: 'other', name: '', start: null, end: null, ref: '', price: null, currency: '', destId: null, placeId: null }, b || {});
+      const rec = markManualDate(Object.assign({ id: uid('b'), tripId: null, type: 'other', name: '', start: null, end: null, ref: '', price: null, currency: '', destId: null, placeId: null }, b || {}));
       store.update((s) => {
         s.bookings.push(rec);
         const t = rec.tripId && s.trips.find((x) => x.id === rec.tripId);
@@ -992,7 +997,7 @@
       return rec;
     },
     remove(id) { store.update((s) => { s.bookings = s.bookings.filter((b) => b.id !== id); }); },
-    update(id, patch) { store.update((s) => { const b = s.bookings.find((x) => x.id === id || x.serverId === id); if (b) Object.assign(b, patch || {}); }); },
+    update(id, patch) { store.update((s) => { const b = s.bookings.find((x) => x.id === id || x.serverId === id); if (b) markManualDate(Object.assign(b, patch || {})); }); },
     forTrip(tripId) { return state.bookings.filter((b) => b.tripId === tripId).sort((a, b) => (a.start || '').localeCompare(b.start || '')); },
     openForm: openBookingForm,
   };
@@ -1266,7 +1271,7 @@
     const tips = [];
     if (!state.dismissed.studioCard) {
       tips.push('<div class="fx-tip"><span class="fx-tip__ic">' + icon('pen', 18) + '</span><div class="fx-tip__b"><p class="fx-tip__t">Rather have it designed?</p>' +
-        '<p class="fx-tip__d">Your trip plan is ready to shape. Review the suggestions, then adjust the details to suit you.</p><a class="fx-tip__link" href="commission.html">Talk with a travel designer</a></div>' +
+        '<p class="fx-tip__d">Your trip plan is ready to shape. Review the suggestions, then adjust the details to suit you.</p><a class="fx-tip__link" href="contact.html" data-call-designer>Talk with a travel designer</a></div>' +
         '<button class="fx-tip__x" type="button" data-act="dismiss" data-key="studioCard" aria-label="Dismiss">' + icon('x', 14) + '</button></div>');
     }
     if (!state.dismissed.prefsCard) {
@@ -1436,7 +1441,7 @@
         '<form class="fx-prompt" data-prompt novalidate>' +
         '<div class="fx-prompt__chips" data-chips></div>' +
         '<label class="sr" for="fx-prompt-ta">Describe your trip</label>' +
-        '<textarea class="fx-prompt__ta" id="fx-prompt-ta" rows="2" placeholder="Tell Friday where you’d like to go, or paste a reel link…" maxlength="1200">' + esc(starterText + datesNote) + '</textarea>' +
+        '<textarea class="fx-prompt__ta" id="fx-prompt-ta" rows="2" placeholder="' + (reelOk() ? 'Tell Friday where you’d like to go, or paste a reel link…' : 'Tell Friday where you’d like to go…') + '" maxlength="1200">' + esc(starterText + datesNote) + '</textarea>' +
         renderMemory() +
         '<div class="fx-prompt__row">' +
         '<button class="fx-icon-btn" type="button" data-act="attach" aria-label="Attach an image" title="Attach an image">' + icon('image', 18) + '</button>' +
@@ -1445,7 +1450,7 @@
         '<button class="fx-icon-btn" type="button" data-act="mic" aria-label="Voice input" title="Voice input">' + icon('mic', 18) + '</button>' +
         '<button class="fx-send" type="submit" disabled aria-label="Start planning">' + icon('arrow-right', 18) + '</button>' +
         '</div></form>' +
-        '<p class="fx-new__helper">Start with a place, a feeling, an idea, or a reel link.</p>' +
+        '<p class="fx-new__helper">' + (reelOk() ? 'Start with a place, a feeling, an idea, or a reel link.' : 'Start with a place, a feeling or an idea. Reel import isn’t available right now.') + '</p>' +
         '<div class="fx-new__suggestions" aria-label="Ideas to get started">' +
         ['A quiet weekend', 'Somewhere by the sea', 'Art, food & culture'].map((s) => '<button class="fx-new__suggestion" type="button" data-suggestion="' + esc(s) + '">' + esc(s) + '</button>').join('') +
         '</div>' +
@@ -1865,7 +1870,7 @@
       imports.map((i) => {
         let host = i.url;
         try { host = new URL(i.url).hostname.replace(/^www\./, ''); } catch (e) { /* keep raw */ }
-        return '<article class="fx-scard fx-scard--link fx-card"><a class="fx-scard__link" href="' + esc(i.url) + '" target="_blank" rel="noopener noreferrer"><span class="fx-scard__ic">' + icon('link', 20) + '</span><span class="fx-scard__name">' + esc(host) + '</span><span class="fx-scard__label">' + esc(i.note || i.url) + '</span></a><button class="fx-btn fx-btn--line" type="button" data-plan-saved-reel="' + esc(i.id) + '">Plan from this reel</button>' +
+        return '<article class="fx-scard fx-scard--link fx-card"><a class="fx-scard__link" href="' + esc(i.url) + '" target="_blank" rel="noopener noreferrer"><span class="fx-scard__ic">' + icon('link', 20) + '</span><span class="fx-scard__name">' + esc(host) + '</span><span class="fx-scard__label">' + esc(i.note || i.url) + '</span></a><button class="fx-btn fx-btn--line" type="button" data-plan-saved-reel="' + esc(i.id) + '"' + (reelOk() ? '' : ' disabled title="Reel import isn’t available right now."') + '>Plan from this reel</button>' +
           '<button class="fx-icon-btn fx-icon-btn--float" type="button" data-rm-import="' + esc(i.id) + '" aria-label="Remove link ' + esc(host) + '">' + icon('x', 16) + '</button></article>';
       }).join('') + '</div>';
   };
@@ -2049,7 +2054,6 @@
         '<section aria-labelledby="fx-mem-h"><div class="fx-prefs__head"><h2 class="fx-h2" id="fx-mem-h">' + icon('users', 20) + ' Friday memory</h2><button class="fx-btn fx-btn--line" type="button" data-act="memory-manage">Manage memory</button></div><div class="fx-card fx-mem">' +
         (mem.length ? '<ul>' + mem.map((m) => '<li><span>' + esc(m.text) + '</span><button class="fx-icon-btn" type="button" data-mem="' + esc(m.id) + '" aria-label="Forget: ' + esc(m.text) + '">' + icon('x', 16) + '</button></li>').join('') + '</ul>' : '<p class="fx-mem__none">Add details you want Friday to remember.</p>') + '</div></section>' +
         '<section class="fx-account"><div class="fx-prefs__head"><h2 class="fx-h2">Connections</h2></div><p class="fx-hint">Connect Google services only when you choose.</p><button class="fx-btn fx-btn--line" type="button" data-act="connections">Manage connections</button></section>' +
-        chatgptCard() +
         (FT.backend && FT.backend.user ? '<section class="fx-account fx-data-account" aria-labelledby="fx-data-h"><div class="fx-prefs__head"><h2 class="fx-h2" id="fx-data-h">Your data</h2></div><p class="fx-hint">Download a JSON copy of Friday data saved to this account, or ask the Friday team to delete your account.</p><div class="fx-prefs__btns"><button class="fx-btn fx-btn--line" type="button" data-act="export-data">Download my data</button><button class="fx-btn fx-btn--line fx-data-delete" type="button" data-act="delete-account-request">Delete my account</button></div><p class="fx-hint" data-privacy-request-status role="status">Checking your request status…</p></section>' : '') +
         (FT.backend && FT.backend.user ? '<section class="fx-account"><p class="fx-eyebrow">Signed in</p><p>' + esc((FT.backend && FT.backend.user && (FT.backend.user.name || FT.backend.user.email)) || '') + '</p><button class="fx-btn fx-btn--line" type="button" data-act="signout">Sign out</button></section>' : '<section class="fx-account"><p class="fx-eyebrow">Local planner</p><p class="fx-hint">Your trips are saved in this browser. Auth is optional until the website is complete.</p><button class="fx-btn fx-btn--line" type="button" data-act="signin">Sign in or create account</button></section>') +
         '</div></div></div>';
@@ -2069,20 +2073,9 @@
       status.textContent = request.status === 'account_deletion_pending' ? 'Your Friday data has been deleted. Sign-in account removal is still being completed.' : 'Deletion requested. The Friday team aims to complete it by ' + due + '. You can keep using your account until deletion is complete.';
     }).catch((error) => { if (status.isConnected) status.textContent = error.message || 'Could not check your request status.'; });
   }
-  /* "Use your ChatGPT plan" (assets/js/trip-chatgpt.js). Shown only when the server has a Sign in with ChatGPT client id. */
-  function chatgptCard() {
-    const cg = FT.chatgpt;
-    if (!cg || !cg.enabled()) return '';
-    const acct = cg.connected() ? cg.account() : null;
-    return '<section class="fx-account fx-chatgpt" aria-labelledby="fx-cg-h"><div class="fx-prefs__head"><h2 class="fx-h2" id="fx-cg-h">ChatGPT</h2>' +
-      (acct ? '<button class="fx-btn fx-btn--line" type="button" data-act="chatgpt-disconnect">Disconnect</button>' : '<button class="fx-btn fx-btn--ink" type="button" data-act="chatgpt-connect">Connect ChatGPT</button>') + '</div>' +
-      '<div class="fx-card fx-chatgpt__card">' +
-      (acct ? '<p class="fx-chatgpt__who"><span class="fx-chatgpt__dot" aria-hidden="true"></span>Connected' + (acct.email ? ' as <strong>' + esc(acct.email) + '</strong>' : '') + '</p>' : '<p class="fx-chatgpt__who fx-muted">Not connected</p>') +
-      '<p class="fx-hint">Uses your ChatGPT plan for trip planning; your sign-in stays in this browser.</p></div></section>';
-  }
+  function reelOk() { return !FT.reel || !FT.reel.available || FT.reel.available(); }
   function wirePrefs() {
     const el = pageEl('preferences');
-    if (FT.chatgpt && FT.chatgpt.onChange) FT.chatgpt.onChange(() => { if (route.name === 'preferences' && !prefsEditing) pages.preferences.render(); });
     delegate(el, 'click', '[data-act]', (e, b) => {
       const a = b.dataset.act;
       if (a === 'export-data') {
@@ -2101,11 +2094,6 @@
         });
       }
       else if (a === 'home-city') homeCityModal({ force: true });
-      else if (a === 'chatgpt-connect') {
-        b.disabled = true;
-        FT.chatgpt.connect().then(() => toast('ChatGPT connected'), (err) => { if (!err || err.code !== 'cancelled') toast('Could not connect ChatGPT'); }).then(() => { if (route.name === 'preferences' && !prefsEditing) pages.preferences.render(); });
-      }
-      else if (a === 'chatgpt-disconnect') { FT.chatgpt.disconnect(); toast('ChatGPT disconnected'); }
       else if (a === 'connections') { if (FT.integrations) FT.integrations.openConnections({ tripId: store.get().currentTripId }); }
       else if (a === 'memory-manage') { if (FT.integrations) FT.integrations.openMemories(); }
       else if (a === 'edit') { prefsEditing = true; pages.preferences.render(); const f = $('.fx-kvs .fx-input', el); if (f) f.focus(); }

@@ -83,13 +83,6 @@
       "continue": true
     },
     {
-      "src": "^/chatgpt-callback\\.html$",
-      "headers": {
-        "X-Robots-Tag": "noindex, nofollow"
-      },
-      "continue": true
-    },
-    {
       "src": "^/api/shared(?:/.*)?$",
       "headers": {
         "X-Robots-Tag": "noindex, nofollow"

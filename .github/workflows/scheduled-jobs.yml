@@ -1,0 +1,74 @@
+name: Scheduled jobs
+
+# Friday's host scales to zero, so in-process timers cannot be relied on. These
+# calls wake it and run each sweep. Every sweep is idempotent, so a retry or a
+# manual re-run never double-sends.
+#
+# Required GitHub repo secret: FRIDAY_CRON_SECRET (same value as the Hexclave
+# project secret of the same name, at least 32 characters).
+
+on:
+  schedule:
+    - cron: "30 3 * * *"   # 09:00 IST daily: T-7 trip briefings
+    - cron: "0 4 * * *"    # 09:30 IST daily: designer quote-queue digest
+    - cron: "30 3 * * 1"   # 09:00 IST Mondays: guide feedback digest
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Job to run
+        type: choice
+        default: all
+        options: [all, briefings, quote-digest, guide-feedback-digest]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-jobs-${{ github.event.schedule || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  FRIDAY_URL: https://fridaytravel.vercel.app
+
+jobs:
+  briefings:
+    name: T-7 briefings
+    if: github.event_name == 'schedule' && github.event.schedule == '30 3 * * *' || github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","briefings"]'), inputs.job)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Trigger briefing sweep
+        env:
+          FRIDAY_CRON_SECRET: ${{ secrets.FRIDAY_CRON_SECRET }}
+        run: |
+          if [ -z "$FRIDAY_CRON_SECRET" ]; then echo "::error::FRIDAY_CRON_SECRET repo secret is not set"; exit 1; fi
+          curl --fail --silent --show-error --max-time 300 --retry 3 --retry-all-errors --retry-delay 20 \
+            -X POST -H "Authorization: Bearer $FRIDAY_CRON_SECRET" "$FRIDAY_URL/api/cron/briefings"
+
+  quote-digest:
+    name: Quote digest
+    if: github.event_name == 'schedule' && github.event.schedule == '0 4 * * *' || github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","quote-digest"]'), inputs.job)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Trigger quote digest
+        env:
+          FRIDAY_CRON_SECRET: ${{ secrets.FRIDAY_CRON_SECRET }}
+        run: |
+          if [ -z "$FRIDAY_CRON_SECRET" ]; then echo "::error::FRIDAY_CRON_SECRET repo secret is not set"; exit 1; fi
+          curl --fail --silent --show-error --max-time 300 --retry 3 --retry-all-errors --retry-delay 20 \
+            -X POST -H "Authorization: Bearer $FRIDAY_CRON_SECRET" "$FRIDAY_URL/api/cron/quote-digest"
+
+  guide-feedback-digest:
+    name: Guide feedback digest
+    if: github.event_name == 'schedule' && github.event.schedule == '30 3 * * 1' || github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","guide-feedback-digest"]'), inputs.job)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Trigger guide feedback digest
+        env:
+          FRIDAY_CRON_SECRET: ${{ secrets.FRIDAY_CRON_SECRET }}
+        run: |
+          if [ -z "$FRIDAY_CRON_SECRET" ]; then echo "::error::FRIDAY_CRON_SECRET repo secret is not set"; exit 1; fi
+          curl --fail --silent --show-error --max-time 300 --retry 3 --retry-all-errors --retry-delay 20 \
+            -X POST -H "Authorization: Bearer $FRIDAY_CRON_SECRET" "$FRIDAY_URL/api/cron/guide-feedback-digest"

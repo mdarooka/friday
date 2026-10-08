@@ -68,7 +68,6 @@ test('Hexclave account deletion request removes the mapped sign-in account throu
 
 test('Hexclave tokens are rechecked, restricted users stay outside private APIs, and review stays owner-scoped',async t=>{
   const {request}=await start(t);
-  assert.equal((await request('/api/itineraries/prompt','POST',{destination:'goa',days:1})).status,401);
   assert.equal((await request('/api/itineraries','POST',{destination:'goa',days:1})).status,401);
   const me=await request('/api/auth/me','GET',undefined,'alice');
   assert.equal(me.status,200);assert.equal(me.result.user.email,'alice@example.com');
@@ -94,8 +93,6 @@ test('Hexclave tokens are rechecked, restricted users stay outside private APIs,
 test('enforced itinerary queries require an owner and saved results can only be read by that owner',async t=>{
   const {request}=await start(t);
   const body={destination:'goa',days:1};
-  assert.equal((await request('/api/itineraries/prompt','POST',body,undefined)).status,401);
-  const prompt=await request('/api/itineraries/prompt','POST',body,'alice');assert.equal(prompt.status,200);
   const made=await request('/api/itineraries','POST',body,'alice');assert.equal(made.status,201);
   assert.equal((await request('/api/itineraries/'+made.result.id,'GET',undefined,'')).status,401);
   assert.equal((await request('/api/itineraries/'+made.result.id,'GET',undefined,'bob')).status,404);

@@ -51,6 +51,7 @@ test('a reviewed pasted booking makes the trip eligible for the briefing',()=>{
   const bookingRows=[{id:'b1',data:JSON.stringify({tripId,title:'IndiGo 6E 512',type:'flight',source:'pasted-email',start,dateStatus:'confirmed'})}];
   const briefing=prepareBriefing({tripId,tripData:{title:'Goa',startDate:start},bookingRows,recipient:'p@example.com',origin,now});
   assert.equal(briefing.eligible,true);
-  bookingRows[0].data=JSON.stringify({tripId,title:'IndiGo 6E 512',start});
+  // An unreviewed import (no dateStatus) is not confirmed; hand-typed bookings without a source still are.
+  bookingRows[0].data=JSON.stringify({tripId,title:'IndiGo 6E 512',source:'google-gmail',start});
   assert.equal(prepareBriefing({tripId,tripData:{title:'Goa',startDate:start},bookingRows,recipient:'p@example.com',origin,now}).eligible,false);
 });

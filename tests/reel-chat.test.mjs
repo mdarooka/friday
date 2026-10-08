@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {startApp,signUp} from './helpers.mjs';
-import {openaiMessage} from '../server/providers/openai-research.mjs';
+import {claudeMessage,parseJsonText} from '../server/providers/claude.mjs';
 const source='https://example.com/garden';
 // HEXCLAVE_PROJECT_ID is blank on purpose: the vault-mode harness would otherwise inject fake Hexclave keys, which switch email delivery on and turn the expected 'blocked' notification into 'delivery_unknown'.
 const brief={placeName:'Garden',destination:'Kyoto, Japan',days:2,travelers:2,startDate:'2027-04-01'};
-function options(overrides={}){return {env:{HEXCLAVE_PROJECT_ID:'',AUTH_PROVIDER:'local',AUTH_REQUIRED:'true',QUOTE_ADMIN_EMAILS:'admin@example.com',FRIDAY_ENQUIRY_EMAIL:'owner@example.test'},hexclaveAuth:{configured:false,currentUser:async()=>null},ai:{provider:'openai',apiKey:'fake',model:'fake'},reelInterpret:async text=>({fields:text==='change'?{days:3}:text.startsWith('https:')?brief:{},edit:text==='change'}),researchLink:async({url})=>({url,extracted:!url.includes('unavailable'),places:[{title:'Garden',sourceUrl:url}],sources:[{url}]}),reelResearch:async({trip})=>({text:'Sourced draft',sources:[{url:source}],questions:[],days:Array.from({length:trip.days},(_,i)=>({title:'Day '+(i+1),notes:'Access needs confirmation.',items:[{title:i===0?'Garden':'Walk '+i,description:'A researched visit.',sourceUrl:source}]}))}),...overrides};}
+function options(overrides={}){return {env:{HEXCLAVE_PROJECT_ID:'',AUTH_PROVIDER:'local',AUTH_REQUIRED:'true',QUOTE_ADMIN_EMAILS:'admin@example.com',FRIDAY_ENQUIRY_EMAIL:'owner@example.test'},hexclaveAuth:{configured:false,currentUser:async()=>null},ai:{provider:'claude',apiKey:'fake',model:'fake'},reelInterpret:async text=>({fields:text==='change'?{days:3}:text.startsWith('https:')?brief:{},edit:text==='change'}),researchLink:async({url})=>({url,extracted:!url.includes('unavailable'),places:[{title:'Garden',sourceUrl:url}],sources:[{url}]}),reelResearch:async({trip})=>({text:'Sourced draft',sources:[{url:source}],questions:[],days:Array.from({length:trip.days},(_,i)=>({title:'Day '+(i+1),notes:'Access needs confirmation.',items:[{title:i===0?'Garden':'Walk '+i,description:'A researched visit.',sourceUrl:source}]}))}),...overrides};}
 
 test('chat collects, researches, revises and explicitly hands off the exact reviewed version',async t=>{
  const {request}=await startApp(t,options()),a=await signUp(request,'Customer'),b=await signUp(request,'Other'),admin=await signUp(request,'Admin');
@@ -44,14 +44,19 @@ test('draft validator rejects prices, unknown sources, wrong day counts and miss
  }
 });
 
-test('OpenAI adapter uses server key, disables storage, enables web search and extracts actual citations',async()=>{
- const r=await openaiMessage({prompt:'Research a trip',web:true,config:{apiKey:'secret',model:'test',fetch:async(url,init)=>{
- assert.equal(url,'https://api.openai.com/v1/responses');assert.equal(init.headers.Authorization,'Bearer secret');const b=JSON.parse(init.body);assert.equal(b.store,false);assert.deepEqual(b.tools,[{type:'web_search'}]);
- return new Response(JSON.stringify({status:'completed',output:[{content:[{type:'output_text',text:'Answer',annotations:[{type:'url_citation',url:source,title:'Garden'}]}]}]}));
+test('Claude adapter uses server key, enables web search and extracts actual citations',async()=>{
+ const r=await claudeMessage({prompt:'Research a trip',web:true,config:{apiKey:'secret',model:'test',fetch:async(url,init)=>{
+ assert.equal(url,'https://api.anthropic.com/v1/messages');assert.equal(init.headers['x-api-key'],'secret');const b=JSON.parse(init.body);assert.equal(b.model,'test');assert.equal(b.tools[0].name,'web_search');
+ return new Response(JSON.stringify({stop_reason:'end_turn',content:[{type:'text',text:'Answer',citations:[{url:source,title:'Garden'}]}]}));
  }}});assert.deepEqual(r.sources,[{url:source,title:'Garden'}]);
- await assert.rejects(openaiMessage({prompt:'x',config:{model:'test'}}),e=>e.status===503);
+ await assert.rejects(claudeMessage({prompt:'x',config:{model:'test',fetch:async()=>new Response('{}',{status:401})}}),e=>e.status===503);
 });
 
+test('parseJsonText strips code fences and surrounding prose',()=>{
+ assert.deepEqual(parseJsonText('```json\n{"a":1}\n```'),{a:1});
+ assert.deepEqual(parseJsonText('Here you go: {"a":2} Thanks'),{a:2});
+ assert.throws(()=>parseJsonText('no json'));
+});
 
 test('a concurrent draft edit invalidates chat approval; scientific uncertainty asks clarification',async t=>{
  const opts=options();const {request}=await startApp(t,opts);const a=await signUp(request,'Customer');

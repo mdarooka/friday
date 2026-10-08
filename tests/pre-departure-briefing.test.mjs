@@ -135,3 +135,14 @@ test('briefing booking match uses the trip window, not just the start day', () =
   assert.equal(open.eligible, true);
   assert.equal(run(trip, [{ start: departure(8) }], true).eligible, false);
 });
+
+test('a manually entered booking with a valid date counts as confirmed; unclear imports do not', () => {
+  const start = departure(3);
+  const brief = data => prepareBriefing({ tripId, tripData: { title: 'Kerala', startDate: start }, bookingRows: [{ id: 'b', data: JSON.stringify({ tripId, title: 'Flight', start, ...data }) }], recipient: 'a@example.com', origin: 'https://friday.example', now: new Date() });
+  assert.equal(brief({}).eligible, true);
+  assert.equal(brief({ source: 'manual' }).eligible, true);
+  assert.equal(brief({}).bookings[0].confirmed, true);
+  assert.equal(brief({ dateStatus: 'needs-clarification' }).eligible, false);
+  assert.equal(brief({ source: 'google-calendar' }).eligible, false);
+  assert.equal(brief({ start: 'soon' }).eligible, false);
+});

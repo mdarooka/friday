@@ -1,10 +1,14 @@
 /*
- * The OpenAI provider. The model is given only the catalog's place ids, names, kinds and areas, and
- * asked to choose and order places and write short notes. Everything it returns is validated against
- * the catalog: unknown ids are dropped, and a response that cannot make a whole plan is an error
- * (the caller then falls back to the local provider).
+ * The Claude itinerary provider. The model is given only the catalog's place ids, names, kinds and areas, and
+ * asked to choose and order places and write short notes. Output comes back through a tool call whose
+ * input_schema is SCHEMA (or FREEFORM_SCHEMA for a place outside the catalog), and everything it returns is
+ * validated: unknown catalog ids are dropped, and a response that cannot make a whole plan is an error
+ * (the caller then falls back to the local provider for catalog destinations).
  */
 import { generator, TRIP_TYPES } from '../catalog.mjs';
+
+const ENDPOINT = 'https://api.anthropic.com/v1/messages';
+const TOOL_NAME = 'submit_itinerary';
 
 export const SCHEMA = {
   type: 'object',
@@ -92,7 +96,7 @@ export function buildFreeformPrompt(dest, request, knowledge) {
     'Name only real, well-known places that you are confident exist, using the name a traveller would see on a map. If you are unsure whether a place exists or is open, leave it out rather than guessing.',
     'Each day is based in one town or area; keep a day\'s stops close together and order them as the day would naturally go.',
     'Do not repeat a place. Never state prices, opening hours or availability, and mark anything that needs a ticket or a booking as to be confirmed.',
-    'Write each note as one or two short, practical sentences. Reply with JSON matching the schema.'
+    'Write each note as one or two short, practical sentences. Submit the plan by calling the ' + TOOL_NAME + ' tool.'
   ].join(' ');
   const system = knowledge && knowledge.text ? [base, KNOWLEDGE_PREAMBLE.replace(', using the given catalog only', ''), knowledge.text].join('\n\n') : base;
   const user = JSON.stringify({ destination: dest.name, tripTypes: request.types, days: request.days, stopsPerDay: stops, pace: request.pace });
@@ -142,7 +146,7 @@ export function buildPrompt(dest, request, knowledge) {
     'Choose places ONLY from the catalog you are given and refer to them by their exact "id". Never invent a place.',
     'Each day is based in one area: use places from that area, moving to a nearby area only if it has run out.',
     'Do not repeat a place until every place has been used. Order each day\'s stops as the day would naturally go: sights, markets and nature in the morning, food at midday and in the evening, nightlife last.',
-    'Write each note as one or two short, practical sentences. Reply with JSON matching the schema.'
+    'Write each note as one or two short, practical sentences. Submit the plan by calling the ' + TOOL_NAME + ' tool.'
   ].join(' ');
   const system = knowledge && knowledge.text ? [base, KNOWLEDGE_PREAMBLE, knowledge.text].join('\n\n') : base;
   const user = JSON.stringify({
@@ -182,12 +186,11 @@ export function validateDrafts(dest, parsed, request, maxStops) {
   return drafts.slice(0, request.days);
 }
 
-export function createOpenAIProvider({ auth, model, timeoutMs = 30000, fetch: fetchImpl = globalThis.fetch, knowledge = null }) {
+export function createClaudeProvider({ apiKey, model, timeoutMs = 30000, fetch: fetchImpl = globalThis.fetch, knowledge = null }) {
   return {
-    name: 'openai',
+    name: 'claude',
     async generate(dest, request) {
-      const creds = await auth.getAuth();
-      if (!creds) throw new Error('OpenAI credentials are not configured');
+      if (!apiKey) throw new Error('Claude credentials are not configured');
       if (typeof fetchImpl !== 'function') throw new Error('fetch is not available');
       const { system, user, stops } = buildPrompt(dest, request, knowledge);
       const schema = dest.freeform ? FREEFORM_SCHEMA : SCHEMA;
@@ -195,27 +198,37 @@ export function createOpenAIProvider({ auth, model, timeoutMs = 30000, fetch: fe
       const timer = setTimeout(() => ctl.abort(), timeoutMs);
       let res;
       try {
-        res = await fetchImpl(creds.baseUrl + '/chat/completions', {
+        res = await fetchImpl(ENDPOINT, {
           method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, creds.headers),
+          headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
           body: JSON.stringify({
             model,
-            messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-            response_format: { type: 'json_schema', json_schema: { name: 'itinerary', strict: true, schema } }
+            max_tokens: 8000,
+            system,
+            messages: [{ role: 'user', content: user }],
+            tools: [{ name: TOOL_NAME, description: 'Submit the finished day-by-day itinerary.', input_schema: schema, strict: true }],
+            // Claude Sonnet 5.5 rejects forced tool_choice, so the system prompt asks for the tool and a JSON text reply is also accepted.
+            tool_choice: { type: 'auto' }
           }),
           signal: ctl.signal
         });
         if (!res.ok) {
           let detail = '';
           try { detail = String(await res.text()).slice(0, 200); } catch (e) { /* ignore */ }
-          throw new Error('OpenAI returned HTTP ' + res.status + (detail ? ': ' + detail : ''));
+          throw new Error('Claude returned HTTP ' + res.status + (detail ? ': ' + detail : ''));
         }
         const json = await res.json();
-        const msg = json && json.choices && json.choices[0] && json.choices[0].message;
-        if (!msg) throw new Error('response has no message');
-        if (msg.refusal) throw new Error('the model declined the request');
-        let parsed;
-        try { parsed = JSON.parse(msg.content); } catch (e) { throw new Error('response is not valid JSON'); }
+        if (json && json.stop_reason === 'refusal') throw new Error('the model declined the request');
+        if (json && json.stop_reason === 'max_tokens') throw new Error('response was cut off');
+        const blocks = (json && Array.isArray(json.content)) ? json.content : [];
+        const tool = blocks.find((b) => b && b.type === 'tool_use' && b.name === TOOL_NAME);
+        let parsed = tool && tool.input;
+        if (!parsed) {
+          const text = blocks.filter((b) => b && b.type === 'text').map((b) => b.text || '').join('\n');
+          if (!text.trim()) throw new Error('response has no content');
+          const raw = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+          try { parsed = JSON.parse(raw); } catch (e) { throw new Error('response is not valid JSON'); }
+        }
         if (dest.freeform) {
           const { drafts, catalog } = validateFreeform(dest, parsed, request, stops);
           return { ...generator.assemble(catalog, drafts, { dates: request.dates, stay: false }), catalog };
@@ -223,7 +236,7 @@ export function createOpenAIProvider({ auth, model, timeoutMs = 30000, fetch: fe
         const drafts = validateDrafts(dest, parsed, request, stops);
         return generator.assemble(dest, drafts, { dates: request.dates, base: request.base });
       } catch (err) {
-        if (err && err.name === 'AbortError') throw new Error('OpenAI request timed out after ' + timeoutMs + ' ms');
+        if (err && err.name === 'AbortError') throw new Error('Claude request timed out after ' + timeoutMs + ' ms');
         throw err;
       } finally {
         clearTimeout(timer);
