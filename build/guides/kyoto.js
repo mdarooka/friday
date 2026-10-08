@@ -171,7 +171,7 @@ ${PageHero({
 ${guideFeedback('kyoto')}
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">Make Kyoto<br>your own route.</h2><p class="lede" style="margin-top:1rem">Start with the places that interest you, then shape the pace and dates with Friday.</p></div>
-  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" href="trip.html?destination=kyoto&amp;from_guide=kyoto#/new">Plan your Kyoto trip <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" href="contact.html?quote_path=guide&amp;destination=kyoto">Ask Friday about a quote <span class="arrow">&rarr;</span></a></div>
+  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" href="trip.html?destination=kyoto&amp;from_guide=kyoto#/new">Plan your Kyoto trip <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" href="contact.html?quote_path=guide&amp;destination=kyoto">Ask Friday about a quote <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="callback" data-guide-destination="kyoto" href="contact.html?topic=Kyoto#callback-title">Talk to a designer <span class="arrow">&rarr;</span></a></div>
 </div></section>`;
 }
 
