@@ -1109,3 +1109,54 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
     align-items: center;
   }
 }
+
+/* ---------------------------------------------------------------- When India travels */
+.lw-cities { display: flex; flex-wrap: wrap; gap: .6rem; list-style: none; margin: 1.1rem 0 0; padding: 0; }
+.lw-city-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 1.3rem; font-size: var(--t-label); text-transform: uppercase; letter-spacing: .18em; text-decoration: none; color: var(--fg); border: 1px solid var(--rule); border-radius: 999px; transition: background .3s var(--ease), color .3s var(--ease), border-color .3s var(--ease); }
+.lw-city-link:hover, .lw-city-link[aria-current="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.lw-status { min-height: 1.6em; margin: 1rem 0 0; font-size: var(--t-sm); color: var(--fg-mute); }
+.lw-city { padding-block: clamp(2.5rem, 5vw, 4.5rem); border-top: 1px solid var(--rule); }
+.lw-city[hidden], .lw-break[hidden], .lw-close[hidden] { display: none; }
+.lw-city__note { margin-top: 1rem; max-width: 40em; }
+.lw-break { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(1.5rem, 4vw, 4rem); padding-block: clamp(1.8rem, 3.5vw, 3rem); border-top: 1px solid var(--rule-soft); margin-top: clamp(1.5rem, 3vw, 2.5rem); }
+.lw-break__note { margin: .8rem 0 0; font-size: var(--t-sm); line-height: 1.65; color: var(--fg-mute); max-width: 32em; }
+.lw-picks { display: grid; gap: 1.8rem; }
+.lw-pick { padding-bottom: 1.6rem; border-bottom: 1px solid var(--rule-soft); }
+.lw-pick:last-child { border-bottom: 0; padding-bottom: 0; }
+.lw-pick__t { font-family: var(--serif); font-weight: 400; font-size: var(--t-d3); line-height: 1.1; margin: 0; }
+.lw-pick__tag { font-family: var(--sans); font-size: var(--t-label); letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-left: .6rem; vertical-align: middle; }
+.lw-pick__why { margin: .6rem 0 0; color: var(--fg-soft); max-width: 36em; }
+.lw-pick__caveat { margin: .6rem 0 0; font-size: var(--t-sm); line-height: 1.6; color: var(--fg-mute); max-width: 36em; }
+.lw-pick__caveat span { font-size: var(--t-label); letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-right: .4rem; }
+.lw-pick__meta { margin: .9rem 0 0; font-size: var(--t-sm); color: var(--fg-mute); }
+.lw-pick__cta { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.6rem; margin: .8rem 0 0; }
+.lw-pick__cta .btn, .lw-pick__cta .link { min-height: 44px; }
+.lw-pick__cta .link { display: inline-flex; align-items: center; }
+.lw-empty, .lw-fineprint { font-size: var(--t-sm); color: var(--fg-mute); max-width: 40em; }
+.lw-fineprint { margin-top: 2rem; }
+.home-breaks { border-top: 1px solid var(--rule-soft); }
+@media (max-width: 800px) { .lw-break { grid-template-columns: 1fr; } }
+/* A hero painted over a full-bleed illustration (PageHero `background`). The art's sky starts at paper,
+   so the text sits on paper and the scene rises beneath it; the grain matches the plates. */
+.phero-bg {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--paper);
+  background-position: center bottom;
+  background-size: 100% auto;
+  background-repeat: no-repeat;
+  padding-bottom: clamp(10rem, 30vw, 34rem);
+}
+.phero-bg::after {
+  content: "";
+  position: absolute; inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .22;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.55'/></svg>");
+  background-size: 160px 160px;
+}
+@media (max-width: 800px) {
+  .phero-bg { background-size: 190% auto; background-position: 38% bottom; padding-bottom: 72vw; }
+}

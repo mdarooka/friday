@@ -5,6 +5,8 @@ import * as socialMeta from './social-meta.mjs';
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID, createHash, createHmac, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
+import { resolveDatabaseConfig } from './db.mjs';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -163,7 +165,8 @@ export function createApp(options = {}) {
   const researchFn=options.research||research;
   const researchLinkFn=options.researchLink||researchLink;
   const friday=createFridayWorkflow({db,store,env,fetch:options.fetch,tripFind:async(id,uid)=>trips.find(id,uid),aiConfig:config,email:emailService});
-  const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,aiConfig:config,log});
+  const airportLookup=createAirportLookup({fetch:options.airportFetch||globalThis.fetch});
+  const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,pickVibe:options.reelPickVibe,aiConfig:config,log});
   const reelChat=createReelChat({db,reels,friday,email:emailService,env,config,interpret:options.reelInterpret});
   const parseAdminEmails = value => String(value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
   const generalAdminEmails = parseAdminEmails(env.ADMIN_EMAILS);
@@ -179,7 +182,6 @@ export function createApp(options = {}) {
   const hasConfiguredRestrictions = allConfiguredAdminEmails.size > 0;
   const villaResearchFn=options.villaResearch||researchFn;
   const google=options.google||createGoogleIntegration({db,origin,findTripId:(userId,tripId)=>trips.findId(tripId,userId),clientId:env.GOOGLE_CLIENT_ID,clientSecret:env.GOOGLE_CLIENT_SECRET,encryptionKey:env.GOOGLE_TOKEN_KEY,fetch:options.fetch});
-  const airportLookup=createAirportLookup({fetch:options.airportFetch||globalThis.fetch});
   const places=options.places||createGooglePlacesIntegration({apiKey:env.GOOGLE_PLACES_API_KEY,fetch:options.fetch});
   const googleOAuthConfigured=options.google?true:!!(env.GOOGLE_CLIENT_ID&&env.GOOGLE_CLIENT_SECRET&&/^[a-f0-9]{64}$/i.test(env.GOOGLE_TOKEN_KEY||''));
   const placesConfigured=options.places?true:!!env.GOOGLE_PLACES_API_KEY;
@@ -889,6 +891,33 @@ export function createApp(options = {}) {
         if(!timingSafeEqual(digest(given),digest(cronSecret)))fail(401,'Unauthorized.');
         return send(200,await guideDigestSweep({now:new Date()}));
       }
+      if(p==='/api/cron/db-backup'){
+        // Streams an (unencrypted) pg_dump to a caller holding FRIDAY_BACKUP_SECRET; the off-site job encrypts it. Postgres only.
+        const backupSecret=String(env.FRIDAY_BACKUP_SECRET||'');
+        if(backupSecret.length<32)fail(404,'Not found.');
+        allow('GET');rate('cron-db-backup:'+ip,10);
+        const given=/^Bearer (.+)$/.exec(req.headers.authorization||'')?.[1]||'';
+        const digest=x=>createHash('sha256').update(x).digest();
+        if(!timingSafeEqual(digest(given),digest(backupSecret)))fail(401,'Unauthorized.');
+        const dbConfig=resolveDatabaseConfig(env,{memory:!!options.memory});
+        if(dbConfig.kind!=='postgres')fail(503,'Backups need a PostgreSQL database.');
+        await db.query('select 1');   // wake a scaled-to-zero database; the pool retries cold starts
+        const pc=dbConfig.poolConfig,flags=['--format=custom','--no-owner','--no-privileges'];
+        if(pc.connectionString)flags.push('--dbname='+pc.connectionString);
+        const dumpEnv=pc.connectionString?process.env:{...process.env,PGHOST:pc.host,PGPORT:String(pc.port),PGUSER:pc.user,PGPASSWORD:pc.password,PGDATABASE:pc.database};
+        await new Promise(resolve=>{
+          const child=spawn('pg_dump',flags,{env:dumpEnv,stdio:['ignore','pipe','pipe']});
+          let stderr='',settled=false;
+          const finish=why=>{if(settled)return;settled=true;if(why){console.error(`[friday] db backup failed: ${why}${stderr?` | ${stderr.slice(-1000).replace(/\s+/g,' ')}`:''}`.split(pc.password||pc.connectionString||'\0').join('***'));if(res.headersSent)res.destroy();else send(500,{error:'Backup failed.'});}resolve();};
+          child.stderr.on('data',d=>{stderr+=d;});
+          child.on('error',e=>finish('spawn error: '+e.message));
+          child.on('close',(code,signal)=>finish(code===0&&!signal?'':'pg_dump exited '+(code??signal)));
+          res.on('close',()=>{if(!settled)child.kill();});
+          // Headers wait for the first output so an immediate pg_dump failure can still answer 500.
+          child.stdout.once('readable',()=>{res.writeHead(200,{'Content-Type':'application/octet-stream','Cache-Control':'no-store','Content-Disposition':`attachment; filename="friday-${new Date().toISOString().slice(0,10)}.dump"`});child.stdout.pipe(res);});
+        });
+        return;
+      }
       if(p==='/api/cron/briefings'){
         // External trigger for hosts that scale to zero. Bearer secret only; no session or Origin; uses the configured mode so the once-per-day guard applies.
         const cronSecret=String(env.FRIDAY_CRON_SECRET||'');
@@ -944,8 +973,9 @@ export function createApp(options = {}) {
       if(p==='/api/admin/quotes'){
         allow('GET');if(!user)fail(401,'Please sign in.');const quotes=await friday.adminList(user,effectiveQuoteAdmins);
         const callbacks=await Promise.all((await store.listCallbackRequests(db)).map(async row=>({checklist:{items:PREQUOTE_ITEMS.map(i=>({id:i.id,label:i.label})),...await getChecklist(db,row.id)},id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,tripContext:row.trip_context?JSON.parse(row.trip_context):null,topic:row.topic||null,from:row.from,villaId:row.villa_id,villaName:row.villa_name,villaCity:row.villa_city,villaGuests:row.villa_guests,status:row.status,createdAt:row.created})));
+        const destinationRequests=(await store.listEnquiries(db)).filter(row=>row.kind==='destination_request').map(row=>({row,data:JSON.parse(row.data)})).map(({row,data})=>({id:row.id,kind:'destination_request',customerEmail:data.email||null,name:data.name,phone:data.phone||null,destination:data.destination,month:data.month||null,groupSize:data.groupSize||null,notes:data.notes||null,createdAt:row.created}));
         const villaEnquiries=(await store.listEnquiries(db)).filter(row=>row.kind==='commissions').map(row=>({row,data:JSON.parse(row.data)})).filter(item=>item.data.villa).map(({row,data})=>({id:row.id,kind:'villa_enquiry',customerEmail:data.email,name:data.name,villa:data.villa,data,createdAt:row.created}));
-        return send(200,{quotes:[...villaEnquiries,...callbacks,...quotes]});
+        return send(200,{quotes:[...villaEnquiries,...destinationRequests,...callbacks,...quotes]});
       }
       const bookingVerify=p.match(/^\/api\/admin\/bookings\/([0-9a-f-]{36})\/verify$/i);
       if(bookingVerify){allow('POST');if(!user)fail(401,'Please sign in.');const explicitQuoteAdmins=quoteAdminEmails.length>0||generalAdminEmails.length>0;return send(200,{booking:await verifyBooking({db,store,admin:user,allowed:explicitQuoteAdmins?effectiveQuoteAdmins:new Set(),bookingId:bookingVerify[1],verified:body.verified})});}
@@ -1027,7 +1057,7 @@ export function createApp(options = {}) {
         allow('POST');
         if(hexclaveSelected&&!user)fail(401,'Please sign in before planning a trip.');
         rate('itinerary:'+(user?user.id:ip),20);
-        const parsed=parseItineraryRequest(body);
+        const parsed=parseItineraryRequest(body,{freeform:true}); // Friday plans anywhere: a place outside the catalog is planned by OpenAI
         if(parsed.error)fail(parsed.status,parsed.error);
         let out;
         const audit=await startAiAudit(body.conversationId,'itinerary_generation',{request:{...parsed.value,source:body.source||itineraries.name},messageId:body.messageId},body.tripId,body.ownerId);
@@ -1108,6 +1138,21 @@ export function createApp(options = {}) {
         const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
         const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
         return send(201,{id,saved:true,checklistToken,delivery:{notification:notification?.status||'blocked'}});
+      }
+      if (p==='/api/destination-requests' && method==='POST') {
+        rate('form:'+ip,5);
+        if(Buffer.byteLength(JSON.stringify(body))>10000) fail(413,'Your request is too long.');
+        const destination=str(body.destination,'destination',120,true),name=str(body.name,'name',100,true);
+        const contactEmail=body.email==null||body.email===''?null:email(body.email);
+        const contactPhone=body.phone==null||body.phone===''?null:indianPhone(body.phone);
+        if(!contactEmail&&!contactPhone) fail(422,'Add an email address or an Indian mobile number so the team can reply.');
+        const month=str(body.month,'month',40),groupSize=str(body.groupSize,'group size',40),notes=str(body.notes,'notes',1000);
+        const id=randomUUID(),created=new Date().toISOString();
+        const data={request:'Destination request',destination,name,...(contactEmail?{email:contactEmail}:{}),...(contactPhone?{phone:contactPhone}:{}),...(month?{month}:{}),...(groupSize?{groupSize}:{}),...(notes?{notes}:{})};
+        await store.saveEnquiry(db,{id,kind:'destination_request',data:JSON.stringify(data),created});
+        const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
+        const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
+        return send(201,{id,saved:true,delivery:{notification:notification?.status||'blocked'}});
       }
       if (['/api/commissions','/api/subscriptions'].includes(p) && method==='POST') {
         rate('form:'+ip,5); email(body.email);

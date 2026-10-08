@@ -1,0 +1,60 @@
+name: Nightly database backup
+
+on:
+  schedule:
+    - cron: '30 20 * * *'   # 02:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download and encrypt dump
+        env:
+          FRIDAY_BACKUP_SECRET: ${{ secrets.FRIDAY_BACKUP_SECRET }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [ -z "$FRIDAY_BACKUP_SECRET" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::FRIDAY_BACKUP_SECRET and BACKUP_PASSPHRASE must both be set as repository secrets."
+            exit 1
+          fi
+          curl --fail --silent --show-error --retry 3 --retry-all-errors --retry-delay 20 --max-time 600 \
+            -H "Authorization: Bearer $FRIDAY_BACKUP_SECRET" \
+            -o friday.dump https://fridaytravel.vercel.app/api/cron/db-backup
+          if [ "$(head -c 5 friday.dump)" != "PGDMP" ]; then
+            rm -f friday.dump
+            echo "::error::Response was not a pg_dump custom-format archive."
+            exit 1
+          fi
+          out="friday-$(date -u +%Y-%m-%d).dump.enc"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass env:BACKUP_PASSPHRASE -in friday.dump -out "$out"
+          rm -f friday.dump
+          echo "Encrypted backup: $(wc -c < "$out") bytes"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: friday-db-backup
+          path: friday-*.dump.enc
+          retention-days: 30
+          if-no-files-found: error
+          compression-level: 0
+      - name: Alert the owners (only when the backup failed)
+        if: failure()
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.BACKUP_ALERT_WEBHOOK_URL }}
+        run: |
+          echo "::error::Nightly database backup failed. See the run log."
+          if [ -z "$ALERT_WEBHOOK_URL" ]; then
+            echo "BACKUP_ALERT_WEBHOOK_URL is not set; GitHub's failure email is the only alert."
+            exit 0
+          fi
+          body="{\"text\":\"Friday nightly database backup FAILED: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\",\"content\":\"Friday nightly database backup FAILED: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}"
+          curl --fail --silent --show-error --max-time 30 -H 'Content-Type: application/json' -d "$body" "$ALERT_WEBHOOK_URL" >/dev/null
