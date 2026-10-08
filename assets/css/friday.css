@@ -345,6 +345,11 @@ a { color: inherit; }
     radial-gradient(90% 70% at 50% -10%, rgba(244, 241, 234, .18), transparent 60%);
 }
 
+/* A real photograph in a plate frame (see Photo() in build/templates.js): no grain or halftone bloom, they dull it. */
+.plate--photo::before,
+.plate--photo::after { content: none; }
+.plate--photo > .plate__svg { object-fit: cover; object-position: 50% 45%; }
+
 .plate--ratio-p  { aspect-ratio: 4 / 5; }
 .plate--ratio-l  { aspect-ratio: 16 / 10; }
 .plate--ratio-s  { aspect-ratio: 1 / 1; }

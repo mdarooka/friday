@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const T = require('./templates');
 const D = require('./data');
-const { Plate, SecHead, eyebrow, facts, practice, places, quote, glyph, layout, PageHero, Closer, Catalogue } = T;
+const { Plate, Photo, PhotoPreload, SecHead, eyebrow, facts, practice, places, quote, glyph, layout, PageHero, Closer, Catalogue } = T;
 const { partnerBody } = require('./partner');
 const Villas = require('./villas');
 const Admin = require('./admin');
@@ -36,9 +36,12 @@ const page = (file, opts) => {
 
 /* ========================================================== 1. Home */
 
+/* Credited in assets/images/CREDITS.md. */
+const HOME_HERO_PHOTO = { base: 'home-hero-jaipur-arch', widths: [800, 1280, 1920, 2880], width: 2880, height: 1879 };
+
 const home = `
 <section class="hero">
-  <div class="hero__bg">${Plate('hero-friday-vii', { fill: true, scene: 'peaks', tone: 'ember', svgRatio: 'panorama' })}</div>
+  <div class="hero__bg">${Photo({ ...HOME_HERO_PHOTO, alt: '', fill: true, priority: true, position: '50% 45%' })}</div>
   <div class="hero__scrim"></div>
   <div class="hero__in wrap">
     <p class="eyebrow" style="color:rgba(244,241,234,.7);margin-bottom:1.6rem">${D.brand.affiliation} &middot; ${D.brand.experience}</p>
@@ -173,7 +176,7 @@ ${LW.homeTeaser({ esc: T.esc, today: BUILD_TODAY })}
 </section>
 `;
 
-page('index.html', { title: 'Your travel designer', description: 'Friday is an AI travel designer from Bombay. Explore villas and sample packages, or shape a trip with Friday.', body: home, extraScripts: ['assets/js/when-india-travels.js'] });
+page('index.html', { title: 'Your travel designer', description: 'Friday is an AI travel designer from Bombay. Explore villas and sample packages, or shape a trip with Friday.', body: home, extraHead: PhotoPreload(HOME_HERO_PHOTO), extraScripts: ['assets/js/when-india-travels.js'] });
 
 /* ======================================================== Destination guides */
 
