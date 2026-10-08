@@ -216,9 +216,6 @@ const BREAKS = [
     verified: true, confidence: 'official',
     source: [DOPT_2027, AECS_MUMBAI, SOUTHPOINT_KOL, PODAR_MH],
     suggestions: [
-      { place: 'Kyoto', start: '2027-03-24', nights: 7,
-        reason: 'Cherry blossom is usually at its best in late March to early April, so a week suits a first Kyoto trip.',
-        caveat: 'A week away means adding leave days. Blossom timing shifts each year, and it is Kyoto\u2019s most crowded season, so plan early.' },
       { place: 'Mathura and Vrindavan', start: '2027-03-20', nights: 3,
         reason: 'Holi here is a spectacle, a few hours from Delhi.',
         caveat: 'The crowds are intense and not for everyone.' },
