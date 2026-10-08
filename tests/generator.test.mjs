@@ -6,8 +6,9 @@ const { DESTINATIONS, ORDER, TRIP_TYPES } = data;
 const real = (plan) => plan.days.flatMap((d) => d.items).filter((i) => i.place);
 const stopsOf = (plan, dest) => plan.days.map((d) => d.items.filter((i) => i.place && dest.places[i.place].kind !== 'stay'));
 
-test('there are six destinations, each with trip types', () => {
-  assert.equal(ORDER.length, 6);
+test('five destinations are offered, each with trip types; retired Kyoto still loads for saved trips', () => {
+  assert.equal(ORDER.length, 5);
+  assert.ok(!ORDER.includes('kyoto') && DESTINATIONS.kyoto);
   ORDER.forEach((id) => assert.ok(gen.typeLabels(DESTINATIONS[id]).length >= 3, id));
 });
 

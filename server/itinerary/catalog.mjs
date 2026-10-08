@@ -29,7 +29,7 @@ export function matchDestination(raw) {
   const text = cleanPlaceName(raw);
   if (!text) return null;
   const key = text.toLowerCase();
-  const direct = getDestination(key);
+  const direct = data.ORDER.includes(key) ? getDestination(key) : null;   // a retired destination is planned freely, not from its catalog
   if (direct) return direct;
   const id = data.ORDER.find((x) => String(data.DESTINATIONS[x].name).toLowerCase() === key);
   return id ? data.DESTINATIONS[id] : null;

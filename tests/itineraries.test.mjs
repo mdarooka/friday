@@ -19,7 +19,8 @@ test('GET /api/health is public and reports the itinerary provider and knowledge
 test('GET /api/destinations lists all six with trip types and durations', async (t) => {
   const { request } = await startApp(t);
   const { result } = await request('/api/destinations');
-  assert.equal(result.destinations.length, 6);
+  assert.equal(result.destinations.length, 5);
+  assert.ok(!result.destinations.some((d) => d.id === 'kyoto'));
   const goa = result.destinations.find((d) => d.id === 'goa');
   assert.equal(goa.name, 'Goa');
   assert.ok(goa.tripTypes.includes('Beach downtime'));
