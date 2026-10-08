@@ -163,7 +163,7 @@ export function createApp(options = {}) {
   const researchLinkFn=options.researchLink||researchLink;
   const friday=createFridayWorkflow({db,store,env,fetch:options.fetch,tripFind:async(id,uid)=>trips.find(id,uid),aiConfig:config,email:emailService});
   const airportLookup=createAirportLookup({fetch:options.airportFetch||globalThis.fetch});
-  const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,pickVibe:options.reelPickVibe,aiConfig:config,log});
+  const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,pickVibe:options.reelPickVibe,pickVibeOptions:options.reelPickVibeOptions,aiConfig:config,log});
   const reelChat=createReelChat({db,reels,friday,email:emailService,env,config,interpret:options.reelInterpret});
   const parseAdminEmails = value => String(value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
   const generalAdminEmails = parseAdminEmails(env.ADMIN_EMAILS);

@@ -214,6 +214,8 @@ button.ch-tool__row:hover { color: var(--fg-soft); }
   text-align: left; transition: border-color .15s, color .15s, background .15s;
 }
 .ch-chip svg { color: var(--fg-mute); flex: 0 0 auto; }
+/* Phone taps: chips (including the vibe-match place choices) are at least 44px tall. */
+@media (max-width: 560px) { .ch-chips .ch-chip { min-height: 44px; } }
 .ch-chip:hover { border-color: var(--ochre); color: var(--ink); background: rgba(217, 119, 87, .05); }
 .ch-chip:hover svg { color: var(--ochre); }
 
