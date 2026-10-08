@@ -5,6 +5,13 @@ ENV NODE_ENV=production \
     PORT=3000 \
     APP_ORIGIN=https://fridaytravel.vercel.app
 
+# PostgreSQL 17 client (bookworm ships 15, which cannot dump a 17 server) for the nightly backup endpoint.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates postgresql-common \
+    && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+    && apt-get install -y --no-install-recommends postgresql-client-17 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force

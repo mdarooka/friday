@@ -5,6 +5,8 @@ import * as socialMeta from './social-meta.mjs';
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID, createHash, createHmac, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
+import { resolveDatabaseConfig } from './db.mjs';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -162,7 +164,8 @@ export function createApp(options = {}) {
   const researchFn=options.research||research;
   const researchLinkFn=options.researchLink||researchLink;
   const friday=createFridayWorkflow({db,store,env,fetch:options.fetch,tripFind:async(id,uid)=>trips.find(id,uid),aiConfig:config,email:emailService});
-  const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,aiConfig:config,log});
+  const airportLookup=createAirportLookup({fetch:options.airportFetch||globalThis.fetch});
+  const reels=createReelWorkflow({db,store,researchLink:researchLinkFn,research:options.reelResearch||researchFn,pickVibe:options.reelPickVibe,aiConfig:config,log});
   const reelChat=createReelChat({db,reels,friday,email:emailService,env,config,interpret:options.reelInterpret});
   const parseAdminEmails = value => String(value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
   const generalAdminEmails = parseAdminEmails(env.ADMIN_EMAILS);
@@ -178,7 +181,6 @@ export function createApp(options = {}) {
   const hasConfiguredRestrictions = allConfiguredAdminEmails.size > 0;
   const villaResearchFn=options.villaResearch||researchFn;
   const google=options.google||createGoogleIntegration({db,origin,findTripId:(userId,tripId)=>trips.findId(tripId,userId),clientId:env.GOOGLE_CLIENT_ID,clientSecret:env.GOOGLE_CLIENT_SECRET,encryptionKey:env.GOOGLE_TOKEN_KEY,fetch:options.fetch});
-  const airportLookup=createAirportLookup({fetch:options.airportFetch||globalThis.fetch});
   const places=options.places||createGooglePlacesIntegration({apiKey:env.GOOGLE_PLACES_API_KEY,fetch:options.fetch});
   const googleOAuthConfigured=options.google?true:!!(env.GOOGLE_CLIENT_ID&&env.GOOGLE_CLIENT_SECRET&&/^[a-f0-9]{64}$/i.test(env.GOOGLE_TOKEN_KEY||''));
   const placesConfigured=options.places?true:!!env.GOOGLE_PLACES_API_KEY;
@@ -888,6 +890,33 @@ export function createApp(options = {}) {
         if(!timingSafeEqual(digest(given),digest(cronSecret)))fail(401,'Unauthorized.');
         return send(200,await guideDigestSweep({now:new Date()}));
       }
+      if(p==='/api/cron/db-backup'){
+        // Streams an (unencrypted) pg_dump to a caller holding FRIDAY_BACKUP_SECRET; the off-site job encrypts it. Postgres only.
+        const backupSecret=String(env.FRIDAY_BACKUP_SECRET||'');
+        if(backupSecret.length<32)fail(404,'Not found.');
+        allow('GET');rate('cron-db-backup:'+ip,10);
+        const given=/^Bearer (.+)$/.exec(req.headers.authorization||'')?.[1]||'';
+        const digest=x=>createHash('sha256').update(x).digest();
+        if(!timingSafeEqual(digest(given),digest(backupSecret)))fail(401,'Unauthorized.');
+        const dbConfig=resolveDatabaseConfig(env,{memory:!!options.memory});
+        if(dbConfig.kind!=='postgres')fail(503,'Backups need a PostgreSQL database.');
+        await db.query('select 1');   // wake a scaled-to-zero database; the pool retries cold starts
+        const pc=dbConfig.poolConfig,flags=['--format=custom','--no-owner','--no-privileges'];
+        if(pc.connectionString)flags.push('--dbname='+pc.connectionString);
+        const dumpEnv=pc.connectionString?process.env:{...process.env,PGHOST:pc.host,PGPORT:String(pc.port),PGUSER:pc.user,PGPASSWORD:pc.password,PGDATABASE:pc.database};
+        await new Promise(resolve=>{
+          const child=spawn('pg_dump',flags,{env:dumpEnv,stdio:['ignore','pipe','pipe']});
+          let stderr='',settled=false;
+          const finish=why=>{if(settled)return;settled=true;if(why){console.error(`[friday] db backup failed: ${why}${stderr?` | ${stderr.slice(-1000).replace(/\s+/g,' ')}`:''}`.split(pc.password||pc.connectionString||'\0').join('***'));if(res.headersSent)res.destroy();else send(500,{error:'Backup failed.'});}resolve();};
+          child.stderr.on('data',d=>{stderr+=d;});
+          child.on('error',e=>finish('spawn error: '+e.message));
+          child.on('close',(code,signal)=>finish(code===0&&!signal?'':'pg_dump exited '+(code??signal)));
+          res.on('close',()=>{if(!settled)child.kill();});
+          // Headers wait for the first output so an immediate pg_dump failure can still answer 500.
+          child.stdout.once('readable',()=>{res.writeHead(200,{'Content-Type':'application/octet-stream','Cache-Control':'no-store','Content-Disposition':`attachment; filename="friday-${new Date().toISOString().slice(0,10)}.dump"`});child.stdout.pipe(res);});
+        });
+        return;
+      }
       if(p==='/api/cron/briefings'){
         // External trigger for hosts that scale to zero. Bearer secret only; no session or Origin; uses the configured mode so the once-per-day guard applies.
         const cronSecret=String(env.FRIDAY_CRON_SECRET||'');
@@ -1026,7 +1055,7 @@ export function createApp(options = {}) {
         allow('POST');
         if(hexclaveSelected&&!user)fail(401,'Please sign in before planning a trip.');
         rate('itinerary:'+(user?user.id:ip),20);
-        const parsed=parseItineraryRequest(body);
+        const parsed=parseItineraryRequest(body,{freeform:true}); // Friday plans anywhere: a place outside the catalog is planned by OpenAI
         if(parsed.error)fail(parsed.status,parsed.error);
         let out;
         const audit=await startAiAudit(body.conversationId,'itinerary_generation',{request:{...parsed.value,source:body.source||itineraries.name},messageId:body.messageId},body.tripId,body.ownerId);
