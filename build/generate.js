@@ -457,8 +457,8 @@ page('mumbai-quiet-weekend.html', {
 page('partner.html', { title: 'List your villa', description: 'Introduce your villa to Friday for consideration in its collection of considered places to stay.', body: partnerBody(), active: 'partner.html', lightHead: true, extraStyles: ['assets/css/partner.css'], extraScripts: ['assets/js/partner.js'] });
 
 if (Villas.villasBody && Villas.villaBody && Villas.adminVillasBody) {
-  page('villas.html', { title: 'Friday Villas', description: 'Considered villas and places to stay, chosen with care.', body: Villas.villasBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
-  page('villa.html', { title: 'A Friday Villa', description: 'Explore a place to stay with Friday.', body: Villas.villaBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
+  page('villas.html', { title: 'Friday Villas', description: 'Considered villas and places to stay, chosen with care.', body: Villas.villasBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js', 'assets/js/native-page-analytics.js'] });
+  page('villa.html', { title: 'A Friday Villa', description: 'Explore a place to stay with Friday.', body: Villas.villaBody(), active: 'villas.html', lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js', 'assets/js/native-page-analytics.js'] });
   page('admin-villas.html', { title: 'Villa submissions', description: 'Review villa owner introductions.', body: Villas.adminVillasBody(), lightHead: true, extraStyles: ['assets/css/villas.css'], extraScripts: ['assets/js/villas.js'] });
 }
 
@@ -1357,7 +1357,7 @@ ${PageHero({
 </section>
 
 `;
-page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true, extraScripts: ['assets/js/callback-analytics.js', 'assets/js/trip-prequote.js'] });
+page('contact.html', { title: 'Contact Friday', description: 'Contact Friday about planning a trip, a villa stay or a sample package.', body: contact, active: 'contact.html', lightHead: true, extraScripts: ['assets/js/callback-analytics.js', 'assets/js/trip-prequote.js', 'assets/js/native-page-analytics.js'] });
 
 /* ======================================================= 12. Privacy and terms */
 
