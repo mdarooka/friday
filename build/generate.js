@@ -285,15 +285,6 @@ page('kerala-guide.html', {
   social: guideSocial('kerala', 'Friday’s Kerala guide: a slower way through Kerala, beside a layered green landscape'),
 });
 
-/* ======================================================== Kyoto guide */
-const { kyotoGuide } = require('./guides/kyoto');
-page('kyoto-guide.html', {
-  title: 'Kyoto Travel Guide: Itineraries, Stays & Bombay Notes',
-  description: 'Plan a Kyoto trip from Bombay: three itinerary arcs, a stay shortlist by neighbourhood, and practical notes on flights, visas and seasons.',
-  body: kyotoGuide({ PageHero, T, KYOTO: require('./trip-data/kyoto') }), canonical: 'kyoto-guide.html',
-  social: guideSocial('kyoto', 'Friday’s Kyoto guide: Kyoto, one slow day at a time, beside a layered autumn landscape'),
-});
-
 const { DESTINATIONS } = require('./trip-data');
 const { GUIDES, guideFiles, renderDestinationGuide } = require('./destination-guides');
 GUIDES.filter((guide) => guide.id !== 'kerala').forEach((guide) => {
@@ -464,7 +455,6 @@ page('mumbai-quiet-weekend.html', {
 /* Guides a break suggestion can link to, from the guide registry (matched by the place's name). */
 const guideRegistry = [
   ...GUIDES.map((g) => ({ file: g.file, label: DESTINATIONS[g.id].name, names: [g.id, DESTINATIONS[g.id].name.toLowerCase()] })),
-  { file: 'kyoto-guide.html', label: 'Kyoto', names: ['kyoto'] },
   { file: 'mumbai-quiet-weekend.html', label: 'quiet weekend', names: ['near bombay', 'near mumbai'] },
 ];
 page(LW.PAGE, {

@@ -144,7 +144,7 @@ test('the three groups render in order, with no hidden attributes in the static 
   }
 });
 
-const GUIDE_FILES = { goa: 'goa-guide.html', kerala: 'kerala-guide.html', rajasthan: 'rajasthan-guide.html', kyoto: 'kyoto-guide.html', 'near bombay': 'mumbai-quiet-weekend.html' };
+const GUIDE_FILES = { goa: 'goa-guide.html', kerala: 'kerala-guide.html', rajasthan: 'rajasthan-guide.html', 'near bombay': 'mumbai-quiet-weekend.html' };
 const guideOf = (place) => GUIDE_FILES[String(place).toLowerCase()] || null;
 
 test('suggestions render per row: a guide link when Friday has a guide, otherwise planner and designer links', () => {
@@ -193,7 +193,7 @@ test('suggestions render per row: a guide link when Friday has a guide, otherwis
 });
 
 test('every guide page offers both Plan with Friday and Talk to a designer, and carries break dates through', async () => {
-  for (const file of ['goa-guide.html', 'kerala-guide.html', 'rajasthan-guide.html', 'kyoto-guide.html']) {
+  for (const file of ['goa-guide.html', 'kerala-guide.html', 'rajasthan-guide.html']) {
     const page = await read(file);
     assert.match(page, /data-guide-cta="planner"/, file);
     assert.match(page, /data-guide-cta="quote"/, file);
