@@ -58,6 +58,7 @@ async function createSchema(tx, { tripsInVault = false } = {}) {
     CREATE TABLE IF NOT EXISTS data_requests(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL,requester_email TEXT NOT NULL,request_type TEXT NOT NULL CHECK(request_type IN ('deletion')),status TEXT NOT NULL CHECK(status IN ('requested','account_deletion_pending','completed')),created TEXT NOT NULL,due_at TEXT NOT NULL,completed_at TEXT);
     CREATE TABLE IF NOT EXISTS friday_quotes(id TEXT PRIMARY KEY,handoff_id TEXT NOT NULL UNIQUE REFERENCES friday_handoffs(id),owner_id TEXT NOT NULL REFERENCES users(id),customer_email TEXT NOT NULL,snapshot TEXT NOT NULL,status TEXT NOT NULL,quote TEXT,attempted_at TEXT,created TEXT NOT NULL,first_reply_at TEXT);
     ALTER TABLE friday_quotes ADD COLUMN IF NOT EXISTS first_reply_at TEXT;
+    CREATE TABLE IF NOT EXISTS trip_forward_addresses(token TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,trip_id TEXT NOT NULL,created TEXT NOT NULL,UNIQUE(owner_id,trip_id));
     CREATE TABLE IF NOT EXISTS reel_chats(owner_id TEXT NOT NULL,conversation_id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(owner_id,conversation_id));
     CREATE TABLE IF NOT EXISTS google_connections(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('gmail','calendar')),refresh_token TEXT NOT NULL,scopes TEXT NOT NULL,connected_at TEXT NOT NULL,PRIMARY KEY(user_id,kind));
     CREATE TABLE IF NOT EXISTS google_oauth_states(state_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,verifier TEXT NOT NULL,expires BIGINT NOT NULL);
@@ -260,6 +261,11 @@ export const deleteExpiredSessions = async (db, now) => { await db.query('DELETE
 export const createSession = async (db, tokenHash, userId, expires) => { await db.query('INSERT INTO sessions(hash,user_id,expires) VALUES($1,$2,$3)',[tokenHash, userId, expires]); };
 export const findUserBySession = (db, tokenHash, now) => db.one('SELECT users.* FROM users JOIN sessions ON users.id=sessions.user_id WHERE sessions.hash=$1 AND sessions.expires>$2',[tokenHash, now]);
 export const deleteSession = async (db, tokenHash) => { await db.query('DELETE FROM sessions WHERE hash=$1',[tokenHash]); };
+
+/* ---- forwarded-booking addresses: one unguessable token per owner and trip (see forward-booking.mjs) ---- */
+export const forwardTokenFor = (db, ownerId, tripId) => db.one('SELECT token FROM trip_forward_addresses WHERE owner_id=$1 AND trip_id=$2',[ownerId, tripId]);
+export const createForwardToken = async (db, { token, ownerId, tripId, created }) => { await db.query('INSERT INTO trip_forward_addresses(token,owner_id,trip_id,created) VALUES($1,$2,$3,$4) ON CONFLICT(owner_id,trip_id) DO NOTHING',[token, ownerId, tripId, created]); };
+export const findForwardAddress = (db, token) => db.one('SELECT token,owner_id,trip_id FROM trip_forward_addresses WHERE token=$1',[token]);
 
 /* ---- records (trips, places, lists, bookings, memories, alerts, imports) ---- */
 export const findRecord = (db, id, userId, kind) => db.one('SELECT * FROM records WHERE id=$1 AND user_id=$2 AND kind=$3',[id, userId, kind]);
