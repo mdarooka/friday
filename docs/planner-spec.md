@@ -306,7 +306,7 @@ DESTINATIONS = {
   },
   kerala: {…}, rajasthan: {…}, ladakh: {…}, srilanka: {…}, kyoto: {…}     // same shape
 }
-ORDER = ['goa','kerala','rajasthan','ladakh','srilanka','kyoto']
+ORDER = ['goa','kerala','rajasthan','ladakh','srilanka']   // kyoto is retired: still loaded for saved trips, not offered
 ```
 
 Goa must be the richest destination, with at least 36 places across every kind. Every other

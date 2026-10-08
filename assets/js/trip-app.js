@@ -218,10 +218,11 @@
     let raw = '';
     try { raw = new URLSearchParams(location.search || '').get('destination') || ''; } catch (e) { /* ignore */ }
     const id = raw.trim();
-    const own = (key) => !!key && FT.DESTINATIONS && Object.prototype.hasOwnProperty.call(FT.DESTINATIONS, key) ? FT.dest(key) : null;
+    const offered = FT.ORDER || Object.keys(FT.DESTINATIONS || {}); // retired destinations stay loaded for old trips but never preset a new one
+    const own = (key) => !!key && FT.DESTINATIONS && Object.prototype.hasOwnProperty.call(FT.DESTINATIONS, key) && offered.includes(key) ? FT.dest(key) : null;
     if (!id && typeof FT.parseRequestedPlace === 'function') { // a When India travels link names a place, not an id: a catalogue id or name there presets the destination too
       const place = FT.parseRequestedPlace(location.search).toLowerCase();
-      const byName = place && FT.DESTINATIONS ? Object.keys(FT.DESTINATIONS).find((key) => String((FT.DESTINATIONS[key] || {}).name || '').toLowerCase() === place) : null;
+      const byName = place && FT.DESTINATIONS ? offered.find((key) => String((FT.DESTINATIONS[key] || {}).name || '').toLowerCase() === place) : null;
       return own(place) || own(byName);
     }
     return own(id) || own(id.toLowerCase());
