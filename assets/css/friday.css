@@ -1132,6 +1132,9 @@ a:hover > .offering-art.plate--photo > .plate__svg { transform: none; transition
 .lw-close .link .arrow { display: inline; }
 .lw-city__note { margin-top: 1rem; max-width: 40em; }
 .lw-break { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(1.5rem, 4vw, 4rem); padding-block: clamp(1.8rem, 3.5vw, 3rem); border-top: 1px solid var(--rule-soft); margin-top: clamp(1.5rem, 3vw, 2.5rem); }
+/* The photo tops the left column, above the eyebrow. The rows are not links, so the site-wide a:hover zoom never reaches it; it also sits still, like the card photos. */
+.lw-break__photo { margin: 0 0 clamp(1.1rem, 2vw, 1.6rem); border-radius: 6px; background: var(--paper); }
+.lw-break__photo.plate--photo > .plate__svg { transform: none; transition: none; }
 .lw-break__note { margin: .8rem 0 0; font-size: var(--t-sm); line-height: 1.65; color: var(--fg-mute); max-width: 32em; }
 .lw-picks { display: grid; gap: 1.8rem; }
 .lw-pick { padding-bottom: 1.6rem; border-bottom: 1px solid var(--rule-soft); }
