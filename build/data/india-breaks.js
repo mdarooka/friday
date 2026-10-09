@@ -3,7 +3,8 @@
  *
  * Researched 2026-10-07 from central and state holiday lists, panchang calendars and school calendars; every row lists its
  * sources (URLs below, never shown on the page). Row shape:
- *   { id, name, kind, group, regions, startDate, endDate, nights, note, researchNote, verified, confidence, source[], suggestions[] }
+ *   { id, photo, name, kind, group, regions, startDate, endDate, nights, note, researchNote, verified, confidence, source[], suggestions[] }
+ *   photo       the card photo's theme key, one of the keys of THEMES in ./break-photos.js (tests/home-break-photos.test.mjs fails for a shown row without one)
  *   kind        'long-weekend' | 'holiday' | 'festival-window' | 'school-break'
  *   types       one or more of 'festival' | 'school' | 'long-weekend' | 'short-escape' (the page's "Type of break" filter, see TYPE_FILTERS).
  *               school = a school-break row; festival = a festival, regional or national, is why the days are off; long-weekend = kind
@@ -105,7 +106,7 @@ const DAIS = 'https://www.dais.edu.in/calender';
 
 const BREAKS = [
   {
-    id: 'dussehra-2026', name: 'Dussehra long weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
+    id: 'dussehra-2026', photo: 'rajasthan-fort', name: 'Dussehra long weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
     regions: ['national'],
     startDate: '2026-10-17', endDate: '2026-10-20', nights: 3,
     note: 'Dussehra is on Tuesday 20 October. Monday 19 October is a leave day for most, which makes a four-day weekend.',
@@ -122,7 +123,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'diwali-2026', name: 'Diwali 2026', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
+    id: 'diwali-2026', photo: 'diwali-lamps', name: 'Diwali 2026', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
     regions: ['national'],
     startDate: '2026-11-07', endDate: '2026-11-11', nights: 4,
     note: 'Diwali is on Sunday 8 November, so the days around it matter more than the day itself. Expect to take one or two leave days; what is off varies by state.',
@@ -139,7 +140,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'guru-nanak-2026', name: 'Guru Nanak Jayanti long weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
+    id: 'guru-nanak-2026', photo: 'golden-temple', name: 'Guru Nanak Jayanti long weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
     regions: ['national', 'MH', 'DL', 'WB', 'GJ'],
     startDate: '2026-11-21', endDate: '2026-11-24', nights: 3,
     note: 'Guru Nanak Jayanti is on Tuesday 24 November. Monday 23 is a leave day for most. It is not a holiday in Tamil Nadu.',
@@ -156,7 +157,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'christmas-2026', name: 'Christmas weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend', 'short-escape'],
+    id: 'christmas-2026', photo: 'goa-church', name: 'Christmas weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend', 'short-escape'],
     regions: ['national'],
     startDate: '2026-12-25', endDate: '2026-12-27', nights: 2,
     note: 'Christmas is on a Friday, so it is a clean three-day weekend with no leave needed. It overlaps school winter breaks, so places fill early.',
@@ -174,7 +175,7 @@ const BREAKS = [
   },
   // VERIFY: date still to be confirmed (reliable-unofficial).
   {
-    id: 'new-year-2027', name: 'New Year weekend', kind: 'long-weekend', group: 'national', types: ['long-weekend', 'short-escape'],
+    id: 'new-year-2027', photo: 'jaisalmer-dunes', name: 'New Year weekend', kind: 'long-weekend', group: 'national', types: ['long-weekend', 'short-escape'],
     regions: ['national'],
     startDate: '2027-01-01', endDate: '2027-01-03', nights: 2,
     note: 'New Year\u2019s Day is a Friday and a public holiday in some states, not all. Check your own state\u2019s list.',
@@ -191,7 +192,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'republic-day-2027', name: 'Republic Day long weekend', kind: 'long-weekend', group: 'national', types: ['long-weekend'],
+    id: 'republic-day-2027', photo: 'rann-of-kutch', name: 'Republic Day long weekend', kind: 'long-weekend', group: 'national', types: ['long-weekend'],
     regions: ['national'],
     startDate: '2027-01-23', endDate: '2027-01-26', nights: 3,
     note: 'Republic Day is on Tuesday 26 January. Take Monday 25 as leave for a four-day weekend.',
@@ -208,7 +209,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'holi-easter-2027', name: 'Holi to Easter week', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
+    id: 'holi-easter-2027', photo: 'holi', name: 'Holi to Easter week', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
     regions: ['national'],
     startDate: '2027-03-20', endDate: '2027-03-28', nights: 8,
     note: 'Holi is on Tuesday 23 March and Good Friday on 26 March, with Easter on Sunday 28 March. The full nine days takes two or three leave days; shorter versions work too.',
@@ -232,7 +233,7 @@ const BREAKS = [
   },
   // VERIFY: date still to be confirmed (reliable-unofficial).
   {
-    id: 'mid-april-2027', name: 'Mid-April cluster (Ambedkar Jayanti, Ram Navami, Mahavir Jayanti)', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
+    id: 'mid-april-2027', photo: 'himalayan-foothills', name: 'Mid-April cluster (Ambedkar Jayanti, Ram Navami, Mahavir Jayanti)', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
     regions: ['national'],
     startDate: '2027-04-14', endDate: '2027-04-19', nights: 5,
     note: 'A cluster of holidays from Wednesday 14 to Monday 19 April. One leave day, Friday 16, joins them, and Mahavir Jayanti\u2019s date is still to be confirmed.',
@@ -249,7 +250,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'bakrid-2027', name: 'Bakri Id long weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend', 'short-escape'],
+    id: 'bakrid-2027', photo: 'south-hills', name: 'Bakri Id long weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend', 'short-escape'],
     regions: ['national'],
     startDate: '2027-05-15', endDate: '2027-05-17', nights: 2,
     note: 'Bakri Id is on Monday 17 May, a clean three-day weekend. It depends on the moon and could move by a day, which would need a leave day.',
@@ -266,7 +267,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'buddha-purnima-2027', name: 'Buddha Purnima long weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
+    id: 'buddha-purnima-2027', photo: 'spiti-monastery', name: 'Buddha Purnima long weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
     regions: ['national'],
     startDate: '2027-05-20', endDate: '2027-05-23', nights: 3,
     note: 'Buddha Purnima is on Thursday 20 May. Take Friday 21 as leave for a four-day weekend.',
@@ -283,7 +284,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'independence-day-2027', name: 'Independence Day / Raksha Bandhan', kind: 'long-weekend', group: 'national', types: ['long-weekend'],
+    id: 'independence-day-2027', photo: 'kerala-backwaters', name: 'Independence Day / Raksha Bandhan', kind: 'long-weekend', group: 'national', types: ['long-weekend'],
     regions: ['national'],
     startDate: '2027-08-14', endDate: '2027-08-17', nights: 3,
     note: 'Independence Day falls on a Sunday, so it adds no day off by itself. Monday 16 is a leave day, and Raksha Bandhan on Tuesday 17 is a holiday in some states only. A modest long weekend.',
@@ -318,7 +319,7 @@ const BREAKS = [
     source: [DOPT_2027],
   },
   {
-    id: 'diwali-2027', name: 'Diwali 2027 long weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
+    id: 'diwali-2027', photo: 'diwali-lamps', name: 'Diwali 2027 long weekend', kind: 'long-weekend', group: 'national', types: ['festival', 'long-weekend'],
     regions: ['national'],
     startDate: '2027-10-28', endDate: '2027-10-31', nights: 3,
     note: 'Diwali is on Friday 29 October, so Friday to Sunday is off nationally. Some states also give Thursday.',
@@ -335,7 +336,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'durga-puja-2026', name: 'Durga Puja (Kolkata)', kind: 'festival-window', group: 'festival', types: ['festival'],
+    id: 'durga-puja-2026', photo: 'durga-puja', name: 'Durga Puja (Kolkata)', kind: 'festival-window', group: 'festival', types: ['festival'],
     regions: ['WB'],
     startDate: '2026-10-15', endDate: '2026-10-26', nights: 11,
     note: 'Government offices in West Bengal are closed from 15 to 26 October, with public holidays on 19, 20 and 21 October. Kolkata itself is the draw this week, and outbound travel peaks after Dashami.',
@@ -352,7 +353,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'dasara-2026-ka-ts', name: 'Dasara (Bengaluru/Hyderabad)', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
+    id: 'dasara-2026-ka-ts', photo: 'mysuru-palace', name: 'Dasara (Bengaluru/Hyderabad)', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
     regions: ['KA', 'TS'],
     startDate: '2026-10-17', endDate: '2026-10-21', nights: 4,
     note: 'Karnataka and Telangana are off on Tuesday 20 and Wednesday 21 October. Monday 19 is a leave day for most, which makes a five-day stretch.',
@@ -369,7 +370,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'ayutha-pooja-2026-tn', name: 'Ayutha Pooja & Vijaya Dasami (Chennai)', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
+    id: 'ayutha-pooja-2026-tn', photo: 'mysuru-palace', name: 'Ayutha Pooja & Vijaya Dasami (Chennai)', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
     regions: ['TN'],
     startDate: '2026-10-17', endDate: '2026-10-20', nights: 3,
     note: 'Ayutha Pooja on Monday 19 and Vijaya Dasami on Tuesday 20 October make a four-day weekend in Tamil Nadu with no leave needed.',
@@ -387,7 +388,7 @@ const BREAKS = [
   },
   // VERIFY: date still to be confirmed (reliable-unofficial).
   {
-    id: 'navratri-2026-gj', name: 'Navratri (Ahmedabad)', kind: 'festival-window', group: 'festival', types: ['festival'],
+    id: 'navratri-2026-gj', photo: 'navratri', name: 'Navratri (Ahmedabad)', kind: 'festival-window', group: 'festival', types: ['festival'],
     regions: ['GJ'],
     startDate: '2026-10-11', endDate: '2026-10-20', nights: 9,
     note: 'Navratri is nine nights of garba, and only Dussehra on Tuesday 20 October is an official holiday in Gujarat. Many stay for the evenings; the closing weekend suits those who would rather be away.',
@@ -404,7 +405,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'diwali-2026-mh', name: 'Diwali (Maharashtra)', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
+    id: 'diwali-2026-mh', photo: 'konkan-coast', name: 'Diwali (Maharashtra)', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
     regions: ['MH'],
     startDate: '2026-11-07', endDate: '2026-11-10', nights: 3,
     note: 'Maharashtra is off on Sunday 8 and Tuesday 10 November. Monday 9 is a leave day for most.',
@@ -421,7 +422,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'diwali-2026-gj', name: 'Diwali & Gujarati New Year', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
+    id: 'diwali-2026-gj', photo: 'udaipur-lake', name: 'Diwali & Gujarati New Year', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
     regions: ['GJ'],
     startDate: '2026-11-07', endDate: '2026-11-11', nights: 4,
     note: 'Gujarat is off for Diwali on Sunday 8, New Year on Tuesday 10 and Bhai Bij on Wednesday 11 November. Monday 9 is a leave day.',
@@ -438,7 +439,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'diwali-2026-ka', name: 'Deepavali (Bengaluru)', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
+    id: 'diwali-2026-ka', photo: 'konkan-coast', name: 'Deepavali (Bengaluru)', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
     regions: ['KA'],
     startDate: '2026-11-07', endDate: '2026-11-10', nights: 3,
     note: 'Karnataka is off on Sunday 8 and Tuesday 10 November. Monday 9 is a leave day for most.',
@@ -455,7 +456,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'kali-puja-2026', name: 'Kali Puja & Bhai Phonta (Kolkata)', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
+    id: 'kali-puja-2026', photo: 'eastern-himalaya', name: 'Kali Puja & Bhai Phonta (Kolkata)', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
     regions: ['WB'],
     startDate: '2026-11-07', endDate: '2026-11-12', nights: 5,
     note: 'West Bengal state offices get most of the week around Kali Puja, 8 to 12 November. Banks and private offices usually get fewer days, so check your own.',
@@ -482,7 +483,7 @@ const BREAKS = [
   },
   // VERIFY: date still to be confirmed (reliable-unofficial).
   {
-    id: 'sankranti-pongal-2027', name: 'Makar Sankranti / Pongal / Uttarayan', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
+    id: 'sankranti-pongal-2027', photo: 'kites', name: 'Makar Sankranti / Pongal / Uttarayan', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend'],
     regions: ['TN', 'TS', 'KA', 'GJ'],
     startDate: '2027-01-14', endDate: '2027-01-17', nights: 3,
     note: 'Makar Sankranti and Pongal fall on Thursday 14 and Friday 15 January, which gives a four-day weekend in the south and Gujarat. The 2027 state lists are still to be confirmed.',
@@ -500,7 +501,7 @@ const BREAKS = [
   },
   // VERIFY: date still to be confirmed (reliable-unofficial).
   {
-    id: 'shivaji-jayanti-2027', name: 'Shivaji Jayanti long weekend', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend', 'short-escape'],
+    id: 'shivaji-jayanti-2027', photo: 'sahyadri-fort', name: 'Shivaji Jayanti long weekend', kind: 'long-weekend', group: 'festival', types: ['festival', 'long-weekend', 'short-escape'],
     regions: ['MH'],
     startDate: '2027-02-19', endDate: '2027-02-21', nights: 2,
     note: 'Shivaji Jayanti is on Friday 19 February, a clean three-day weekend in Maharashtra. The 2027 state list is still to be confirmed.',
@@ -568,7 +569,7 @@ const BREAKS = [
   },
   // VERIFY: date still to be confirmed (reliable-unofficial).
   {
-    id: 'navratri-durga-puja-2027', name: 'Navratri & Durga Puja 2027', kind: 'festival-window', group: 'festival', types: ['festival'],
+    id: 'navratri-durga-puja-2027', photo: 'durga-puja', name: 'Navratri & Durga Puja 2027', kind: 'festival-window', group: 'festival', types: ['festival'],
     regions: ['WB', 'GJ', 'KA', 'TN', 'TS'],
     startDate: '2027-10-06', endDate: '2027-10-10', nights: 4,
     note: 'Saptami to Navami fall on Wednesday 6 to Friday 8 October, with Dussehra on Saturday 9. Several states are likely to give Friday 8 off for a long weekend; the state lists are still to be confirmed.',
@@ -585,7 +586,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'school-autumn-2026-kol', name: 'Puja vacation (Kolkata schools)', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-autumn-2026-kol', photo: 'eastern-himalaya', name: 'Puja vacation (Kolkata schools)', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['WB'],
     startDate: '2026-10-14', endDate: '2026-10-26', nights: 12,
     note: 'Kolkata\u2019s CBSE schools break for Puja from 14 to 26 October. State-board schools may run longer.',
@@ -602,7 +603,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'school-dasara-2026-blr', name: 'Dasara break (Bengaluru schools)', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-dasara-2026-blr', photo: 'south-hills', name: 'Dasara break (Bengaluru schools)', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['KA'],
     startDate: '2026-10-10', endDate: '2026-10-21', nights: 11,
     note: 'Bengaluru schools break for Dasara from 10 to 21 October, and the break is already under way.',
@@ -619,7 +620,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'school-autumn-2026-del', name: 'Autumn break (Delhi schools)', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-autumn-2026-del', photo: 'himalayan-foothills', name: 'Autumn break (Delhi schools)', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['DL'],
     startDate: '2026-10-17', endDate: '2026-10-20', nights: 3,
     note: 'Delhi government schools have a short autumn break from 17 to 19 October, with Dussehra on the 20th. Private schools set their own.',
@@ -636,7 +637,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'school-diwali-2026', name: 'Diwali vacation (schools)', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-diwali-2026', photo: 'kerala-backwaters', name: 'Diwali vacation (schools)', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['MH', 'KA', 'WB'],
     startDate: '2026-11-06', endDate: '2026-11-15', nights: 9,
     note: 'Most Mumbai schools break for Diwali from about 6 to 15 November, with shorter breaks in Bengaluru and Kolkata. Dates vary by school and board.',
@@ -653,7 +654,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'school-winter-2026', name: 'Christmas–New Year school break', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-winter-2026', photo: 'kerala-backwaters', name: 'Christmas–New Year school break', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['MH', 'KA', 'WB', 'TN'],
     startDate: '2026-12-24', endDate: '2027-01-03', nights: 10,
     note: 'Schools in Mumbai, Bengaluru, Kolkata and Chennai break from about 24 December to 3 January; some run to 5 January.',
@@ -670,7 +671,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'school-winter-2027-del', name: 'Winter vacation (Delhi schools)', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-winter-2027-del', photo: 'kerala-backwaters', name: 'Winter vacation (Delhi schools)', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['DL'],
     startDate: '2027-01-01', endDate: '2027-01-15', nights: 14,
     note: 'Delhi\u2019s winter vacation runs 1 to 15 January, later than elsewhere. A cold wave can extend it.',
@@ -687,7 +688,7 @@ const BREAKS = [
     ],
   },
   {
-    id: 'school-session-break-2027', name: 'End-of-session break (CBSE April-session schools)', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-session-break-2027', photo: 'eastern-himalaya', name: 'End-of-session break (CBSE April-session schools)', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['MH'],
     startDate: '2027-03-20', endDate: '2027-03-31', nights: 11,
     note: 'Some Mumbai schools break from 20 to 31 March, lining up with Holi to Easter. It varies by school.',
@@ -705,7 +706,7 @@ const BREAKS = [
   },
   // VERIFY: date still to be confirmed (reliable-unofficial).
   {
-    id: 'school-summer-2027-south', name: 'Summer vacation — South (Bengaluru, Chennai)', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-summer-2027-south', photo: 'eastern-himalaya', name: 'Summer vacation — South (Bengaluru, Chennai)', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['KA', 'TN'],
     startDate: '2027-04-11', endDate: '2027-05-31', nights: 50,
     note: 'Southern schools usually break from mid April to the end of May. Dates are still to be confirmed and vary by board.',
@@ -723,7 +724,7 @@ const BREAKS = [
   },
   // VERIFY: date still to be confirmed (reliable-unofficial).
   {
-    id: 'school-summer-2027-mumbai', name: 'Summer vacation — Mumbai', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-summer-2027-mumbai', photo: 'ladakh', name: 'Summer vacation — Mumbai', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['MH'],
     startDate: '2027-05-04', endDate: '2027-06-17', nights: 44,
     note: 'Mumbai CBSE schools break from early May to mid June; other boards differ. Dates are still to be confirmed.',
@@ -741,7 +742,7 @@ const BREAKS = [
   },
   // VERIFY: date still to be confirmed (estimate).
   {
-    id: 'school-summer-2027-kol', name: 'Summer vacation — Kolkata', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-summer-2027-kol', photo: 'eastern-himalaya', name: 'Summer vacation — Kolkata', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['WB'],
     startDate: '2027-05-10', endDate: '2027-06-09', nights: 30,
     note: 'Our estimate from last year\u2019s calendar: mid May to early June. The 2027 dates are not out yet.',
@@ -759,7 +760,7 @@ const BREAKS = [
   },
   // VERIFY: date still to be confirmed (estimate).
   {
-    id: 'school-summer-2027-del', name: 'Summer vacation — Delhi', kind: 'school-break', group: 'school', types: ['school'],
+    id: 'school-summer-2027-del', photo: 'ladakh', name: 'Summer vacation — Delhi', kind: 'school-break', group: 'school', types: ['school'],
     regions: ['DL'],
     startDate: '2027-05-11', endDate: '2027-06-30', nights: 50,
     note: 'Our estimate from last year\u2019s calendar: mid May to the end of June. The 2027 dates are not out yet.',
@@ -847,7 +848,7 @@ function upcomingBreaks(today, { group, region, type, all } = {}) {
     .filter((b) => b.endDate >= day && (all || b.nights >= MIN_NIGHTS) && (!group || b.group === group) && (!region || matchesRegion(b, region)) && (!type || matchesType(b, type)))
     .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.id.localeCompare(b.id))
     .map((b) => ({
-      id: b.id, name: b.name, kind: b.kind, group: b.group, types: b.types, regions: b.regions, startDate: b.startDate, endDate: b.endDate, nights: b.nights,
+      id: b.id, photo: b.photo, name: b.name, kind: b.kind, group: b.group, types: b.types, regions: b.regions, startDate: b.startDate, endDate: b.endDate, nights: b.nights,
       note: b.note, researchNote: b.researchNote, suggestions: (b.suggestions || []).map((x) => resolveSuggestion(b, x)), verified: b.verified, confidence: b.confidence, source: b.source, dates: formatRange(b.startDate, b.endDate),
     }));
 }

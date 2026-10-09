@@ -5,6 +5,8 @@
  * assets/js/when-india-travels.js only filters rows by state and by type of break, and swaps the "Closer to home" block.
  */
 const B = require('./data/india-breaks');
+const { THEMES, SIZES: PHOTO_SIZES, ROW_SIZES } = require('./data/break-photos');
+const { Photo } = require('./templates');
 
 const PAGE = 'when-india-travels.html';
 const LABEL = 'When India travels';
@@ -49,6 +51,7 @@ function addNights(startDate, nights) {
 function rowHtml(esc, brk, guides) {
   return `<article class="lw-break" id="${esc(brk.id)}" data-wit-row data-regions="${esc(brk.regions.join(' '))}" data-types="${esc(brk.types.join(' '))}" data-end="${esc(brk.endDate)}" aria-labelledby="${esc(brk.id)}-h">
       <header class="lw-break__head">
+        ${breakPhoto(brk, { sizes: ROW_SIZES, class: 'lw-break__photo' })}
         <p class="eyebrow eyebrow--accent">${esc(brk.dates)} \u00b7 ${nightsLabel(brk.nights)} \u00b7 ${esc(regionLabel(brk))}</p>
         <h3 class="h3" id="${esc(brk.id)}-h">${esc(brk.name)}</h3>
         <p class="lw-break__note">${esc(brk.note)}</p>
@@ -127,10 +130,26 @@ function cardDates(brk, today) {
   return brk.startDate.slice(0, 4) === B.isoDay(today).slice(0, 4) ? brk.dates.replace(/ \d{4}$/, '') : brk.dates;
 }
 
+/* A break's photo: decorative (alt is empty, the heading names the break), lazy, 16:10 like the files. Shared by the homepage
+   cards and the rows of the full page, which differ only in the frame class and the `sizes` for their width.
+   A break with no theme at all gets no photo; a theme key that is not in the catalogue is a typo and fails the build. */
+function breakPhoto(brk, { sizes, class: cls }) {
+  if (brk.photo == null || brk.photo === '') return '';
+  if (!Object.hasOwn(THEMES, brk.photo)) throw new Error(`india-breaks.js: ${brk.id} has no valid photo theme (photo: ${JSON.stringify(brk.photo)}); see build/data/break-photos.js`);
+  return Photo({ ...THEMES[brk.photo], alt: '', sizes, ratio: 'l', class: cls });
+}
+
+/* The photo across the top of a card. Every card needs one, so a break without a theme fails the build here. */
+function cardPhoto(brk) {
+  if (brk.photo == null || brk.photo === '') throw new Error(`india-breaks.js: ${brk.id} has no valid photo theme (photo: ${JSON.stringify(brk.photo)}); see build/data/break-photos.js`);
+  return breakPhoto(brk, { sizes: PHOTO_SIZES, class: 'wit-card__photo' });
+}
+
 function breakCardHtml(esc, brk, today) {
   const first = brk.suggestions[0];
   return `<li class="wit-card-item" data-wit-card data-regions="${esc(brk.regions.join(' '))}" data-start="${esc(brk.startDate)}" data-end="${esc(brk.endDate)}" data-id="${esc(brk.id)}">
           <a class="wit-card" href="${PAGE}#${esc(brk.id)}">
+            ${cardPhoto(brk)}
             <p class="eyebrow eyebrow--accent wit-card__dates">${esc(cardDates(brk, today))} \u00b7 ${nightsLabel(brk.nights)}</p>
             <h3 class="h3 wit-card__t">${esc(brk.name)}</h3>
             <p class="wit-card__note">${esc(firstSentence(brk.note))}</p>

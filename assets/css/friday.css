@@ -726,7 +726,8 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
 .offering-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
 /* Offering photos (Photo() in a card plate) sit beside the Villas illustration, which has no hover zoom: keep them still too. */
 .offering-art.plate--photo { background: var(--paper); }
-.offering-art.plate--photo > .plate__svg { transform: none; transition: none; }
+.offering-art.plate--photo > .plate__svg,
+a:hover > .offering-art.plate--photo > .plate__svg { transform: none; transition: none; } /* the hover selector outranks the site-wide a:hover > .plate zoom */
 .home-offerings-head { padding-top: 1.5rem; border-top: 1px solid var(--rule); display: grid; gap: .6rem; }
 .home-offerings-head p:last-child { margin: 0; color: var(--fg-mute); font-size: var(--t-sm); }
 #offerings { padding-bottom: clamp(3.5rem, 7vw, 6rem); }
@@ -1132,6 +1133,9 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
 .lw-close .link .arrow { display: inline; }
 .lw-city__note { margin-top: 1rem; max-width: 40em; }
 .lw-break { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(1.5rem, 4vw, 4rem); padding-block: clamp(1.8rem, 3.5vw, 3rem); border-top: 1px solid var(--rule-soft); margin-top: clamp(1.5rem, 3vw, 2.5rem); }
+/* The photo tops the left column, above the eyebrow. The rows are not links, so the site-wide a:hover zoom never reaches it; it also sits still, like the card photos. */
+.lw-break__photo { margin: 0 0 clamp(1.1rem, 2vw, 1.6rem); border-radius: 6px; background: var(--paper); }
+.lw-break__photo.plate--photo > .plate__svg { transform: none; transition: none; }
 .lw-break__note { margin: .8rem 0 0; font-size: var(--t-sm); line-height: 1.65; color: var(--fg-mute); max-width: 32em; }
 .lw-picks { display: grid; gap: 1.8rem; }
 .lw-pick { padding-bottom: 1.6rem; border-bottom: 1px solid var(--rule-soft); }
@@ -1158,9 +1162,13 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
 .wit-track::-webkit-scrollbar { display: none; }
 .wit-card-item { flex: 0 0 calc((100% - (var(--wit-show) - 1) * var(--wit-gap)) / var(--wit-show)); min-width: 0; scroll-snap-align: start; }
 .wit-card-item[hidden] { display: none; }
-.wit-card { display: flex; flex-direction: column; height: 100%; padding: clamp(1.1rem, 1.6vw, 1.5rem); color: var(--fg); text-decoration: none; border: 1px solid rgba(21, 20, 15, .14); border-radius: 14px; background: rgba(255, 255, 255, .35); transition: border-color .3s var(--ease), background .3s var(--ease); }
+.wit-card { --wit-pad: clamp(1.1rem, 1.6vw, 1.5rem); display: flex; flex-direction: column; height: 100%; padding: var(--wit-pad); color: var(--fg); text-decoration: none; border: 1px solid rgba(21, 20, 15, .14); border-radius: 14px; background: rgba(255, 255, 255, .35); transition: border-color .3s var(--ease), background .3s var(--ease); }
 .wit-card:hover { border-color: var(--accent); background: rgba(255, 255, 255, .55); }
 .wit-card:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 3px; }
+/* The photo runs edge to edge across the top of the card, inside the border and its top corners (14px radius less the 1px border). Still on hover, like the offering photos. */
+.wit-card__photo { flex: none; margin: calc(-1 * var(--wit-pad)) calc(-1 * var(--wit-pad)) var(--wit-pad); border-radius: 13px 13px 0 0; background: var(--paper); }
+.wit-card__photo.plate--photo > .plate__svg,
+.wit-card:hover > .wit-card__photo.plate--photo > .plate__svg { transform: none; transition: none; }
 .wit-card__dates { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .08em; }
 .wit-card__t { margin: .8rem 0 0; font-size: clamp(1.3rem, 1.7vw, 1.6rem); }
 .wit-card__note { margin: .6rem 0 0; font-size: var(--t-sm); line-height: 1.6; color: var(--fg-mute); }

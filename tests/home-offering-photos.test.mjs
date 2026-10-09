@@ -60,6 +60,8 @@ test('Villas card keeps its illustration', async () => {
 test('offering photo plates stay still on hover, like the Villas illustration', async () => {
   const css = await read('assets/css/friday.css');
   assert.match(css, /\.offering-art\.plate--photo > \.plate__svg\s*\{[^}]*transform:\s*none;/);
+  /* The site-wide zoom is `a:hover > .plate .plate__svg` (0,3,1): the still rule needs a hover selector of its own to win. */
+  assert.match(css, /a:hover > \.offering-art\.plate--photo > \.plate__svg\s*\{[^}]*transform:\s*none;/);
 });
 
 test('offering photo credits are recorded in assets/images/CREDITS.md', async () => {
