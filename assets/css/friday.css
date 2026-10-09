@@ -725,7 +725,8 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
 .offering-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
 /* Offering photos (Photo() in a card plate) sit beside the Villas illustration, which has no hover zoom: keep them still too. */
 .offering-art.plate--photo { background: var(--paper); }
-.offering-art.plate--photo > .plate__svg { transform: none; transition: none; }
+.offering-art.plate--photo > .plate__svg,
+a:hover > .offering-art.plate--photo > .plate__svg { transform: none; transition: none; } /* the hover selector outranks the site-wide a:hover > .plate zoom */
 .home-offerings-head { padding-top: 1.5rem; border-top: 1px solid var(--rule); display: grid; gap: .6rem; }
 .home-offerings-head p:last-child { margin: 0; color: var(--fg-mute); font-size: var(--t-sm); }
 #offerings { padding-bottom: clamp(3.5rem, 7vw, 6rem); }
