@@ -2,8 +2,8 @@
 /*
  * og-cards.js — renders assets/images/og/<key>.jpg (1200×630) for every destination and guide in build/social-cards.js.
  *
- *   node build/tools/og-cards.js            # all cards
- *   node build/tools/og-cards.js goa kyoto  # just these keys
+ *   node build/tools/og-cards.js            # all cards, plus the site-wide card (assets/images/friday-social.jpg)
+ *   node build/tools/og-cards.js site goa   # just these keys ("site" is the site-wide card)
  *
  * Needs a local Google Chrome (headless screenshot) and macOS `sips` (PNG → JPEG). No npm dependencies. The artwork is
  * the site's own plate() generator (build/art.js) so cards match the destination colour on the planner. Fonts are the
@@ -51,22 +51,44 @@ h1{font:400 ${d.name.length > 8 ? 128 : 148}px/.95 var(--serif);letter-spacing:-
 <div class="art">${art}</div></div></body></html>`;
 }
 
+/* The site-wide card (assets/images/friday-social.jpg). WhatsApp crops the large preview towards a square around the
+   centre, so every word sits in the middle ~560px column and the painting only frames it. */
+function siteCardHtml() {
+  const backdrop = 'data:image/jpeg;base64,' + fs.readFileSync(path.join(ROOT, 'assets/images/friday-coastal-backdrop.jpg')).toString('base64');
+  return `<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F4F1EA;--ink:#15140F;--soft:#4A473D;--ochre:#B0552D;--serif:"Cormorant Garamond",Garamond,Georgia,serif;--sans:Inter,Arial,sans-serif}
+*{box-sizing:border-box;margin:0}html,body{width:1200px;height:630px;overflow:hidden;background:#F6EEE2;color:var(--ink)}
+.card{position:relative;width:1200px;height:630px;overflow:hidden;text-align:center}
+.art{position:absolute;left:50%;bottom:-40px;width:1960px;height:653px;transform:translateX(-50%);background:url(${backdrop}) center bottom/cover no-repeat}
+.wash{position:absolute;inset:0;background:linear-gradient(180deg,#F6EEE2 0%,#F6EEE2f2 26%,#F6EEE2aa 50%,#F6EEE200 66%)}
+.copy{position:relative;padding-top:54px;display:flex;flex-direction:column;align-items:center}
+.wordmark{font:500 50px/1 var(--serif);letter-spacing:-.03em}
+.rule{width:44px;height:1px;background:var(--ochre);margin:26px 0 24px}
+h1{font:400 88px/.96 var(--serif);letter-spacing:-.035em}
+h1 em{font-style:italic}
+</style></head><body><div class="card"><div class="art"></div><div class="wash"></div>
+<div class="copy"><div class="wordmark">Friday</div><div class="rule"></div>
+<h1>Travel,<br>at <em>your</em> own pace.</h1></div></div></body></html>`;
+}
+
 function render(key, tmp) {
   const html = path.join(tmp, `${key}.html`), png = path.join(tmp, `${key}.png`);
-  fs.writeFileSync(html, cardHtml(key));
+  fs.writeFileSync(html, key === 'site' ? siteCardHtml() : cardHtml(key));
   execFileSync(CHROME, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=1',
     `--window-size=${C.CARD_WIDTH},${C.CARD_HEIGHT}`, '--virtual-time-budget=8000', `--screenshot=${png}`, `file://${html}`], { stdio: 'ignore' });
-  const out = path.join(ROOT, C.cardFile(key));
+  const out = path.join(ROOT, key === 'site' ? C.SITE_CARD_FILE : C.cardFile(key));
   fs.mkdirSync(path.dirname(out), { recursive: true });
   execFileSync('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '86', png, '--out', out], { stdio: 'ignore' });
   return out;
 }
 
 const wanted = process.argv.slice(2);
-const keys = wanted.length ? wanted : C.cardKeys();
+const keys = wanted.length ? wanted : ['site', ...C.cardKeys()];
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'friday-og-'));
 for (const key of keys) {
-  if (!C.cardKeys().includes(key)) { console.error(`Unknown card "${key}"`); process.exitCode = 1; continue; }
+  if (key !== 'site' && !C.cardKeys().includes(key)) { console.error(`Unknown card "${key}"`); process.exitCode = 1; continue; }
   const out = render(key, tmp);
   console.log(`${path.relative(ROOT, out)}  ${(fs.statSync(out).size / 1024).toFixed(0)} KB`);
 }

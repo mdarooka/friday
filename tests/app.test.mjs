@@ -224,7 +224,7 @@ test('trip share previews are server-rendered and share use is counted in SQLite
   const plainTrip=(await request('/api/trips','POST',{data:{title:'No cover',destination:'India',days:[]}},owner.cookie)).result.record;
   const plainShare=await request('/api/trips/'+plainTrip.id+'/share','POST',{},owner.cookie),plainToken=new URL(plainShare.result.share.url,origin).searchParams.get('share');
   const fallback=await request('/app.html?share='+plainToken,'GET',undefined,'',{'User-Agent':'WhatsApp'});
-  assert.ok(fallback.result.includes('property="og:image" content="http://localhost:4871/assets/images/friday-coastal-banner.jpg"'));
+  assert.ok(fallback.result.includes('property="og:image" content="http://localhost:4871/assets/images/friday-social.jpg?v=2"'));
 });
 
 test('Google OAuth routes receive only the signed-in owner and preserve redirects',async t=>{

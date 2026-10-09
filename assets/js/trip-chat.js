@@ -838,6 +838,19 @@
     var ids = ((d.stays && d.stays.ids) || []).filter(function (id) { return P(d, id); });
     return { kind: 'list', items: ids.map(function (id) { var p = d.places[id]; return { t: p.name, m: areaLabel(d, p.area) || p.label || '' }; }) };
   }
+  /* Rough road time between two areas: straight-line distance stretched for roads, at town-traffic speed.
+     Only used to word the "keep or change hotel" question, always shown as an estimate. */
+  function commuteMins(d, fromId, toId) {
+    var a = areaOf(d, fromId), b = areaOf(d, toId);
+    if (!a || !b || !Array.isArray(a.at) || !Array.isArray(b.at)) return null;
+    var rad = Math.PI / 180, dLat = (b.at[1] - a.at[1]) * rad, dLng = (b.at[0] - a.at[0]) * rad;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.at[1] * rad) * Math.cos(b.at[1] * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    var km = 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h)) * 1.35;
+    return Math.max(10, Math.round(km / (km > 60 ? 45 : 32) * 60 / 5) * 5);
+  }
+  var COMMUTE_SHORT = 45, COMMUTE_LONG = 120;
+  function commuteBand(mins) { return mins == null ? '' : mins <= COMMUTE_SHORT ? 'short' : mins >= COMMUTE_LONG ? 'long' : 'middle'; }
+  function fmtMins(m) { return m < 60 ? m + ' min' : Math.floor(m / 60) + ' hr' + (m % 60 ? ' ' + m % 60 + ' min' : ''); }
   function stayIdeasBlock(d, plan, generalFallback) {
     var ids = (d.stays && d.stays.ids) || [], days = plan && plan.days || [];
     if (!ids.length || !days.length) return null;
@@ -846,7 +859,14 @@
       var area = day.area;
       if (!area) return;
       var group = groups[groups.length - 1];
-      if (!group || group.area !== area) { group = { area: area, from: i + 1, to: i + 1, dateStart: day.date || '', dateEnd: day.date || '', ids: [] }; groups.push(group); }
+      if (!group || group.area !== area) {
+        var prev = group;
+        group = { area: area, from: i + 1, to: i + 1, dateStart: day.date || '', dateEnd: day.date || '', ids: [] };
+        /* moving on from the previous base: note how far it is so the traveller can choose to keep one hotel */
+        var mins = prev ? commuteMins(d, prev.area, area) : null;
+        if (mins != null) group.commute = { from: prev.area, mins: mins };
+        groups.push(group);
+      }
       else { group.to = i + 1; group.dateEnd = day.date || ''; }
     });
     groups.forEach(function (group) {
@@ -1658,6 +1678,30 @@
     }
     return el;
   }
+  /* When the route moves to a new area, say how far it is from the last base and let the traveller
+     decide: a short hop suggests keeping one hotel, a long one suggests moving, and either can be overridden. */
+  function commuteNote(d, trip, group, groupIndex) {
+    var c = group.commute, band = c && commuteBand(c.mins);
+    if (!band) return null;
+    var to = areaLabel(d, group.area) || group.area, from = areaLabel(d, c.from) || c.from, hotel = null;
+    if (trip && trip.plan) {
+      (trip.plan.days || []).forEach(function (day) {
+        if (day.area !== c.from) return;
+        (day.items || []).forEach(function (item) { var p = !hotel && item.place && P(d, item.place); if (p && p.kind === 'stay') hotel = p; });
+      });
+      var base = !hotel && trip.plan.stay && P(d, trip.plan.stay);
+      if (base && base.area === c.from) hotel = base;
+    }
+    var hotelRef = hotel ? hotel.name : 'your ' + from + ' hotel', time = 'roughly ' + fmtMins(c.mins) + ' by road';
+    function btn(choice, label, ink) { return '<button type="button" class="' + (ink ? 'ch-pill ch-pill--ink' : 'ch-pill') + '" data-act="stay-choice" data-stay-group="' + groupIndex + '" data-choice="' + choice + '">' + esc(label) + '</button>'; }
+    function link(choice, label) { return '<button type="button" class="ch-stayidea__map" data-act="stay-choice" data-stay-group="' + groupIndex + '" data-choice="' + choice + '">' + esc(label) + '</button>'; }
+    function wrap(text, actions) { return '<div class="ch-stayideas__commute ch-stayideas__commute--' + band + '"><p>' + text + '</p>' + (actions ? '<div class="ch-stayideas__choice">' + actions + '</div>' : '') + '</div>'; }
+    if (group.choice === 'keep') return { hideCards: true, html: wrap('Keeping <strong>' + esc(hotelRef) + '</strong> for these days. ' + esc(to) + ' is ' + esc(time) + ' each way.', link('change', 'Show stays near ' + to)) };
+    if (group.choice === 'change') return { html: wrap('Moving closer to ' + esc(to) + ' for these days.', link('keep', 'Keep ' + hotelRef + ' instead')) };
+    if (band === 'short') return { hideCards: true, html: wrap(esc(to) + ' is ' + esc(time) + ' from ' + esc(from) + ', close enough to keep <strong>' + esc(hotelRef) + '</strong> and visit for the day. Would you like to change hotels?', btn('keep', 'Keep my hotel', true) + btn('change', 'Change hotel')) };
+    if (band === 'middle') return { html: wrap(esc(to) + ' is ' + esc(time) + ' from ' + esc(from) + '. You could keep <strong>' + esc(hotelRef) + '</strong> and make the drive, or move closer to save time each way. Would you like to change hotels?', btn('keep', 'Keep my hotel') + btn('change', 'Change hotel', true)) };
+    return { html: wrap(esc(to) + ' is ' + esc(time) + ' from ' + esc(from) + ', so moving hotels saves a long drive each way.', link('keep', 'Keep ' + hotelRef + ' anyway')) };
+  }
   function stayIdeasHTML(b) {
     var d = DEST(b.destId);
     if (!d) return '';
@@ -1680,7 +1724,10 @@
           (Array.isArray(p.at) && p.at.length === 2 ? '<button type="button" class="ch-stayidea__map" data-act="stay-map" data-stay-id="' + esc(id) + '">View on map</button>' : '') +
           '</div></div></article>';
       }).join('');
-      return cards ? '<section class="ch-stayideas__group"><div class="ch-stayideas__heading"><span>' + esc(days + when) + '</span><h3>Stay ideas near ' + esc(areaLabel(d, group.area) || group.area) + '</h3></div><div class="ch-stayideas__grid">' + cards + '</div></section>' : '';
+      if (!cards) return '';
+      var place = areaLabel(d, group.area) || group.area, note = group.from ? commuteNote(d, trip, group, groupIndex) : null;
+      return '<section class="ch-stayideas__group"><div class="ch-stayideas__heading"><span>' + esc(days + when) + '</span><h3>Stay ideas near ' + esc(place) + '</h3></div>' +
+        (note ? note.html : '') + (note && note.hideCards ? '' : '<div class="ch-stayideas__grid">' + cards + '</div>') + '</section>';
     }).join('');
     return groups ? '<p class="ch-stayideas__intro">' + (b.general ? 'Stay ideas from Friday’s destination guide. Save the ones you like while you review the proposed itinerary. ' : 'Places to consider along this route. Add a stay to your working plan or save it for later. ') + 'Prices and availability need confirmation before booking.</p>' + groups : '';
   }
@@ -2035,6 +2082,11 @@
         }
         break;
       }
+      case 'stay-choice': if (b && b.t === 'stay-ideas' && r.ctx && r.ctx.trip && r.ctx.trip.destId === b.destId) {
+        var choiceGroup = (b.groups || [])[+el.dataset.stayGroup], choice = el.dataset.choice;
+        if (choiceGroup && choiceGroup.commute && (choice === 'keep' || choice === 'change')) { choiceGroup.choice = choice; touch(b); persist(r.ctx.trip.id); resync(r); }
+        break;
+      }
       case 'stay-save': if (b && b.t === 'stay-ideas' && r.ctx && r.ctx.trip && r.ctx.trip.destId === b.destId && FT.saved && FT.saved.toggle) {
         var stayId = el.dataset.stayId, catalog = DEST(b.destId);
         if (catalog && P(catalog, stayId) && (b.groups || []).some(function (g) { return (g.ids || []).indexOf(stayId) >= 0; })) {
@@ -2215,6 +2267,6 @@
     chat.render(getTrip(tripId));
   };
 
-  chat._x = { extractPlace: extractPlace, experienceIdeasBlock: experienceIdeasBlock, experienceIdeasHTML: experienceIdeasHTML };   /* exposed for tests */
+  chat._x = { extractPlace: extractPlace, experienceIdeasBlock: experienceIdeasBlock, experienceIdeasHTML: experienceIdeasHTML, stayIdeasBlock: stayIdeasBlock, stayIdeasHTML: stayIdeasHTML };   /* exposed for tests */
   FT.chat = chat;
 })();

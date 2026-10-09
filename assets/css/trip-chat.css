@@ -75,6 +75,11 @@
 .ch-stayideas__heading { margin-bottom: 10px; padding-top: 12px; border-top: 1px solid var(--rule); }
 .ch-stayideas__heading > span { color: var(--ochre); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; }
 .ch-stayideas__heading h3 { margin: 4px 0 0; font: 400 1.45rem/1.1 var(--serif); }
+.ch-stayideas__commute { margin: 0 0 12px; padding: 12px 14px; border: 1px solid var(--rule); border-left: 2px solid var(--ochre); border-radius: 8px; background: var(--paper-2); }
+.ch-stayideas__commute p { margin: 0; color: var(--fg-soft); font-size: 13px; line-height: 1.55; }
+.ch-stayideas__commute strong { color: var(--ink); font-weight: 500; }
+.ch-stayideas__choice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.ch-stayideas__choice .ch-pill { margin: 0; }
 .ch-stayideas__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 10px; }
 .ch-stayidea { min-width: 0; overflow: hidden; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
 .ch-stayidea__art { height: 115px; overflow: hidden; background: var(--paper-2); }

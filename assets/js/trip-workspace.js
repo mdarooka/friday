@@ -227,8 +227,6 @@
   var TEMPLATE =
     '<header class="wsp-top">' +
       '<button type="button" class="wsp-iconbtn wsp-top__side" data-ws="side" aria-label="Show sidebar" title="Show sidebar">' + '{{sidebar}}' + '</button>' +
-      '<a class="wsp-mark" href="#/" aria-label="Friday, home">Friday</a>' +
-      '<span class="wsp-top__div" aria-hidden="true"></span>' +
       '<div class="wsp-title" data-ws="titlewrap"><button type="button" class="wsp-title__btn" data-ws="title" title="Rename trip"></button></div>' +
       '<div class="wsp-top__right">' +
         '<a class="wsp-briefing" data-ws="briefing" href="trip-briefing.html">Trip briefing</a>' +
