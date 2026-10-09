@@ -1283,11 +1283,11 @@
     side.innerHTML =
       '<div class="fx-side__in">' +
       '<div class="fx-side__top">' +
-      '<button class="fx-icon-btn" type="button" data-act="toggle-side" aria-label="Collapse sidebar" title="Collapse sidebar">' + icon('sidebar', 18) + '</button></div>' +
       '<div class="fx-seg">' +
       '<a class="fx-seg__btn' + (on('home') ? ' is-active' : '') + '" href="#/" aria-label="Home" title="Home"' + (on('home') ? ' aria-current="page"' : '') + '>' + icon('home', 18) + '</a>' +
       '<a class="fx-seg__btn' + (on('notifications') ? ' is-active' : '') + '" href="#/notifications" aria-label="Notifications' + (unread ? ' (unread)' : '') + '" title="Notifications"' + (on('notifications') ? ' aria-current="page"' : '') + '>' + icon('bell', 18) + (unread ? '<i class="fx-seg__dot"></i>' : '') + '</a>' +
       '<a class="fx-btn fx-btn--ink fx-seg__new" href="#/new">' + icon('plus', 16) + '<span>New trip</span></a></div>' +
+      '<button class="fx-icon-btn" type="button" data-act="toggle-side" aria-label="Collapse sidebar" title="Collapse sidebar">' + icon('sidebar', 18) + '</button></div>' +
       '<nav class="fx-nav" aria-label="Sections">' +
       '<a class="fx-nav__row' + (on('bookings') ? ' is-active' : '') + '" href="#/bookings"' + (on('bookings') ? ' aria-current="page"' : '') + '>' + icon('ticket', 18) + '<span>Bookings</span></a>' +
       '<a class="fx-nav__row' + (on('saved') ? ' is-active' : '') + '" href="#/saved"' + (on('saved') ? ' aria-current="page"' : '') + '>' + icon('globe', 18) + '<span>Saved Places</span><em class="fx-badge">Beta</em></a></nav>' +
