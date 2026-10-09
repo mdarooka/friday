@@ -367,7 +367,7 @@ test('the homepage section renders from the data: heading, lede, link, and one c
   assert.match(section, /<h2 class="h2" id="home-breaks-title">When India<br><em>travels\.<\/em><\/h2>/);
   assert.match(section, /<p class="lede">The long weekends, festival breaks and school holidays coming up, and the places that suit each one\.<\/p>/);
   assert.match(section, /<a class="link" data-wit-teaser-link href="when-india-travels\.html">See every break <span class="arrow">&rarr;<\/span><\/a>/);
-  assert.doesNotMatch(section, /style="(?!--i)|top pick|destination=/);
+  assert.doesNotMatch(section, /style="(?!--i|object-position:)|top pick|destination=/);
   const cards = cardsIn(trackOf(section));
   assert.equal(cards.length, upcoming.length);
   assert.ok(upcoming.length > 3, 'all upcoming national breaks, not just three');

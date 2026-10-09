@@ -1157,9 +1157,13 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
 .wit-track::-webkit-scrollbar { display: none; }
 .wit-card-item { flex: 0 0 calc((100% - (var(--wit-show) - 1) * var(--wit-gap)) / var(--wit-show)); min-width: 0; scroll-snap-align: start; }
 .wit-card-item[hidden] { display: none; }
-.wit-card { display: flex; flex-direction: column; height: 100%; padding: clamp(1.1rem, 1.6vw, 1.5rem); color: var(--fg); text-decoration: none; border: 1px solid rgba(21, 20, 15, .14); border-radius: 14px; background: rgba(255, 255, 255, .35); transition: border-color .3s var(--ease), background .3s var(--ease); }
+.wit-card { --wit-pad: clamp(1.1rem, 1.6vw, 1.5rem); display: flex; flex-direction: column; height: 100%; padding: var(--wit-pad); color: var(--fg); text-decoration: none; border: 1px solid rgba(21, 20, 15, .14); border-radius: 14px; background: rgba(255, 255, 255, .35); transition: border-color .3s var(--ease), background .3s var(--ease); }
 .wit-card:hover { border-color: var(--accent); background: rgba(255, 255, 255, .55); }
 .wit-card:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 3px; }
+/* The photo runs edge to edge across the top of the card, inside the border and its top corners (14px radius less the 1px border). Still on hover, like the offering photos. */
+.wit-card__photo { flex: none; margin: calc(-1 * var(--wit-pad)) calc(-1 * var(--wit-pad)) var(--wit-pad); border-radius: 13px 13px 0 0; background: var(--paper); }
+.wit-card__photo.plate--photo > .plate__svg,
+.wit-card:hover > .wit-card__photo.plate--photo > .plate__svg { transform: none; transition: none; }
 .wit-card__dates { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .08em; }
 .wit-card__t { margin: .8rem 0 0; font-size: clamp(1.3rem, 1.7vw, 1.6rem); }
 .wit-card__note { margin: .6rem 0 0; font-size: var(--t-sm); line-height: 1.6; color: var(--fg-mute); }
