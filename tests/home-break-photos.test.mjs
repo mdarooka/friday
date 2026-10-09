@@ -5,7 +5,7 @@ import { readFile, stat } from 'node:fs/promises';
 
 const require = createRequire(import.meta.url);
 const B = require('../build/data/india-breaks.js');
-const { THEMES, WIDTHS, WIDTH, HEIGHT, SIZES } = require('../build/data/break-photos.js');
+const { THEMES, WIDTHS, WIDTH, HEIGHT, SIZES, ROW_SIZES } = require('../build/data/break-photos.js');
 const LW = require('../build/when-india-travels.js');
 
 const read = name => readFile(new URL(`../${name}`, import.meta.url), 'utf8');
@@ -115,6 +115,83 @@ test('the photo runs flush across the top of the card and stays still on hover',
   assert.match(css, /\.wit-card:hover > \.wit-card__photo\.plate--photo > \.plate__svg \{[^}]*transform: none;/);
 });
 
-test('only the homepage carousel gets the photos: the full page is untouched', async () => {
-  assert.doesNotMatch(await read('when-india-travels.html'), /break-[a-z-]+-(480|800|1200)\.jpg|wit-card__photo/);
+const rowsIn = page => [...page.matchAll(/<article class="lw-break" id="([^"]*)"[^>]*>([^]*?)<\/article>/g)].map(m => ({ id: m[1], html: m[2] }));
+const headOf = row => row.html.match(/<header class="lw-break__head">([^]*?)<\/header>/)[1];
+
+test('every break row on the full page opens with its photo, above the eyebrow', async () => {
+  const rows = rowsIn(await read('when-india-travels.html'));
+  assert.ok(rows.length >= 20);
+  for (const row of rows) {
+    const brk = B.BREAKS.find(b => b.id === row.id);
+    const head = headOf(row);
+    assert.match(head, /^\s*<div class="plate plate--photo plate--ratio-l lw-break__photo">/, `${row.id}: the photo comes first in the header`);
+    assert.equal(head.match(/<img /g).length, 1, `${row.id}: one photo`);
+    assert.ok(head.indexOf('<img') < head.indexOf('<p class="eyebrow'), `${row.id}: photo above the eyebrow`);
+    const theme = THEMES[brk.photo];
+    assert.ok(head.includes(`src="${file(theme.base, 1200)}"`), `${row.id}: wrong file`);
+    assert.ok(head.includes(`srcset="${WIDTHS.map(w => `${file(theme.base, w)} ${w}w`).join(', ')}"`), `${row.id}: srcset`);
+    assert.ok(head.includes(`sizes="${escHtml(ROW_SIZES)}"`), `${row.id}: sizes`);
+    assert.ok(head.includes(`width="${WIDTH}" height="${HEIGHT}" loading="lazy" decoding="async"`), `${row.id}: lazy, with the file size`);
+    assert.match(head, /alt=""/);
+    assert.doesNotMatch(head, /fetchpriority/);
+  }
+});
+
+test('a theme uses the same files on the page rows and the homepage cards', async () => {
+  const page = rowsIn(await read('when-india-travels.html'));
+  const home = cardsIn(homeSection(await read('index.html')));
+  const src = html => html.match(/<img class="plate__svg" src="([^"]*)"/)[1];
+  assert.ok(home.length > 3);
+  for (const card of home) {
+    const row = page.find(r => r.id === card.id);
+    assert.ok(row, `${card.id} has a card but no row`);
+    assert.equal(src(headOf(row)), src(card.html));
+  }
+});
+
+test('the full-page photo is one left column wide, still, with a modest radius and a gap above the eyebrow', async () => {
+  const css = await read('assets/css/friday.css');
+  assert.match(css, /\.lw-break__photo \{[^}]*margin: 0 0 clamp\(1\.1rem, 2vw, 1\.6rem\);[^}]*border-radius: 6px;/);
+  assert.match(css, /\.lw-break__photo\.plate--photo > \.plate__svg \{[^}]*transform: none;/);
+  assert.match(css, /\.lw-break \{[^}]*grid-template-columns: minmax\(0, 5fr\) minmax\(0, 7fr\);[^}]*gap: clamp\(1\.5rem, 4vw, 4rem\);/);
+  assert.match(css, /@media \(max-width: 800px\) \{ \.lw-break \{ grid-template-columns: 1fr; \} \}/);
+  assert.match(ROW_SIZES, /^\(max-width: 800px\) /, 'the sizes switch at the same breakpoint as the grid');
+  assert.doesNotMatch(await read('when-india-travels.html'), /<a [^>]*>\s*<div class="plate[^>]*lw-break__photo/, 'rows are not links, so the site-wide a:hover zoom never applies');
+});
+
+test('a break with no theme renders its row without a photo; an unknown theme fails the build', () => {
+  const real = B.BREAKS.find(b => b.id === 'dussehra-2026');
+  const saved = real.photo;
+  const render = () => LW.whenIndiaTravelsBody({ PageHero: () => '', esc: escHtml, today: '2026-10-08', guides: [] });
+  try {
+    for (const none of [undefined, null, '']) {
+      real.photo = none;
+      const row = rowsIn(render()).find(r => r.id === 'dussehra-2026');
+      assert.ok(row, 'the row is still there');
+      assert.doesNotMatch(row.html, /<img|lw-break__photo/);
+      assert.match(row.html, /<header class="lw-break__head">\s*<p class="eyebrow/);
+      assert.equal(rowsIn(render()).filter(r => /<img/.test(r.html)).length, rowsIn(render()).length - 1, 'only that row loses its photo');
+    }
+    real.photo = 'not-a-theme';
+    assert.throws(render, /dussehra-2026 has no valid photo theme/);
+  } finally {
+    real.photo = saved;
+  }
+});
+
+test('the homepage still fails for a card with no theme at all', () => {
+  const real = B.BREAKS.find(b => b.id === 'dussehra-2026');
+  const saved = real.photo;
+  try {
+    real.photo = undefined;
+    assert.throws(() => LW.homeTeaser({ esc: escHtml, today: '2026-10-08' }), /dussehra-2026 has no valid photo theme/);
+  } finally {
+    real.photo = saved;
+  }
+});
+
+test('the full page only lists breaks that have a theme (it never passes `all` to upcomingBreaks)', () => {
+  const page = B.GROUPS.flatMap(group => B.upcomingBreaks('2026-01-01', { group }));
+  assert.ok(page.length > 20);
+  for (const brk of page) assert.ok(brk.nights >= B.MIN_NIGHTS && Object.hasOwn(THEMES, brk.photo), `${brk.id} is on the page without a theme`);
 });
