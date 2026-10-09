@@ -166,6 +166,14 @@
     });
     return request(path==='signup'?'/api/auth/signup':'/api/auth/login','POST',data).then(function(r){user=r.user;syntheticCatalogKeys.forEach(function(k){if(FT.DESTINATIONS)delete FT.DESTINATIONS[k];});syntheticCatalogKeys.clear();install(blank());return load().then(function(){return user;});});
   }
+  /* Signed out: the planner stays usable. Trips are kept in this browser under their own guest key (the older browser drafts are never opened,
+     changed or copied), and nothing is sent to the server until the traveller signs in. A sign-in that is still half done (email not verified
+     yet, or an older account waiting to be linked) keeps the sign-in screen instead. */
+  function enterGuest(){
+    if(authState&&(authState.verificationRequired||authState.accountRestricted||authState.legacyAccountAvailable))return;
+    if(FT.store&&FT.store.useGuestStorage)FT.store.useGuestStorage();
+    state=FT.store&&FT.store.get?FT.store.get():blank();
+  }
   function init(){
     initializationError=null;
     syntheticCatalogKeys.forEach(function(k){if(FT.DESTINATIONS)delete FT.DESTINATIONS[k];});syntheticCatalogKeys.clear();
@@ -177,7 +185,7 @@
       if(capabilities.authProvider==='hexclave')return setupHexclave(capabilities.hexclaveProjectId).then(function(){
         if(FT.store&&FT.store.setPersistence)FT.store.setPersistence(false);
         ready=false;Object.keys(records).forEach(function(k){records[k].clear();});pending.clear();install(blank());
-        return request('/api/auth/me').catch(function(err){if(err&&err.status===401)return {user:null};throw err;}).then(function(r){authState=r||{};user=r.user||null;return user?load():{v:1};});
+        return request('/api/auth/me').catch(function(err){if(err&&err.status===401)return {user:null};throw err;}).then(function(r){authState=r||{};user=r.user||null;if(!user)enterGuest();return user?load():{v:1};});
       });
       if(capabilities.authRequired===false){
         user=null;
@@ -191,7 +199,7 @@
       return request('/api/auth/me').catch(function(err){
         if(err&&err.status===401)return {user:null};
         throw err;
-      }).then(function(r){authState=r||{};user=r.user;return user?load():{v:1};});
+      }).then(function(r){authState=r||{};user=r.user;if(!user)enterGuest();return user?load():{v:1};});
     }).then(function(){
       if(user&&FT.store&&FT.store.on&&!unsubscribe)unsubscribe=FT.store.on('change',schedule);
       return {user:user,capabilities:capabilities};

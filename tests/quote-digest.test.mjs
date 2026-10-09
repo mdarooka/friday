@@ -82,7 +82,7 @@ test('callback status endpoint: auth, 404/422, and done callbacks leave the dige
   const ctx = await startApp(t, { env: { AUTH_PROVIDER: 'local', QUOTE_ADMIN_EMAILS: 'staff@example.com' }, hexclaveAuth: { configured: false, currentUser: async () => null } });
   const staff = await signUp(ctx.request, 'Staff');
   const other = await signUp(ctx.request, 'Other');
-  const made = await ctx.request('/api/callbacks', 'POST', { name: 'Traveler', phone: '9876543210', bestTime: 'morning', entryPoint: 'contact' });
+  const made = await ctx.request('/api/callbacks', 'POST', { name: 'Traveler', phone: '9876543210', bestTime: 'morning', entryPoint: 'contact' }, { cookie: other.cookie });
   assert.equal(made.status, 201);
   const cid = made.result.id;
   assert.equal((await post(ctx, other, { status: 'done' }, cid)).status, 403);

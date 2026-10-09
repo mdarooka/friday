@@ -13,9 +13,11 @@ test('villa quote enquiries and callbacks carry the published villa into the Quo
   assert.equal(created.status, 201);
   const villaId = created.result.villa.id;
 
-  const enquiry = await request('/api/commissions', 'POST', {
+  const enquiryBody = {
     name: 'Traveler Jane', email: 'jane@example.com', shape: 'Villa: Palm Courtyard · Alibaug · Sleeps up to 6 guests', composition: ['Villa stay'], villaId,
-  });
+  };
+  assert.equal((await request('/api/commissions', 'POST', enquiryBody)).status, 401);
+  const enquiry = await request('/api/commissions', 'POST', enquiryBody, { cookie: admin.cookie });
   assert.equal(enquiry.status, 201);
   const queue = await request('/api/admin/quotes', 'GET', undefined, { cookie: admin.cookie });
   const quote = queue.result.quotes.find(item => item.id === enquiry.result.id);
@@ -29,7 +31,7 @@ test('villa quote enquiries and callbacks carry the published villa into the Quo
 
   const callback = await request('/api/callbacks', 'POST', {
     name: 'Traveler Jane', phone: '+91 98765-43210', bestTime: 'afternoon', entryPoint: 'contact', villaId,
-  });
+  }, { cookie: admin.cookie });
   assert.equal(callback.status, 201);
   const withCallback = await request('/api/admin/quotes', 'GET', undefined, { cookie: admin.cookie });
   const call = withCallback.result.quotes.find(item => item.id === callback.result.id);

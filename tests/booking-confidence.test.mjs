@@ -67,7 +67,7 @@ test('staff can clear a verification; no configured admins means no one can veri
 
 test('callback requests carry an optional booking topic to the admin queue', async t => {
   const ctx = await setup(t);
-  const made = await ctx.request('/api/callbacks', 'POST', { name: 'Owner', phone: '9876543210', bestTime: 'morning', entryPoint: 'planner', topic: 'Booking: Hotel Aman' });
+  const made = await ctx.request('/api/callbacks', 'POST', { name: 'Owner', phone: '9876543210', bestTime: 'morning', entryPoint: 'planner', topic: 'Booking: Hotel Aman' }, { cookie: ctx.owner.cookie });
   assert.equal(made.status, 201);
   const list = await ctx.request('/api/admin/quotes', 'GET', undefined, { cookie: ctx.staff.cookie });
   assert.equal(list.result.quotes.find(q => q.id === made.result.id).topic, 'Booking: Hotel Aman');

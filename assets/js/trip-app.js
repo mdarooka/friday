@@ -157,6 +157,7 @@
     'arrow-right': '<path d="M5 12h14M13 6l6 6-6 6"/>',
     'arrow-up': '<path d="M12 19V5M6 11l6-6 6 6"/>',
     share: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 12v6.500a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V12"/>',
+    user: '<circle cx="12" cy="8.500" r="3.500"/><path d="M5 20c0-3.600 3.100-6 7-6s7 2.400 7 6"/>',
     users: '<circle cx="9" cy="8.500" r="3.200"/><path d="M3 19c0-3.200 2.700-5.500 6-5.500s6 2.300 6 5.500"/><path d="M15.500 5.500a3 3 0 0 1 0 6M17.500 14c2 .6 3.500 2.400 3.500 5"/>',
     dots: dot(5.5, 12) + dot(12, 12) + dot(18.5, 12),
     sidebar: '<rect x="3.500" y="4.500" width="17" height="15" rx="2"/><path d="M9.500 4.500v15"/>',
@@ -1244,7 +1245,8 @@
     if (!side) return;
     const trips = sortedTrips();
     const unread = state.notifications.some((n) => !n.done);
-    const sig = JSON.stringify([keyOf(route), trips.map((t) => [t.id, t.title, tripRangeLabel(t)]), unread, state.dismissed, homeLabel()]);
+    const guestSignIn = !isSignedIn() && canSignIn();
+    const sig = JSON.stringify([keyOf(route), trips.map((t) => [t.id, t.title, tripRangeLabel(t)]), unread, state.dismissed, homeLabel(), guestSignIn]);
     if (!force && sig === lastSideSig) return;
     lastSideSig = sig;
     const on = (n) => route.name === n || (n === 'home' && route.name === 'home');
@@ -1263,7 +1265,8 @@
         row('#/saved', 'Saved places', 'heart', false) +
         row('#/bookings', 'Bookings', 'calendar', false) +
         '</nav>' +
-        '<div class="fx-start-side__bottom"><hr><a class="fx-start-side__link' + (route.name === 'preferences' ? ' is-active' : '') + '" href="#/preferences"' + (route.name === 'preferences' ? ' aria-current="page"' : '') + '>' + icon('settings', 22) + '<span>Preferences</span></a></div>' +
+        '<div class="fx-start-side__bottom"><hr><a class="fx-start-side__link' + (route.name === 'preferences' ? ' is-active' : '') + '" href="#/preferences"' + (route.name === 'preferences' ? ' aria-current="page"' : '') + '>' + icon('settings', 22) + '<span>Preferences</span></a>' +
+        (guestSignIn ? '<a class="fx-start-side__link" href="' + signInUrl() + '" data-sign-in>' + icon('user', 22) + '<span>Sign in</span></a>' : '') + '</div>' +
         '</div>';
       return;
     }
@@ -1301,7 +1304,8 @@
         '<button class="fx-icon-btn fx-trip__more" type="button" data-act="trip-menu" aria-label="Actions for ' + esc(t.title) + '" aria-haspopup="menu">' + icon('dots', 18) + '</button></li>'
       ).join('') : '<li class="fx-side__none">No trips yet.</li>') +
       '</ul></div>' +
-      '<div class="fx-side__foot"><a class="fx-home-pill" href="#/preferences" title="Your preferences">' + icon('home', 16) + '<span>' + esc(homeLabel()) + '</span></a></div>' +
+      '<div class="fx-side__foot"><a class="fx-home-pill" href="#/preferences" title="Your preferences">' + icon('home', 16) + '<span>' + esc(homeLabel()) + '</span></a>' +
+      (guestSignIn ? '<a class="fx-home-pill" href="' + signInUrl() + '" title="Sign in or create an account" data-sign-in>' + icon('user', 16) + '<span>Sign in</span></a>' : '') + '</div>' +
       '</div>';
     const sc = $('.fx-side__scroll', side);
     if (sc) sc.scrollTop = scrollTop;
@@ -1538,6 +1542,7 @@
     function submit() {
       const text = ta.value.trim();
       if (!text) { ta.focus(); return; }
+      if (!requireSignIn('ai')) return; // planning with Friday is the AI feature; what was typed stays in the box
       const selected = Array.from(root.querySelectorAll('[data-memory-pick]:checked')).map((box) => rememberedItems.find((item) => item.key === box.dataset.memoryPick)).filter(Boolean);
       const applied = selected.map((item) => ({ label: item.label, text: item.text }));
       const planningText = FT.memoryContext ? FT.memoryContext.apply(text, applied) : text;
@@ -1763,11 +1768,7 @@
     const q = (n) => $('[name="' + n + '"]', body);
     const err = $('.fx-error', body), byHand = $('[data-by-hand]', body);
     const showErr = (msg, hand) => { err.textContent = msg; err.hidden = false; byHand.hidden = !hand; };
-    if (!FT.backend || !FT.backend.user) {
-      body.innerHTML = '<p class="fx-hint">Sign in to read a confirmation email and save the booking to your account. Friday has not saved anything or changed your browser drafts.</p><p class="fx-hint">You can sign in or create an account from Account in your planner settings.</p>';
-      modal({ title: 'Paste confirmation', body, actions: [{ label: 'Done' }, { label: 'Account settings', primary: true, onClick: (close) => { close(); window.location.hash = '#/preferences'; } }] });
-      return;
-    }
+    if (!requireSignIn('email')) return;
     // Forwarding address for the chosen trip. The server returns none until the inbound mail address is configured.
     const forwardLine = $('[data-forward]', body);
     const showForward = (tid) => {
@@ -1929,7 +1930,7 @@
             const saveImport = async (approved) => {
               store.update((s) => { s.imports.unshift({ id: uid('im'), url: approved.url || url, note: approved.note || note, at: new Date().toISOString() }); });
               if (FT.backend && FT.backend.savePlace) await Promise.all((approved.places || []).map((place) => FT.backend.savePlace(place)));
-              toast((approved.places || []).length ? 'Link and selected places saved' : 'Link saved');
+              toast((approved.places || []).length ? 'Link and selected places saved' : isSignedIn() ? 'Link saved' : 'Link saved. Sign in to have Friday read it and suggest places.');
             };
             if (FT.integrations && FT.integrations.reviewImport && FT.backend && FT.backend.user) {
               FT.integrations.reviewImport(url, note, saveImport).catch(async (error) => {
@@ -2069,7 +2070,7 @@
         (mem.length ? '<ul>' + mem.map((m) => '<li><span>' + esc(m.text) + '</span><button class="fx-icon-btn" type="button" data-mem="' + esc(m.id) + '" aria-label="Forget: ' + esc(m.text) + '">' + icon('x', 16) + '</button></li>').join('') + '</ul>' : '<p class="fx-mem__none">Add details you want Friday to remember.</p>') + '</div></section>' +
         '<section class="fx-account"><div class="fx-prefs__head"><h2 class="fx-h2">Connections</h2></div><p class="fx-hint">Connect Google services only when you choose.</p><button class="fx-btn fx-btn--line" type="button" data-act="connections">Manage connections</button></section>' +
         (FT.backend && FT.backend.user ? '<section class="fx-account fx-data-account" aria-labelledby="fx-data-h"><div class="fx-prefs__head"><h2 class="fx-h2" id="fx-data-h">Your data</h2></div><p class="fx-hint">Download a JSON copy of Friday data saved to this account, or ask the Friday team to delete your account.</p><div class="fx-prefs__btns"><button class="fx-btn fx-btn--line" type="button" data-act="export-data">Download my data</button><button class="fx-btn fx-btn--line fx-data-delete" type="button" data-act="delete-account-request">Delete my account</button></div><p class="fx-hint" data-privacy-request-status role="status">Checking your request status…</p></section>' : '') +
-        (FT.backend && FT.backend.user ? '<section class="fx-account"><p class="fx-eyebrow">Signed in</p><p>' + esc((FT.backend && FT.backend.user && (FT.backend.user.name || FT.backend.user.email)) || '') + '</p><button class="fx-btn fx-btn--line" type="button" data-act="signout">Sign out</button></section>' : '<section class="fx-account"><p class="fx-eyebrow">Local planner</p><p class="fx-hint">Your trips are saved in this browser. Auth is optional until the website is complete.</p><button class="fx-btn fx-btn--line" type="button" data-act="signin">Sign in or create account</button></section>') +
+        (FT.backend && FT.backend.user ? '<section class="fx-account"><p class="fx-eyebrow">Signed in</p><p>' + esc((FT.backend && FT.backend.user && (FT.backend.user.name || FT.backend.user.email)) || '') + '</p><button class="fx-btn fx-btn--line" type="button" data-act="signout">Sign out</button></section>' : '<section class="fx-account"><p class="fx-eyebrow">Not signed in</p><p class="fx-hint">You can look around the planner without an account. Sign in to plan with Friday\u2019s AI, talk with a travel designer or request a quote.</p><button class="fx-btn fx-btn--line" type="button" data-act="signin">Sign in or create account</button></section>') +
         '</div></div></div>';
       refreshPrivacyRequestStatus(el);
     },
@@ -2128,10 +2129,10 @@
       } else if (a === 'signout') {
         confirmDlg('Sign out of Friday?', { okLabel: 'Sign out', title: 'Sign out' }).then(async (ok) => {
           if (!ok) return;
-          try { await FT.backend.logout(); booted = false; authGate($('[data-main]')); } catch (err) { toast(err.message || 'Could not sign out'); }
+          try { await FT.backend.logout(); location.reload(); } catch (err) { toast(err.message || 'Could not sign out'); }
         });
       } else if (a === 'signin') {
-        authGate($('[data-main]'));
+        location.assign(signInUrl());
       }
     });
     delegate(el, 'click', '[data-mem]', (e, b) => { store.update((s) => { s.memory = s.memory.filter((m) => m.id !== b.dataset.mem); }); });
@@ -2167,6 +2168,53 @@
     safeFocus(findTwin(sig, el));
   }
 
+  /* ---- signing in ----
+     The planner and the rest of the site open without an account. Only three things need one: the AI features, talking with a
+     travel designer, and asking for a quote. Each of those calls requireSignIn first; it returns true when signed in, and otherwise
+     says why and offers the sign-in screen (the same screen as before, reached at trip.html?signin=...). */
+  const SIGN_IN_REASONS = {
+    ai: 'Please sign in to use Friday\u2019s AI planner.',
+    designer: 'Please sign in to talk with a travel designer.',
+    quote: 'Please sign in to request a quote.',
+    link: 'Please sign in to have Friday read a link.',
+    fares: 'Please sign in to check fares.',
+    email: 'Please sign in to add a booking from an email.',
+  };
+  const SIGN_IN_RETURN = /^[A-Za-z0-9._-]+\.html(?:\?[A-Za-z0-9_=&%.,+'()*!~-]*)?(?:#[A-Za-z0-9_\/=&%.,+-]*)?$/;
+  const isSignedIn = () => !!(FT.backend && FT.backend.user);
+  const canSignIn = () => !!(FT.backend && !(FT.backend.capabilities && FT.backend.capabilities.offline));
+  function signInUrl(reason) {
+    const q = new URLSearchParams();
+    q.set('signin', SIGN_IN_REASONS[reason] ? reason : '1');
+    return 'trip.html?' + q.toString();
+  }
+  /** The reason key and a safe page to go back to after signing in, read from the address (the return must be a plain page on this site). */
+  function signInRequest() {
+    const q = new URLSearchParams(location.search), key = q.get('signin');
+    if (!key) return null;
+    const back = q.get('return') || '';
+    return { reason: SIGN_IN_REASONS[key] ? key : '', returnTo: SIGN_IN_RETURN.test(back) && !/^trip\.html/i.test(back) ? back : '' };
+  }
+  let signInPrompt = false;
+  function requireSignIn(reason) {
+    if (isSignedIn()) return true;
+    if (signInPrompt) return false;
+    const key = SIGN_IN_REASONS[reason] ? reason : 'ai';
+    const body = doc.createElement('div');
+    const lead = doc.createElement('p'); lead.className = 'fx-hint'; lead.textContent = SIGN_IN_REASONS[key];
+    body.appendChild(lead);
+    if (!canSignIn()) { lead.textContent = SIGN_IN_REASONS[key] + ' Sign-in is not available while Friday is offline.'; }
+    signInPrompt = true;
+    modal({
+      title: 'Sign in to continue', body, onClose: () => { signInPrompt = false; },
+      actions: canSignIn() ? [{ label: 'Not now' }, { label: 'Sign in', primary: true, onClick: (close) => { close(); location.assign(signInUrl(key)); } }] : [{ label: 'Close' }],
+    });
+    return false;
+  }
+  FT.isSignedIn = isSignedIn;
+  FT.requireSignIn = requireSignIn;
+  FT.signInUrl = signInUrl;
+
   let booted = false;
   function authGate(main) {
     const old = $('[data-auth-gate]'); if (old) old.remove();
@@ -2178,7 +2226,17 @@
     const form = $('[data-auth-form]', box), fields = $('[data-auth-fields]', box), extra=$('[data-auth-extra]',box), legal=$('[data-auth-legal]',box);
     const hexclave=FT.backend&&FT.backend.capabilities&&FT.backend.capabilities.authProvider==='hexclave';
     const state=FT.backend&&FT.backend.authState||{};
-    if (FT.backend&&FT.backend.capabilities&&FT.backend.capabilities.authRequired) $('[data-auth-offline]',box).hidden=true;
+    const signInAsked = signInRequest();
+    const briefingPage = /(?:^|\/)trip-briefing\.html$/.test(location.pathname || '');
+    const skipBox = $('[data-auth-offline]', box);
+    if (briefingPage) skipBox.hidden = true; // a private briefing needs the account
+    // The planner is open without an account, so a visitor who opened sign-in can go back to it (only once the account is not half-made).
+    const afterSignIn = () => {
+      box.remove(); if (side) side.hidden = false;
+      if (signInAsked && signInAsked.returnTo) { location.assign(signInAsked.returnTo); return Promise.resolve(); }
+      if (signInAsked) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* ignore */ } }
+      booted = false; return boot();
+    };
     let mode = 'signin';
     function say(msg,text,tone){if(!msg)return;msg.textContent=text||'';if(text)msg.dataset.tone=tone||'error';else delete msg.dataset.tone;msg.hidden=!text;}
     function draw() {
@@ -2186,6 +2244,7 @@
       legal.hidden=true;
       const status=!!(hexclave&&(state.verificationRequired||state.accountRestricted));
       box.querySelector('.fx-auth__card').classList.toggle('fx-auth__card--status',status);
+      skipBox.hidden=briefingPage||status||!!(hexclave&&state.legacyAccountAvailable);
       if(hexclave&&(state.verificationRequired||state.accountRestricted)){
         form.hidden=true;box.querySelector('.fx-auth__tabs').hidden=true;
         if(state.accountRestricted){
@@ -2206,7 +2265,7 @@
         return;
       }
       form.hidden=false;box.querySelector('.fx-auth__tabs').hidden=false;
-      box.querySelector('.fx-auth__copy').textContent='Sign in to return to your journeys, saved places and research.';
+      box.querySelector('.fx-auth__copy').textContent=signInAsked&&signInAsked.reason?SIGN_IN_REASONS[signInAsked.reason]:'Sign in to return to your journeys, saved places and research.';
       fields.innerHTML = (mode === 'signup' ? '<div class="fx-field"><label class="fx-label" for="auth-name">Your name</label><input class="fx-input" id="auth-name" name="name" autocomplete="name" required></div>' : '') +
         '<div class="fx-field"><label class="fx-label" for="auth-email">Email</label><input class="fx-input" id="auth-email" name="email" type="email" autocomplete="email" required></div>' +
         '<div class="fx-field"><label class="fx-label" for="auth-password">Password · at least 12 characters</label><input class="fx-input" id="auth-password" name="password" type="password" minlength="12" maxlength="128" autocomplete="'+(mode==='signup'?'new-password':'current-password')+'" required></div>';
@@ -2220,6 +2279,7 @@
       if (skip) {
         box.remove();
         if (side) side.hidden = false;
+        try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* ignore */ }
         booted = false;
         boot();
         return;
@@ -2227,13 +2287,13 @@
       const resend=e.target.closest('[data-resend-verification]');
       if(resend){resend.disabled=true;const msg=$('[data-auth-message]',box);say(msg,'');FT.backend.resendVerification().then(()=>{say(msg,'A new verification link is on its way.','success');}).catch(err=>{say(msg,err.message||'Could not send a new link. Please try again.','error');}).finally(()=>{resend.disabled=false;});return;}
       const refreshAuth=e.target.closest('[data-refresh-auth]');
-      if(refreshAuth){refreshAuth.disabled=true;const msg=$('[data-auth-message]',box);say(msg,'');FT.backend.init().then(()=>{if(FT.backend.user){box.remove();if(side)side.hidden=false;booted=false;boot();}else{say(msg,FT.backend.authState.accountRestricted?'Friday still cannot open this account.':'Email verification is still pending. Open the link from your inbox, then check again.','info');}}).catch(err=>{say(msg,err.message||'Could not check your account status.','error');}).finally(()=>{refreshAuth.disabled=false;});return;}
+      if(refreshAuth){refreshAuth.disabled=true;const msg=$('[data-auth-message]',box);say(msg,'');FT.backend.init().then(()=>{if(FT.backend.user){return afterSignIn();}else{say(msg,FT.backend.authState.accountRestricted?'Friday still cannot open this account.':'Email verification is still pending. Open the link from your inbox, then check again.','info');}}).catch(err=>{say(msg,err.message||'Could not check your account status.','error');}).finally(()=>{refreshAuth.disabled=false;});return;}
       const signoutAuth=e.target.closest('[data-signout-auth]');
       if(signoutAuth){signoutAuth.disabled=true;FT.backend.logout().then(()=>FT.backend.init()).then(()=>{box.remove();if(side)side.hidden=false;booted=false;boot();}).catch(err=>{say($('[data-auth-message]',box),err.message||'Could not sign out.','error');signoutAuth.disabled=false;});return;}
       const forgot=e.target.closest('[data-forgot-password]');
       if(forgot){const input=$('#auth-email',box),msg=$('[data-auth-message]',box);if(!input||!input.reportValidity())return;forgot.disabled=true;say(msg,'');FT.backend.forgotPassword(input.value).then(()=>{say(msg,'If an account uses that email, a password reset link is on its way.','success');}).catch(err=>{say(msg,err.message||'Could not send a reset link. Please try again.','error');}).finally(()=>{forgot.disabled=false;});return;}
       const fresh=e.target.closest('[data-fresh-account]');
-      if(fresh){fresh.disabled=true;FT.backend.freshAccount().then(()=>FT.backend.init()).then(()=>{box.remove();if(side)side.hidden=false;booted=false;boot();}).catch(err=>{fresh.disabled=false;$('[data-auth-error]',box).textContent=err.message||'Could not create a separate account.';});return;}
+      if(fresh){fresh.disabled=true;FT.backend.freshAccount().then(()=>FT.backend.init()).then(()=>afterSignIn()).catch(err=>{fresh.disabled=false;$('[data-auth-error]',box).textContent=err.message||'Could not create a separate account.';});return;}
       const b=e.target.closest('[data-auth-mode]');
       if (b) { mode=b.dataset.authMode; draw(); }
     });
@@ -2244,7 +2304,7 @@
         const payload=Object.fromEntries(new FormData(form));
         if(mode==='legacy') await FT.backend.linkLegacy(payload.password);
         else if (mode === 'signup') await FT.backend.signup(payload); else await FT.backend.login(payload);
-        await FT.backend.init(); box.remove(); if (side) side.hidden=false; booted=false; await boot();
+        await FT.backend.init(); await afterSignIn();
       } catch (err) { $('[data-auth-error]',box).textContent=err.message || 'Please try again.'; }
       finally { submit.disabled=false; }
     });
@@ -2411,7 +2471,6 @@
         main.innerHTML = '<section class="fx-auth"><div class="fx-auth__card"><p class="fx-eyebrow">Friday · Your journeys</p><h1 class="fx-auth__title">Your plans could not be loaded.</h1><p class="fx-auth__copy">' + esc(err.message || 'Check your connection, then try again.') + '</p><div style="display:flex;gap:0.75rem;flex-wrap:wrap"><button class="fx-btn fx-btn--ink" type="button" data-retry>Try again</button><button class="fx-btn fx-btn--line" type="button" data-offline>Continue offline</button></div></div></section>';
         main.querySelector('[data-retry]').addEventListener('click', function () { location.reload(); });
         var offlineBtn = main.querySelector('[data-offline]');
-        if (FT.backend && FT.backend.capabilities && FT.backend.capabilities.authRequired) offlineBtn.hidden = true;
         if (offlineBtn) {
           offlineBtn.addEventListener('click', function () {
             if (FT.store && FT.store.useGuestStorage) FT.store.useGuestStorage();
@@ -2433,7 +2492,11 @@
       var legacyBriefingTrip = (FT.store.get().trips || []).find(function (trip) { return trip.serverId === params.get('trip') || trip.id === params.get('trip'); });
       if (legacyBriefingTrip && FT.trips && FT.trips.open) FT.trips.open(legacyBriefingTrip.id);
     }
-    if (FT.backend && !FT.backend.user && FT.backend.capabilities.authRequired !== false) { authGate(main); return; }
+    // Signed-out visitors get the planner. The sign-in screen shows when they ask for it (trip.html?signin=...), or while an account is half made.
+    const asked = signInRequest();
+    if (FT.backend && FT.backend.user && asked && asked.returnTo) { location.replace(asked.returnTo); return; } // already signed in: straight back to where they came from
+    const backendAuth = FT.backend && FT.backend.authState || {};
+    if (FT.backend && !FT.backend.user && (signInRequest() || backendAuth.verificationRequired || backendAuth.accountRestricted || backendAuth.legacyAccountAvailable)) { authGate(main); return; }
     const briefingEntry = /(?:^|\/)trip-briefing\.html$/.test(location.pathname || '');
     if (briefingEntry) {
       const side = $('[data-side]'); if (side) side.hidden = true;

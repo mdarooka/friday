@@ -62,13 +62,15 @@ test('production refuses to start without APP_ORIGIN', async () => {
 
 test('rate limits key on the socket address unless TRUST_PROXY=1, then on the right-most forwarded hop', async (t) => {
   const direct = await startApp(t);
+  // Destination requests stay open to visitors who are signed out, so they are limited per address.
+  const body = { destination: 'Goa', name: 'Traveler', email: 'traveler@example.com' };
   const codes = [];
-  for (let i = 0; i < 21; i++) codes.push((await direct.request('/api/itineraries', 'POST', { destination: 'goa', days: 1 }, { headers: { 'X-Forwarded-For': `9.9.9.${i}` } })).status);
+  for (let i = 0; i < 6; i++) codes.push((await direct.request('/api/destination-requests', 'POST', body, { headers: { 'X-Forwarded-For': `9.9.9.${i}` } })).status);
   assert.equal(codes.at(-1), 429, 'a spoofed X-Forwarded-For does not escape the limit by default');
 
   const proxied = await startApp(t, { env: { TRUST_PROXY: '1' } });
-  const go = (hop) => proxied.request('/api/itineraries', 'POST', { destination: 'goa', days: 1 }, { headers: { 'X-Forwarded-For': `spoofed-by-client, ${hop}` } });
-  for (let i = 0; i < 20; i++) assert.equal((await go('10.0.0.1')).status, 201);
+  const go = (hop) => proxied.request('/api/destination-requests', 'POST', body, { headers: { 'X-Forwarded-For': `spoofed-by-client, ${hop}` } });
+  for (let i = 0; i < 5; i++) assert.equal((await go('10.0.0.1')).status, 201);
   assert.equal((await go('10.0.0.1')).status, 429);
   assert.equal((await go('10.0.0.2')).status, 201, 'another client behind the proxy has its own allowance');
 });

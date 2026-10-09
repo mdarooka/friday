@@ -24,7 +24,15 @@
     ] });
   }
 
+  /* The planner's own check (assets/js/trip-app.js); true when signed in, otherwise it asks the visitor to sign in. Without it, fall back to the old guidance. */
+  function needSignIn(reason, title, message) {
+    if (FT.requireSignIn) return !FT.requireSignIn(reason);
+    if (FT.backend && FT.backend.user) return false;
+    signedOutGuidance(title, message); return true;
+  }
+
   function reviewImport(url, note, onSave) {
+    if (needSignIn('link', 'Read a link', 'Sign in to have Friday read a link.')) return Promise.resolve(null);
     if (!FT.ui || !FT.ui.modal) return Promise.reject(new Error('Friday dialogs are not ready.'));
     var body = doc.createElement('div');
     body.innerHTML = '<p class="fx-hint">Friday will check this public post and suggest only places supported by its cited content. Nothing is saved until you choose.</p><p class="fx-error" role="alert" hidden></p><div data-import-result><p class="fx-hint">Checking the link…</p></div>';
@@ -73,6 +81,7 @@
 
   function openCallbackRequest(opts) {
     opts = opts || {};
+    if (needSignIn('designer', 'Talk with a travel designer', 'Sign in to talk with a travel designer.')) return;
     if (!FT.ui || !FT.ui.modal) return;
     var body = doc.createElement('div');
     var context = opts.tripContext || null;
@@ -103,7 +112,7 @@
   function openFridayPlan(opts) {
     opts = opts || {};
     if (!FT.ui || !FT.ui.modal) return;
-    if (!FT.backend || !FT.backend.user) { signedOutGuidance('Plan around bookings', 'Sign in to use saved bookings in Friday’s planner. Friday has not started a trip or changed your browser drafts.'); return; }
+    if (needSignIn('ai', 'Plan around bookings', 'Sign in to use saved bookings in Friday’s planner.')) return;
     var trip = null, snapshot = FT.store && FT.store.get ? FT.store.get() : {};
     if (opts.tripId) trip = (snapshot.trips || []).find(function (t) { return t.serverId === opts.tripId || t.id === opts.tripId; }) || null;
     if (!trip && FT.store && FT.store.trip) trip = FT.store.trip();
@@ -278,6 +287,7 @@
   }
 
   function checkFare(alert) {
+    if (needSignIn('fares', 'Check route research', 'Sign in to check fares.')) return Promise.resolve(null);
     if (!FT.ui || !FT.ui.modal) return Promise.reject(new Error('Friday dialogs are not ready.'));
     var body = doc.createElement('div');
     body.innerHTML = '<p class="fx-hint">This is an on-demand web research advisory. It does not check supplier inventory, confirm a fare, match a target price, or run automatically.</p><div class="fx-integration-result" data-fare-result></div><p class="fx-error" role="alert" hidden></p>';

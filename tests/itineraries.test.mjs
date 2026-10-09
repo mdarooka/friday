@@ -4,7 +4,15 @@ import { startApp, signUp } from './helpers.mjs';
 import { getItinerary, saveItinerary, openStore } from '../server/store.mjs';
 import { createApp } from '../server/app.mjs';
 
-const post = (request, body, opts) => request('/api/itineraries', 'POST', body, opts);
+/* Generation needs a signed-in traveler, so each app gets one account and `post` uses it unless a cookie is passed (`cookie: null` posts signed out). */
+const accounts = new WeakMap();
+const post = async (request, body, opts = {}) => {
+  if (opts.cookie === undefined) {
+    if (!accounts.has(request)) accounts.set(request, (await signUp(request, 'Planner')).cookie);
+    opts = { ...opts, cookie: accounts.get(request) };
+  }
+  return request('/api/itineraries', 'POST', body, opts);
+};
 
 test('GET /api/health is public and reports the itinerary provider and knowledge', async (t) => {
   const { request } = await startApp(t);
@@ -39,7 +47,15 @@ test('GET /api/destinations/:id returns the catalog; unknown is 404', async (t) 
   assert.equal((await request('/api/destinations/__proto__')).status, 404);
 });
 
-test('POST /api/itineraries works signed out, saves, and GET returns it to anyone holding the id', async (t) => {
+test('POST /api/itineraries needs sign-in; signed out is 401 and nothing is saved', async (t) => {
+  const { request, db } = await startApp(t);
+  const r = await post(request, { destination: 'goa', days: 3 }, { cookie: null });
+  assert.equal(r.status, 401);
+  assert.match(r.result.error, /sign in/i);
+  assert.equal((await db.one('SELECT count(*) AS n FROM itineraries')).n, 0);
+});
+
+test('POST /api/itineraries saves for the signed-in traveler, and GET returns it to anyone holding the id', async (t) => {
   const { request, db } = await startApp(t);
   const body = { destination: 'goa', types: ['Beach downtime'], days: 5, dates: { start: '2027-01-10' }, pace: 'relaxed', base: 'Quiet boutique village' };
   const r = await post(request, body);
@@ -59,7 +75,7 @@ test('POST /api/itineraries works signed out, saves, and GET returns it to anyon
   assert.equal(got.result.request.destination, 'goa');
   assert.ok(got.result.createdAt);
 
-  assert.equal((await db.one('SELECT user_id FROM itineraries WHERE id=$1', [made.id])).user_id, null);
+  assert.ok((await db.one('SELECT user_id FROM itineraries WHERE id=$1', [made.id])).user_id);
 });
 
 test('a signed-in generation records its owner; the id is still the only key to read it', async (t) => {

@@ -108,3 +108,16 @@ test('legacy Friday data only links after the existing password is proved',async
   assert.equal((await request('/api/trips','GET',undefined,'legacy')).result.records[0].data.title,'Saved trip');
   assert.equal((await db.one('SELECT COUNT(*) AS n FROM hexclave_identities')).n,1);
 });
+
+test('Hexclave: designer callbacks and quote requests need a verified token; the newsletter and destination requests do not',async t=>{
+  const {request}=await start(t);
+  const callback={name:'Traveller',phone:'9876543210',bestTime:'morning',entryPoint:'contact'},commission={name:'Traveller',email:'traveller@example.com',shape:'A quiet week'};
+  assert.equal((await request('/api/callbacks','POST',callback)).status,401);
+  assert.equal((await request('/api/commissions','POST',commission)).status,401);
+  assert.equal((await request('/api/callbacks','POST',callback,'revoked')).status,401);
+  assert.equal((await request('/api/callbacks','POST',callback,'restricted')).status,401);
+  assert.equal((await request('/api/callbacks','POST',callback,'alice')).status,201);
+  assert.equal((await request('/api/commissions','POST',commission,'alice')).status,201);
+  assert.equal((await request('/api/subscriptions','POST',{email:'reader@example.com',consent:true})).status,201);
+  assert.equal((await request('/api/destination-requests','POST',{destination:'Coorg',name:'Traveller',email:'traveller@example.com'})).status,201);
+});

@@ -8,6 +8,7 @@
   FT.reel={available:available,unavailableNote:NOTE,open:function(opts){
     opts=opts||{};
     if(!opts.url||!available())return;
+    if(FT.requireSignIn&&!FT.requireSignIn('ai'))return;
     var trip=FT.store&&FT.store.trip&&FT.store.trip();
     if(!trip&&FT.trips)trip=FT.trips.create();
     if(!trip)return;
