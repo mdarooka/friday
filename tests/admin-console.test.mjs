@@ -86,7 +86,7 @@ test('Admin comms endpoints (enquiries, subscribers, email outbox) require admin
     name: 'Traveler Jane',
     email: 'jane@example.com',
     shape: 'A quiet week in the Amalfi Coast'
-  });
+  }, { cookie: guest.cookie });
   assert.equal(enquiryRes.status, 201);
 
   const subRes = await request('/api/subscriptions', 'POST', {

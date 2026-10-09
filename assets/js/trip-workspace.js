@@ -490,10 +490,11 @@
     popover(anchor, el);
     var result = el.querySelector('[data-share-result]');
     var tripNow = T();
-    if (F.feedback && F.backend && F.backend.request && tripNow) el.querySelector('[data-x="friends"]').appendChild(F.feedback.ownerPanel(tripNow.serverId || tripNow.id, F.backend.request));
+    if (F.feedback && F.backend && F.backend.user && F.backend.request && tripNow) el.querySelector('[data-x="friends"]').appendChild(F.feedback.ownerPanel(tripNow.serverId || tripNow.id, F.backend.request));
     el.querySelector('[data-x="create"]').addEventListener('click', function () {
       var btn = el.querySelector('[data-x="create"]'), t = T();
       if (!F.backend || !F.backend.share) { toast('Sharing is unavailable right now'); return; }
+      if (!F.backend.user) { result.textContent = 'Sign in to create a share link.'; return; }   // a link is kept on the server, so it needs an account
       btn.disabled = true; btn.textContent = 'Creating link…';
       F.backend.share(t.id).then(function (share) {
         var url = new URL(share.url, window.location.origin).href;
@@ -779,6 +780,7 @@
     var E = S.els;
     var text = E.ta.value.trim();
     if (!text && !S.atts.length) return;
+    if (F.requireSignIn && !F.requireSignIn('ai')) return;   // the message stays in the box
     var attachments = S.atts.map(function (a) { return { name: a.name }; });
     var payload = { text: text, attachments: attachments, mode: t.researchMode === 'fast' ? 'fast' : 'deep' };
     if (S.rec) { try { S.rec.stop(); } catch (e) { /* ignore */ } }

@@ -331,7 +331,7 @@
     if (d && preplanned[d.id]) { var ready = preplanned[d.id]; delete preplanned[d.id]; return Promise.resolve(ready); }
     var local = function () { return buildPlan(d, o); };
     return backendAvailable().then(function (up) {
-      if (!up) return local();
+      if (!up || !(FT.backend && FT.backend.user)) return local();   /* the server plan is for signed-in travellers; never ask without an account */
       var body = { destination: d.id, types: o.types, days: clamp(Math.round(o.days || 4), 1, 21), pace: o.pace || 'normal', conversationId: turn && turn.threadId, tripId: trip && (trip.serverId || trip.id), messageId: turn && turn.msgId, ownerId:turn&&turn.ownerId };
       if (o.dates && o.dates.start) body.dates = { start: o.dates.start };
       if (o.base) body.base = o.base;
@@ -1222,7 +1222,7 @@
      enriches the six places we know in detail, it does not limit where a traveller can go. Resolves to { dest, plan } or null. */
   function freeformPlan(name, o, turn, trip) {
     return backendAvailable().then(function (up) {
-      if (!up) return null;
+      if (!up || !(FT.backend && FT.backend.user)) return null;
       var body = { destination: name, types: o.types, days: clamp(Math.round(o.days || 4), 1, 21), pace: 'normal', conversationId: turn && turn.threadId, tripId: trip && (trip.serverId || trip.id), messageId: turn && turn.msgId, ownerId: turn && turn.ownerId };
       if (o.dates && o.dates.start) body.dates = { start: o.dates.start };
       return postJson('api/itineraries', body).then(function (j) {
@@ -1431,6 +1431,9 @@
     opts = opts || {};
     var text = String(opts.text || '').trim();
     if (chat.busy) return;
+    /* Everything this sends is the AI feature (planning, research, link and reel import, Friday plans), so it needs an account.
+       Callers that clear their input first (the trip composer) check before they do; this keeps any other entry point honest. */
+    if ((text || (opts.attachments || []).length) && FT.requireSignIn && !FT.requireSignIn('ai')) return;
     var atts = (opts.attachments || []).map(function (a) { return { name: a && a.name ? String(a.name) : 'image' }; });
     if (!text && !atts.length) return;
     if (chat.busy) return;

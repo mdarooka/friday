@@ -135,7 +135,7 @@ test('profile edits preserve airport removals and enquiries persist',async t=>{
   assert.deepEqual(edited.result.user.profile.airports,['SFO']);
   await request('/api/profile','PATCH',{city:'San Francisco'},a.cookie);
   assert.deepEqual((await request('/api/auth/me','GET',undefined,a.cookie)).result.user.profile.airports,['SFO']);
-  assert.equal((await request('/api/commissions','POST',{name:'A',email:'a@example.com',message:'A thoughtful trip'})).status,201);
+  assert.equal((await request('/api/commissions','POST',{name:'A',email:'a@example.com',message:'A thoughtful trip'},a.cookie)).status,201);
   assert.equal((await request.db.one('SELECT count(*) AS n FROM enquiries')).n,1);
 });
 test('trip sharing is explicit, read-only, sanitized, owner-controlled, revocable, and expires',async t=>{

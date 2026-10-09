@@ -292,6 +292,7 @@ input[type="search"].fx-input::-webkit-search-cancel-button { display: none; }
 .fx-home-pill:hover { background: var(--paper-3); }
 .fx-home-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fx-home-pill .fx-icon { color: var(--fg-soft); }
+.fx-side__foot .fx-home-pill + .fx-home-pill { margin-top: 8px; }
 
 .fx-main { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; height: 100%; overflow-y: auto; overflow-x: hidden; background: var(--paper); scroll-behavior: auto; }
 .fx[data-route="trip"] .fx-main { overflow: hidden; }

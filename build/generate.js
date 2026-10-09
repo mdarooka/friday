@@ -1317,6 +1317,7 @@ ${PageHero({
             </div>
             <div class="field"><label class="field__label" for="callback-time">Best time to call</label><select class="field__select" id="callback-time" name="bestTime" required><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></div>
             <button class="btn btn--solid" type="submit">Call me back <span class="arrow">&rarr;</span></button>
+            <p class="card__d" data-signin-hint="designer" style="margin-top:.8rem">You&rsquo;ll need to sign in to send this. <a class="link" href="trip.html?signin=designer&amp;return=contact.html%23callback-title">Sign in or create an account</a></p>
             <p class="card__d" data-callback-status role="status" aria-live="polite"></p>
           </form>
         </section>
@@ -1374,6 +1375,7 @@ ${PageHero({
 
           <div>
             <button class="btn btn--solid" type="submit">Send your enquiry <span class="arrow">&rarr;</span></button>
+            <p class="card__d" data-signin-hint="quote" style="margin-top:1.2rem">You&rsquo;ll need to sign in to send this. <a class="link" href="trip.html?signin=quote&amp;return=contact.html%23quote">Sign in or create an account</a></p>
             <p style="margin-top:1.2rem;font-size:.8125rem;color:var(--fg-mute);max-width:34em">Your enquiry will be sent to Friday. A travel designer replies within 30 hours of an enquiry. You can also email <a class="link" href="mailto:${D.brand.email}">${D.brand.email}</a>.</p>
           </div>
         </form>

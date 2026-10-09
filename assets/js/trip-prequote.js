@@ -31,7 +31,9 @@
       save.addEventListener('click', function () {
         var answers = {}; rows.forEach(function (r) { if (r.tick.checked || r.text.value.trim()) answers[r.id] = { done: true, text: r.text.value.trim() }; });
         save.disabled = true; status.textContent = 'Saving…';
-        fetch('/api/callbacks/' + encodeURIComponent(detail.id) + '/checklist', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ checklistToken: detail.checklistToken, answers: answers }) })
+        /* The call was booked while signed in, so only that account can add to it. On the contact page the sign-in token comes from the shared helper (assets/js/friday.js); in the planner every request already carries it. */
+        (window.FridayAuth ? window.FridayAuth.headers() : Promise.resolve({}))
+          .then(function (extra) { return fetch('/api/callbacks/' + encodeURIComponent(detail.id) + '/checklist', { method: 'PUT', credentials: 'same-origin', headers: Object.assign({ 'Content-Type': 'application/json' }, extra), body: JSON.stringify({ checklistToken: detail.checklistToken, answers: answers }) }); })
           .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Could not save.'); return j; }); })
           .then(function (j) { status.textContent = 'Saved. ' + j.done + ' of ' + j.total + ' answered. Thank you.'; })
           .catch(function (e) { status.textContent = e.message || 'Could not save your answers. The call is still booked.'; })

@@ -491,7 +491,7 @@ export function createApp(options = {}) {
       }
       const villaPlanMatch=p.match(/^\/api\/villas\/([0-9a-f-]{36})\/plan$/i);
       if(villaPlanMatch){
-        allow('POST');rate('villa-plan:'+ip,8);
+        allow('POST');if(!user)fail(401,'Please sign in to plan a stay with Friday\'s AI.');rate('villa-plan:'+ip,8);
         const row=await store.getPublishedVilla(db,villaPlanMatch[1]);if(!row)fail(404,'This villa was not found.');
         const days=body.days;
         if(!Number.isSafeInteger(days)||days<1||days>7)fail(422,'Choose a plan from 1 to 7 days.');
@@ -1060,7 +1060,7 @@ export function createApp(options = {}) {
       }
       if (p==='/api/itineraries') {
         allow('POST');
-        if(hexclaveSelected&&!user)fail(401,'Please sign in before planning a trip.');
+        if(!user)fail(401,'Please sign in to use Friday\'s AI planning.');
         rate('itinerary:'+(user?user.id:ip),20);
         const parsed=parseItineraryRequest(body,{freeform:true}); // Friday plans anywhere: a place outside the catalog is planned by OpenAI
         if(parsed.error)fail(parsed.status,parsed.error);
@@ -1108,6 +1108,7 @@ export function createApp(options = {}) {
         return send(200,{requests:await store.listCallbackRequestsForTrip(db,user.id,tripId)});
       }
       if (p==='/api/callbacks' && method==='POST') {
+        if(!user)fail(401,'Please sign in to talk with a travel designer.');
         rate('form:'+ip,5);
         if(Buffer.byteLength(JSON.stringify(body))>20000) fail(413,'Your request is too long.');
         const name=str(body.name,'name',100,true),phone=indianPhone(body.phone);
@@ -1155,6 +1156,7 @@ export function createApp(options = {}) {
         return send(201,{id,saved:true,delivery:{notification:notification?.status||'blocked'}});
       }
       if (['/api/commissions','/api/subscriptions'].includes(p) && method==='POST') {
+        if(p.endsWith('commissions')&&!user)fail(401,'Please sign in to request a quote.');
         rate('form:'+ip,5); email(body.email);
         if(p.endsWith('commissions')) str(body.name,'name',100,true);
         else if(body.consent!==true) fail(422,'Please confirm that you want to receive occasional emails from Friday.');

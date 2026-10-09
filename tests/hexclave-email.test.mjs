@@ -4,7 +4,7 @@ import { createHmac } from 'node:crypto';
 import { createHexclaveEmailService } from '../server/hexclave/email.mjs';
 import * as store from '../server/store.mjs';
 import { openStore } from '../server/store.mjs';
-import { startApp } from './helpers.mjs';
+import { startApp, signUp } from './helpers.mjs';
 
 const config = { HEXCLAVE_PROJECT_ID: 'project-test', HEXCLAVE_SECRET_SERVER_KEY: 'server-secret-test' };
 
@@ -121,7 +121,8 @@ test('commission and newsletter routes call Hexclave only after saving valid sub
       return new Response(null, { status: 202 });
     },
   });
-  const commission = await request('/api/commissions', 'POST', { name: 'Avery Traveler', email: 'avery@example.com', shape: 'A quiet week in Sicily' });
+  const { cookie } = await signUp(request, 'Avery');
+  const commission = await request('/api/commissions', 'POST', { name: 'Avery Traveler', email: 'avery@example.com', shape: 'A quiet week in Sicily' }, { cookie });
   assert.equal(commission.status, 201);
   assert.equal(commission.result.delivery.receipt, 'provider_accepted');
   assert.equal(commission.result.delivery.notification, 'provider_accepted');

@@ -14,8 +14,11 @@ test('callback requests validate Indian numbers, enter the quotes queue, and not
     emailFetch: async (url, options) => { sends.push({ url, body: JSON.parse(options.body) }); return new Response(null, { status: 202 }); },
   });
   const admin = await signUp(request, 'QuoteAdmin');
-  assert.equal((await request('/api/callbacks', 'POST', { name: 'Traveler', phone: '12345', bestTime: 'morning', entryPoint: 'contact' })).status, 422);
-  assert.equal((await request('/api/callbacks', 'POST', { name: 'Traveler', phone: '9876543210', bestTime: 'whenever', entryPoint: 'contact' })).status, 422);
+  const signedOut = await request('/api/callbacks', 'POST', { name: 'Traveler', phone: '9876543210', bestTime: 'morning', entryPoint: 'contact' });
+  assert.equal(signedOut.status, 401);
+  assert.match(signedOut.result.error, /sign in to talk with a travel designer/i);
+  assert.equal((await request('/api/callbacks', 'POST', { name: 'Traveler', phone: '12345', bestTime: 'morning', entryPoint: 'contact' }, { cookie: admin.cookie })).status, 422);
+  assert.equal((await request('/api/callbacks', 'POST', { name: 'Traveler', phone: '9876543210', bestTime: 'whenever', entryPoint: 'contact' }, { cookie: admin.cookie })).status, 422);
   const tripContext = { name: 'Goa weekend', destination: 'Goa', startDate: '2026-11-12', endDate: '2026-11-16' };
   const submitted = await request('/api/callbacks', 'POST', { name: 'Traveler Jane', phone: '+91 98765-43210', bestTime: 'afternoon', entryPoint: 'planner', tripId: 'trip_123', tripContext }, { cookie: admin.cookie });
   assert.equal(submitted.status, 201);
@@ -52,9 +55,10 @@ test('callback requests validate Indian numbers, enter the quotes queue, and not
 
 test('callback route rate-limits repeat submissions', async t => {
   const { request } = await startApp(t);
+  const { cookie } = await signUp(request, 'Caller');
   const data = { name: 'Traveler', phone: '9876543210', bestTime: 'morning', entryPoint: 'contact' };
-  for (let i = 0; i < 5; i++) assert.equal((await request('/api/callbacks', 'POST', data)).status, 201);
-  const limited = await request('/api/callbacks', 'POST', data);
+  for (let i = 0; i < 5; i++) assert.equal((await request('/api/callbacks', 'POST', data, { cookie })).status, 201);
+  const limited = await request('/api/callbacks', 'POST', data, { cookie });
   assert.equal(limited.status, 429);
 });
 

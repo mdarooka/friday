@@ -252,6 +252,68 @@
     });
   }
 
+  /* ------------------------------------------------- who is signed in
+     Browsing needs no account. Only talking to a travel designer, requesting a quote and the AI villa plan do, so this is loaded
+     (and only then) by pages that carry one of those forms. It mirrors the planner's own sign-in (assets/js/trip-backend.js):
+     production keeps the Hexclave token in a cookie that the server reads from a header, so the page asks the Hexclave client for
+     it; the local sign-in is a session cookie that the browser sends by itself. A visitor who is not signed in is sent to the
+     planner's sign-in screen (trip.html?signin=...) and brought back here afterwards. */
+
+  const SIGN_IN_REASONS = {
+    designer: 'Please sign in to talk with a travel designer.',
+    quote: 'Please sign in to request a quote.',
+    ai: 'Please sign in to plan with Friday\u2019s AI.',
+  };
+
+  function signInUrl(reason) {
+    const query = new URLSearchParams();
+    query.set('signin', SIGN_IN_REASONS[reason] ? reason : '1');
+    const page = location.pathname.split('/').pop();
+    if (/^[A-Za-z0-9._-]+\.html$/.test(page) && page !== 'trip.html') query.set('return', page + location.search + location.hash);
+    return 'trip.html?' + query.toString();
+  }
+
+  /* The Hexclave browser client, fetched once and shared by sign-in checks and Sign out. */
+  let hexclaveModule = null;
+  const loadHexclave = () => (hexclaveModule = hexclaveModule || import('https://esm.sh/@hexclave/js@1.0.125').catch((err) => { hexclaveModule = null; throw err; }));
+
+  const session = (() => {
+    let loading = null, bypass = false;
+    function load() {
+      if (loading) return loading;
+      loading = fetch('/api/capabilities', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then((res) => (res.ok ? res.json() : {}))
+        .catch(() => ({}))
+        .then((caps) => {
+          bypass = !!caps.localAuthBypass; // a local development server that does not ask for sign-in treats everyone as signed in
+          if (caps.authProvider !== 'hexclave' || !caps.hexclaveProjectId) return { header: async () => ({}) };
+          return loadHexclave().then((mod) => {
+            const app = new mod.HexclaveClientApp({ projectId: caps.hexclaveProjectId, tokenStore: 'cookie', devTool: false, urls: { default: { type: 'hosted' }, afterSignIn: '/trip.html', afterSignUp: '/trip.html', afterSignOut: '/trip.html' } });
+            // A restricted (unverified-email) user still has a token, so ask for the user explicitly, as the planner does.
+            const header = () => (typeof app.getUser === 'function'
+              ? Promise.resolve(app.getUser({ includeRestricted: true })).then((u) => (u && typeof u.getAuthorizationHeader === 'function' ? u.getAuthorizationHeader() : null))
+              : Promise.resolve(app.getAuthorizationHeader()))
+              .then((value) => (value ? { Authorization: value } : {}))
+              .catch(() => ({}));
+            return { header };
+          }).catch(() => ({ header: async () => ({}) }));
+        })
+        .then((auth) => auth.header().then((headers) => fetch('/api/auth/me', { credentials: 'same-origin', headers: Object.assign({ Accept: 'application/json' }, headers) })
+          .then((res) => (res.ok ? res.json() : { user: null })).catch(() => ({ user: null }))
+          .then((data) => ({ auth, user: data && data.user || (bypass ? { local: true } : null) }))));
+      return loading;
+    }
+    return {
+      load,
+      /** The signed-in user, or null. */
+      user: () => load().then((state) => state.user),
+      /** Request headers that carry the sign-in (empty for the local cookie session or when signed out). */
+      headers: () => load().then((state) => state.auth.header()),
+    };
+  })();
+
+  window.FridayAuth = { load: session.load, user: session.user, headers: session.headers, signInUrl, reasons: SIGN_IN_REASONS };
+
   /* ---------------------------------------------------------- the form */
 
   function initForm() {
@@ -282,6 +344,21 @@
         form.insertBefore(note, form.firstChild);
       });
     }
+    /* Callback requests and quote enquiries need an account. The forms stay visible to everyone; a visitor who is signed out is told so
+       when they send, with a link to sign in, and nothing is sent. */
+    const signInError=(reason)=>Object.assign(new Error(SIGN_IN_REASONS[reason]),{signIn:reason});
+    function signInLink(reason) {
+      const link=document.createElement('a');link.className='link';link.href=signInUrl(reason);link.textContent='Sign in or create an account';return link;
+    }
+    async function postSignedIn(endpoint,data,reason) {
+      const user=await session.user();
+      if(!user)throw signInError(reason);
+      const headers=Object.assign({'Content-Type':'application/json'},await session.headers());
+      const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',headers,body:JSON.stringify(data)});
+      const result=await response.json().catch(()=>({}));
+      if(response.status===401)throw signInError(reason);
+      return {response,result};
+    }
     async function submit(form,endpoint) {
       const entries=new FormData(form),data=Object.fromEntries(entries);
       if(entries.has('composition'))data.composition=entries.getAll('composition');
@@ -289,8 +366,14 @@
       const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
       const result=await response.json();if(!response.ok)throw new Error(result.error||'Your submission could not be saved. Please try again.');return result;
     }
-    function errorNote(form,message) {
-      let note=form.querySelector('[data-form-error]');if(!note){note=document.createElement('p');note.dataset.formError='';note.setAttribute('role','alert');form.appendChild(note);}note.textContent=message;
+    function errorNote(form,message,link) {
+      let note=form.querySelector('[data-form-error]');if(!note){note=document.createElement('p');note.dataset.formError='';note.setAttribute('role','alert');form.appendChild(note);}
+      note.textContent=message;if(link){note.append(' ',link);}
+    }
+    if($('[data-callback-form], [data-commission]')){
+      /* The hint under each of these buttons is in the page; once the visitor is known to be signed in it is not needed. */
+      $$('[data-signin-hint]').forEach(hint=>{const link=hint.querySelector('a');if(link)link.href=signInUrl(hint.dataset.signinHint);});
+      session.user().then(user=>{if(user)$$('[data-signin-hint]').forEach(hint=>{hint.hidden=true;});});
     }
     $$('[data-callback-form]').forEach(form=>form.addEventListener('submit',async e=>{
       e.preventDefault();if(!form.reportValidity())return;
@@ -298,13 +381,13 @@
       if(status)status.textContent='Sending your request…';
       try{
         const entries=new FormData(form),data={name:entries.get('name'),phone:entries.get('phone'),bestTime:entries.get('bestTime'),entryPoint:form.dataset.entryPoint||'contact',...(topic?{topic}:{}),...(villaContext?{villaId:villaContext.id}:{})};
-        const response=await fetch('/api/callbacks',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-        const result=await response.json();if(!response.ok)throw new Error(result.error||'Your request could not be saved. Please try again.');
+        const {response,result}=await postSignedIn('/api/callbacks',data,'designer');
+        if(!response.ok)throw new Error(result.error||'Your request could not be saved. Please try again.');
         if(window.FridayCallbackAnalytics)window.FridayCallbackAnalytics.track('contact',result.id);
         form.reset();form.querySelector('[name="bestTime"]').value='morning';
         document.dispatchEvent(new CustomEvent('friday:callback-saved',{detail:{id:result.id,checklistToken:result.checklistToken,anchor:form.parentElement}}));
         if(status)status.textContent=result.delivery?.notification==='provider_accepted'?'Thanks. Friday’s team has your number and will call at that time.':result.delivery?.notification==='delivery_unknown'?'Your request is saved. Friday could not confirm the team notification.':'Your request is saved. The team will call at that time.';
-      }catch(err){if(status)status.textContent=err.message||'Your request could not be saved. Please try again.';}
+      }catch(err){if(status){status.textContent=err.message||'Your request could not be saved. Please try again.';if(err.signIn)status.append(' ',signInLink(err.signIn));}}
       finally{button.disabled=false;}
     }));
     $$('[data-destination-form]').forEach(form=>form.addEventListener('submit',async e=>{
@@ -320,16 +403,22 @@
         location.href='request-destination-thanks.html';
       }catch(err){if(status)status.textContent=err.message||'Your request could not be saved. Please try again.';button.disabled=false;}
     }));
+    async function submitCommission(form) {
+      const entries=new FormData(form),data=Object.fromEntries(entries);
+      if(entries.has('composition'))data.composition=entries.getAll('composition');
+      const {response,result}=await postSignedIn('/api/commissions',data,'quote');
+      if(!response.ok)throw new Error(result.error||'Your submission could not be saved. Please try again.');return result;
+    }
     const form=$('[data-commission]'),sent=$('[data-commission-sent]');
     if(form)form.addEventListener('submit',async e=>{
       e.preventDefault();if(!form.reportValidity())return;
       const btn=form.querySelector('[type=submit]');btn.disabled=true;
       try{
-        const result=await submit(form,'/api/commissions');if(window.FridayQuoteAnalytics)window.FridayQuoteAnalytics.track(window.FridayQuoteAnalytics.pathForEnquiry(form),result.id);const first=($('[name="name"]',form).value||'').trim().split(/\s+/)[0],slot=$('[data-sent-name]');
+        const result=await submitCommission(form);if(window.FridayQuoteAnalytics)window.FridayQuoteAnalytics.track(window.FridayQuoteAnalytics.pathForEnquiry(form),result.id);const first=($('[name="name"]',form).value||'').trim().split(/\s+/)[0],slot=$('[data-sent-name]');
         if(slot)slot.textContent=first?`, ${first}`:'';
         const deliveryNote=$('[data-commission-delivery-note]');if(deliveryNote){const team=result.delivery?.notification,receipt=result.delivery?.receipt;const teamText=team==='provider_accepted'?'A notification is on its way to the Friday team.':team==='delivery_unknown'?'Friday could not confirm the team notification, so it will not retry automatically.':'Team email notifications are not configured yet.';const receiptText=receipt==='provider_accepted'?' A confirmation email is on its way.':receipt==='delivery_unknown'?' Friday could not confirm delivery of your confirmation email.':' Confirmation email delivery is not configured yet.';deliveryNote.textContent=`Your enquiry has been saved. ${teamText}${receiptText}`;}
         form.classList.add('is-sent');if(sent){sent.classList.add('is-shown');sent.setAttribute('tabindex','-1');sent.focus({preventScroll:true});sent.scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'});}
-      }catch(err){errorNote(form,err.message);}finally{btn.disabled=false;}
+      }catch(err){errorNote(form,err.message,err.signIn?signInLink(err.signIn):null);}finally{btn.disabled=false;}
     });
     $$('[data-subscribe]').forEach(f=>f.addEventListener('submit',async e=>{
       e.preventDefault();if(!f.reportValidity())return;const btn=f.querySelector('[type=submit]');btn.disabled=true;
@@ -374,17 +463,17 @@
       } else {
         if (navAuth) {
           navAuth.textContent = 'Sign in';
-          navAuth.href = 'trip.html';
+          navAuth.href = signInUrl();
           navAuth.removeAttribute('title');
           navAuth.removeAttribute('aria-label');
         }
         if (menuAuth) {
           menuAuth.textContent = 'Sign in';
-          menuAuth.href = 'trip.html';
+          menuAuth.href = signInUrl();
         }
         if (footAuth) {
           footAuth.textContent = 'Sign in';
-          footAuth.href = 'trip.html';
+          footAuth.href = signInUrl();
         }
       }
     };
@@ -399,7 +488,7 @@
       try {
         const caps = await fetch('/api/capabilities', { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then((r) => (r.ok ? r.json() : {}));
         if (caps.hexclaveProjectId && caps.authProvider !== 'local') {
-          const mod = await import('https://esm.sh/@hexclave/js@1.0.125');
+          const mod = await loadHexclave();
           const app = new mod.HexclaveClientApp({ projectId: caps.hexclaveProjectId, tokenStore: 'cookie', devTool: false, automaticSideEffects: false, analytics: { enabled: false, replays: { enabled: false } } });
           const u = await app.getUser({ includeRestricted: true });
           if (u) await u.signOut({ redirectUrl: location.href });

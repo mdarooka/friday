@@ -142,8 +142,11 @@ test('curated nearby suggestions are radius filtered and the local proposal neve
   assert.equal(found.status, 200);
   assert.equal(found.result.provider, 'curated');
   assert.deepEqual(found.result.nearby.map(place => place.id), ['beach-1']);
-  const plan = await app.request(`/api/villas/${villa.id}/plan`, 'POST', { days: 4, interests: ['things-to-do', 'cafes'], pace: 'balanced' });
+  const plan = await app.request(`/api/villas/${villa.id}/plan`, 'POST', { days: 4, interests: ['things-to-do', 'cafes'], pace: 'balanced' }, { cookie: admin.cookie });
   assert.equal(plan.status, 200);
+  const signedOutPlan = await app.request(`/api/villas/${villa.id}/plan`, 'POST', { days: 4, interests: ['things-to-do', 'cafes'], pace: 'balanced' });
+  assert.equal(signedOutPlan.status, 401);
+  assert.match(signedOutPlan.result.error, /sign in/i);
   const allIds = plan.result.days.flatMap(day => day.stops.map(place => place.id));
   assert.deepEqual(allIds, ['beach-1', 'cafe-1']);
   assert.equal(new Set(allIds).size, allIds.length);
@@ -170,7 +173,7 @@ test('live Google nearby and AI plan responses use only verified candidates and 
   const nearby = await app.request(`/api/villas/${villa.id}/nearby?category=things-to-do`);
   assert.equal(nearby.result.provider, 'google');
   assert.equal(nearby.result.nearby[0].attribution, 'Google Maps');
-  const plan = await app.request(`/api/villas/${villa.id}/plan`, 'POST', { days: 2, interests: ['things-to-do', 'cafes'], pace: 'relaxed' });
+  const plan = await app.request(`/api/villas/${villa.id}/plan`, 'POST', { days: 2, interests: ['things-to-do', 'cafes'], pace: 'relaxed' }, { cookie: admin.cookie });
   assert.equal(plan.status, 200);
   assert.equal(plan.result.provider, 'ai');
   assert.deepEqual(plan.result.days.map(day => day.stops.map(stop => stop.id)), [[candidateA.id], [candidateB.id]]);
@@ -185,7 +188,7 @@ test('AI villa plan rejects model-invented place IDs and falls back to a grounde
   const app = await startApp(t, { env: { VILLA_ADMIN_EMAILS: 'admin@example.com' }, places, ai: { apiKey: 'test-only', model: 'fixture-model' }, villaResearch: async () => ({ text: JSON.stringify({ days: [{ stops: ['made-up-place'] }] }) }) });
   const admin = await signUp(app.request, 'admin');
   const villa = await createVilla(app.request, admin.cookie);
-  const plan = await app.request(`/api/villas/${villa.id}/plan`, 'POST', { days: 1, pace: 'relaxed' });
+  const plan = await app.request(`/api/villas/${villa.id}/plan`, 'POST', { days: 1, pace: 'relaxed' }, { cookie: admin.cookie });
   assert.equal(plan.result.provider, 'local');
   assert.match(plan.result.fallbackReason, /verified plan/);
   assert.deepEqual(plan.result.days[0].stops.map(stop => stop.id), [candidate.id]);
