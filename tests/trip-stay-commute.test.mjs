@@ -71,3 +71,11 @@ test('areas without coordinates show stays without a commute note', () => {
   assert.match(html, /Capital Inn/);
   assert.doesNotMatch(html, /change hotels/);
 });
+
+test('stay ideas saved before commute notes still ask about a short hop', () => {
+  const block = stayIdeasBlock(destination, { days: [day('beach'), day('capital')] });
+  block.groups.forEach(group => { delete group.commute; });
+  const html = stayIdeasHTML(block);
+  assert.match(html, /Panjim is roughly \d+ min by road from Candolim/);
+  assert.ok(block.groups[1].commute, 'the derived commute is kept so the keep/change buttons work');
+});
