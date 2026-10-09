@@ -349,36 +349,77 @@
   function initAuth() {
     const navAuth = $('[data-nav-auth]');
     const menuAuth = $('[data-menu-auth]');
-    if (!navAuth && !menuAuth) return;
+    const footAuth = $('[data-foot-auth]');
+    const signOuts = $$('[data-nav-signout], [data-menu-signout]');
+    if (!navAuth && !menuAuth && !footAuth) return;
 
-    fetch('/api/auth/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    const render = (user) => {
+      signOuts.forEach((b) => { b.hidden = !user; });
+      if (user) {
+        const firstName = user.name ? user.name.trim().split(/\s+/)[0] : 'Account';
+        if (navAuth) {
+          navAuth.textContent = firstName;
+          navAuth.href = 'trip.html#/preferences';
+          navAuth.setAttribute('title', 'Signed in as ' + (user.email || user.name));
+          navAuth.setAttribute('aria-label', 'Account preferences for ' + (user.name || user.email));
+        }
+        if (menuAuth) {
+          menuAuth.textContent = 'Account (' + firstName + ')';
+          menuAuth.href = 'trip.html#/preferences';
+        }
+        if (footAuth) {
+          footAuth.textContent = 'Account';
+          footAuth.href = 'trip.html#/preferences';
+        }
+      } else {
+        if (navAuth) {
+          navAuth.textContent = 'Sign in';
+          navAuth.href = 'trip.html';
+          navAuth.removeAttribute('title');
+          navAuth.removeAttribute('aria-label');
+        }
+        if (menuAuth) {
+          menuAuth.textContent = 'Sign in';
+          menuAuth.href = 'trip.html';
+        }
+        if (footAuth) {
+          footAuth.textContent = 'Sign in';
+          footAuth.href = 'trip.html';
+        }
+      }
+    };
+
+    const load = () => fetch('/api/auth/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then((res) => (res.ok ? res.json() : { user: null }))
       .catch(() => ({ user: null }))
-      .then((data) => {
-        const user = data && data.user;
-        if (user) {
-          const firstName = user.name ? user.name.trim().split(/\s+/)[0] : 'Account';
-          if (navAuth) {
-            navAuth.textContent = firstName;
-            navAuth.href = 'trip.html#/preferences';
-            navAuth.setAttribute('title', 'Signed in as ' + (user.email || user.name));
-            navAuth.setAttribute('aria-label', 'Account preferences for ' + (user.name || user.email));
-          }
-          if (menuAuth) {
-            menuAuth.textContent = 'Account (' + firstName + ')';
-            menuAuth.href = 'trip.html#/preferences';
-          }
-        } else {
-          if (navAuth) {
-            navAuth.textContent = 'Sign in';
-            navAuth.href = 'trip.html';
-          }
-          if (menuAuth) {
-            menuAuth.textContent = 'Sign in';
-            menuAuth.href = 'trip.html';
-          }
+      .then((data) => render(data && data.user));
+
+    const signOut = async () => {
+      signOuts.forEach((b) => { b.disabled = true; });
+      try {
+        const caps = await fetch('/api/capabilities', { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then((r) => (r.ok ? r.json() : {}));
+        if (caps.hexclaveProjectId && caps.authProvider !== 'local') {
+          const mod = await import('https://esm.sh/@hexclave/js@1.0.125');
+          const app = new mod.HexclaveClientApp({ projectId: caps.hexclaveProjectId, tokenStore: 'cookie', devTool: false, automaticSideEffects: false, analytics: { enabled: false, replays: { enabled: false } } });
+          const u = await app.getUser({ includeRestricted: true });
+          if (u) await u.signOut({ redirectUrl: location.href });
         }
-      });
+        // Best effort for legacy local sessions; harmless when Hexclave owns accounts.
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+        await load();
+      } catch (err) {
+        signOuts.forEach((b) => {
+          const label = b.textContent;
+          b.textContent = 'Try again';
+          setTimeout(() => { b.textContent = label === 'Try again' ? 'Sign out' : label; }, 3000);
+        });
+      } finally {
+        signOuts.forEach((b) => { b.disabled = false; });
+      }
+    };
+    signOuts.forEach((b) => b.addEventListener('click', signOut));
+
+    load();
   }
 
   /* -------------------------------------------------------------- boot */
