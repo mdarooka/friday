@@ -125,6 +125,7 @@ function Header(active) {
       ${topLink('about.html', 'About Friday')}
       ${topLink('help.html', 'Help &amp; contact')}
       <a class="nav__link" href="trip.html" data-nav-auth>Sign in</a>
+      <button class="nav__link nav__signout" type="button" data-nav-signout hidden>Sign out</button>
       <a class="btn btn--sm btn--solid nav__cta" href="trip.html"${currentAttr('trip.html')}>Plan a trip</a>
     </nav>
 
@@ -149,6 +150,7 @@ function Header(active) {
         <a class="menu__link" href="trip.html#/"${active === 'trip.html' ? ' aria-current="page"' : ''}>My trips</a>
         <a class="menu__link" href="trip.html#/bookings">Bookings</a>
         <a class="menu__link" href="trip.html" data-menu-auth>Sign in</a>
+        <button class="menu__link" type="button" data-menu-signout hidden>Sign out</button>
       </div>
       <div class="menu__col">
         <p class="menu__h">Help</p>
@@ -171,7 +173,7 @@ function Header(active) {
 function Footer() {
   const col = (h, items) => `<div class="foot__col">
       <p class="foot__h">${h}</p>
-      <ul class="foot__list">${items.map((i) => `<li><a href="${i.href}">${i.label}</a></li>`).join('')}</ul>
+      <ul class="foot__list">${items.map((i) => `<li><a href="${i.href}"${i.attr ? ' ' + i.attr : ''}>${i.label}</a></li>`).join('')}</ul>
     </div>`;
   return `
 <footer class="foot inverse">
@@ -193,7 +195,7 @@ function Footer() {
       ${col('Your trip', [
         { label: 'My trips', href: 'trip.html#/' },
         { label: 'Bookings', href: 'trip.html#/bookings' },
-        { label: 'Sign in', href: 'trip.html' },
+        { label: 'Sign in', href: 'trip.html', attr: 'data-foot-auth' },
       ])}
       ${col('Help', [
         { label: 'Help & FAQs', href: 'help.html' },

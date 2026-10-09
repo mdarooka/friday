@@ -454,6 +454,7 @@ button.nav__link {
   cursor: pointer;
   font-family: inherit;
 }
+button.nav__link[hidden], button.menu__link[hidden] { display: none; }
 button.nav__link:disabled { opacity: .45; cursor: wait; }
 .nav__link .chev {
   width: 7px; height: 7px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor;
