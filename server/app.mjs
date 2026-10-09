@@ -374,7 +374,10 @@ export function createApp(options = {}) {
       const allow=(...m)=>{if(!m.includes(method))fail(405,'Method not allowed.');};
       const token=(req.headers.cookie||'').split(';').map(s=>s.trim()).find(s=>s.startsWith('friday_session='))?.slice(15)||'';
       const sessionUser=hexclaveSelected?null:await store.findUserBySession(db,hash(token),Date.now());
-      const hasHexclaveToken=Boolean(req.headers.authorization||req.headers['x-stack-access-token']||req.headers['x-hexclave-access-token']);
+      // The browser SDK keeps its session in cookies. Marketing pages cannot attach an Authorization header, so the read-only
+      // identity lookup (and nothing else, to avoid CSRF) may also use those cookies.
+      const hexclaveCookieSession=method==='GET'&&p==='/api/auth/me'&&(req.headers.cookie||'').split(';').some(s=>/^(hexclave-access|stack-access|hexclave-refresh-|__Host-hexclave-refresh-|stack-refresh-)/.test(s.trim()));
+      const hasHexclaveToken=Boolean(req.headers.authorization||req.headers['x-stack-access-token']||req.headers['x-hexclave-access-token']||hexclaveCookieSession);
       const hexPrincipal=hexclaveAuth.configured&&hasHexclaveToken?await hexclaveAuth.currentUser(req):null;
       const hexResolution=hexclaveAuth.configured?await externalIdentity(hexPrincipal):null;
       const user=hexclaveSelected?(hexResolution?.user||null):(sessionUser || (localAuthBypass ? localDevUser : null));

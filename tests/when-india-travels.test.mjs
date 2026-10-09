@@ -133,7 +133,8 @@ test('the three groups render in order, with no hidden attributes in the static 
   assert.match(html, /<h2 class="h2" id="national-h">National long weekends<\/h2>/);
   assert.match(html, /<h2 class="h2" id="festival-h">Festival breaks<\/h2>/);
   assert.match(html, /<h2 class="h2" id="school-h">School holidays<\/h2>/);
-  assert.doesNotMatch(html, /\shidden[\s=>]/);
+  // The header's sign-out buttons start hidden until the session check shows a signed-in user.
+  assert.doesNotMatch(html.replace(/<button [^>]*data-(?:nav|menu)-signout hidden>/g, ''), /\shidden[\s=>]/);
   assert.match(html, /<script type="application\/json" id="wit-data">/);
   const ids = [...html.matchAll(/<article class="lw-break" id="([a-z0-9-]+)" data-wit-row data-regions="([^"]*)" data-types="([^"]*)"/g)];
   assert.equal(ids.length, rows().length);
@@ -615,7 +616,8 @@ test('the page renders a Type of break filter with the same pills as Show breaks
   const pills = [...html.matchAll(/<a class="lw-city-link" href="\?type=([a-z-]+)" data-wit-type="([a-z-]+)">([^<]+)<\/a>/g)];
   assert.deepEqual(pills.map((m) => [m[1], m[2], m[3]]), B.TYPE_FILTERS.map((t) => [t.key, t.key, t.label]));
   for (const brk of ALL_ROWS()) assert.match(html, new RegExp(`id="${brk.id}" data-wit-row data-regions="[^"]*" data-types="${brk.types.join(' ')}"`));
-  assert.doesNotMatch(html, /\shidden[\s=>]/);
+  // The header's sign-out buttons start hidden until the session check shows a signed-in user.
+  assert.doesNotMatch(html.replace(/<button [^>]*data-(?:nav|menu)-signout hidden>/g, ''), /\shidden[\s=>]/);
 });
 
 test('the type filter and the state filter combine (state AND type), hide empty sections, and say so when nothing matches', async () => {

@@ -273,6 +273,10 @@
     return 'trip.html?' + query.toString();
   }
 
+  /* The Hexclave browser client, fetched once and shared by sign-in checks and Sign out. */
+  let hexclaveModule = null;
+  const loadHexclave = () => (hexclaveModule = hexclaveModule || import('https://esm.sh/@hexclave/js@1.0.125').catch((err) => { hexclaveModule = null; throw err; }));
+
   const session = (() => {
     let loading = null, bypass = false;
     function load() {
@@ -283,7 +287,7 @@
         .then((caps) => {
           bypass = !!caps.localAuthBypass; // a local development server that does not ask for sign-in treats everyone as signed in
           if (caps.authProvider !== 'hexclave' || !caps.hexclaveProjectId) return { header: async () => ({}) };
-          return import('https://esm.sh/@hexclave/js@1.0.125').then((mod) => {
+          return loadHexclave().then((mod) => {
             const app = new mod.HexclaveClientApp({ projectId: caps.hexclaveProjectId, tokenStore: 'cookie', devTool: false, urls: { default: { type: 'hosted' }, afterSignIn: '/trip.html', afterSignUp: '/trip.html', afterSignOut: '/trip.html' } });
             // A restricted (unverified-email) user still has a token, so ask for the user explicitly, as the planner does.
             const header = () => (typeof app.getUser === 'function'
@@ -434,40 +438,77 @@
   function initAuth() {
     const navAuth = $('[data-nav-auth]');
     const menuAuth = $('[data-menu-auth]');
-    if (!navAuth && !menuAuth) return;
+    const footAuth = $('[data-foot-auth]');
+    const signOuts = $$('[data-nav-signout], [data-menu-signout]');
+    if (!navAuth && !menuAuth && !footAuth) return;
 
-    /* Pages with a form that needs an account have already asked who is signed in (with the Hexclave token); the rest look at the session cookie. */
-    const known = $('[data-callback-form], [data-commission], [data-villa-detail]')
-      ? session.user().then((user) => ({ user }))
-      : fetch('/api/auth/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-        .then((res) => (res.ok ? res.json() : { user: null }))
-        .catch(() => ({ user: null }));
-    known
-      .then((data) => {
-        const user = data && data.user;
-        if (user) {
-          const firstName = user.name ? user.name.trim().split(/\s+/)[0] : 'Account';
-          if (navAuth) {
-            navAuth.textContent = firstName;
-            navAuth.href = 'trip.html#/preferences';
-            navAuth.setAttribute('title', 'Signed in as ' + (user.email || user.name));
-            navAuth.setAttribute('aria-label', 'Account preferences for ' + (user.name || user.email));
-          }
-          if (menuAuth) {
-            menuAuth.textContent = 'Account (' + firstName + ')';
-            menuAuth.href = 'trip.html#/preferences';
-          }
-        } else {
-          if (navAuth) {
-            navAuth.textContent = 'Sign in';
-            navAuth.href = 'trip.html?signin=1';
-          }
-          if (menuAuth) {
-            menuAuth.textContent = 'Sign in';
-            menuAuth.href = 'trip.html?signin=1';
-          }
+    const render = (user) => {
+      signOuts.forEach((b) => { b.hidden = !user; });
+      if (user) {
+        const firstName = user.name ? user.name.trim().split(/\s+/)[0] : 'Account';
+        if (navAuth) {
+          navAuth.textContent = firstName;
+          navAuth.href = 'trip.html#/preferences';
+          navAuth.setAttribute('title', 'Signed in as ' + (user.email || user.name));
+          navAuth.setAttribute('aria-label', 'Account preferences for ' + (user.name || user.email));
         }
-      });
+        if (menuAuth) {
+          menuAuth.textContent = 'Account (' + firstName + ')';
+          menuAuth.href = 'trip.html#/preferences';
+        }
+        if (footAuth) {
+          footAuth.textContent = 'Account';
+          footAuth.href = 'trip.html#/preferences';
+        }
+      } else {
+        if (navAuth) {
+          navAuth.textContent = 'Sign in';
+          navAuth.href = signInUrl();
+          navAuth.removeAttribute('title');
+          navAuth.removeAttribute('aria-label');
+        }
+        if (menuAuth) {
+          menuAuth.textContent = 'Sign in';
+          menuAuth.href = signInUrl();
+        }
+        if (footAuth) {
+          footAuth.textContent = 'Sign in';
+          footAuth.href = signInUrl();
+        }
+      }
+    };
+
+    const load = () => fetch('/api/auth/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then((res) => (res.ok ? res.json() : { user: null }))
+      .catch(() => ({ user: null }))
+      .then((data) => render(data && data.user));
+
+    const signOut = async () => {
+      signOuts.forEach((b) => { b.disabled = true; });
+      try {
+        const caps = await fetch('/api/capabilities', { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then((r) => (r.ok ? r.json() : {}));
+        if (caps.hexclaveProjectId && caps.authProvider !== 'local') {
+          const mod = await loadHexclave();
+          const app = new mod.HexclaveClientApp({ projectId: caps.hexclaveProjectId, tokenStore: 'cookie', devTool: false, automaticSideEffects: false, analytics: { enabled: false, replays: { enabled: false } } });
+          const u = await app.getUser({ includeRestricted: true });
+          if (u) await u.signOut({ redirectUrl: location.href });
+        }
+        // Best effort for legacy local sessions; harmless when Hexclave owns accounts.
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+        await load();
+      } catch (err) {
+        signOuts.forEach((b) => {
+          const label = b.textContent;
+          b.textContent = 'Try again';
+          setTimeout(() => { b.textContent = label === 'Try again' ? 'Sign out' : label; }, 3000);
+        });
+      } finally {
+        signOuts.forEach((b) => { b.disabled = false; });
+      }
+    };
+    signOuts.forEach((b) => b.addEventListener('click', signOut));
+
+    load();
   }
 
   /* -------------------------------------------------------------- boot */

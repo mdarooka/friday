@@ -32,7 +32,8 @@ test('Hexclave server adapter verifies the request and carries verified email an
 async function start(t,{legacy=false}={}) {
   const deletions=[];
   const server=createApp({memory:true,origin:appOrigin,env:{NODE_ENV:'production',APP_ORIGIN:appOrigin,AUTH_PROVIDER:'hexclave',HEXCLAVE_PROJECT_ID:projectId,HEXCLAVE_SECRET_SERVER_KEY:secretServerKey,AI_REVIEW_ADMIN_EMAILS:'reviewer@example.com',ADMIN_EMAILS:'reviewer@example.com'},hexclaveAuth:{configured:true,projectId,currentUser:async req=>{
-    const value=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');
+    const cookieValue=(String(req.headers.cookie||'').split(';').map(c=>c.trim()).find(c=>/^(hexclave-access|hexclave-refresh-)/.test(c))||'').split('=')[1]||'';
+    const value=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'')||cookieValue;
     if(value==='revoked'||!value)return null;
     if(value==='restricted')return{id:'restricted-owner',email:'pending@example.com',name:'Pending user',emailVerified:false,restricted:true,restrictedReason:'email_not_verified'};
     if(value==='legacy')return{id:'legacy-hex-id',email:'legacy@example.com',name:'Legacy owner',emailVerified:true,restricted:false};
@@ -120,4 +121,16 @@ test('Hexclave: designer callbacks and quote requests need a verified token; the
   assert.equal((await request('/api/commissions','POST',commission,'alice')).status,201);
   assert.equal((await request('/api/subscriptions','POST',{email:'reader@example.com',consent:true})).status,201);
   assert.equal((await request('/api/destination-requests','POST',{destination:'Coorg',name:'Traveller',email:'traveller@example.com'})).status,201);
+});
+
+test('the Hexclave session cookie identifies the user on GET /api/auth/me only',async t=>{
+  const {request}=await start(t);
+  const me=await request('/api/auth/me','GET',undefined,'',{Cookie:'hexclave-access=alice'});
+  assert.equal(me.status,200);assert.equal(me.result.user.email,'alice@example.com');
+  const refresh=await request('/api/auth/me','GET',undefined,'',{Cookie:'theme=dark; hexclave-refresh-'+projectId+'=bob'});
+  assert.equal(refresh.result.user.email,'bob@example.com');
+  // Cookies never authenticate any other route (CSRF), reads included.
+  assert.equal((await request('/api/trips','GET',undefined,'',{Cookie:'hexclave-access=alice'})).status,401);
+  assert.equal((await request('/api/itineraries','POST',{destination:'goa',days:1},'',{Cookie:'hexclave-access=alice'})).status,401);
+  assert.equal((await request('/api/auth/me','GET',undefined,'',{Cookie:'unrelated=alice'})).result.user,null);
 });
