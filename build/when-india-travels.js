@@ -5,6 +5,8 @@
  * assets/js/when-india-travels.js only filters rows by state and by type of break, and swaps the "Closer to home" block.
  */
 const B = require('./data/india-breaks');
+const { THEMES, SIZES: PHOTO_SIZES } = require('./data/break-photos');
+const { Photo } = require('./templates');
 
 const PAGE = 'when-india-travels.html';
 const LABEL = 'When India travels';
@@ -127,10 +129,18 @@ function cardDates(brk, today) {
   return brk.startDate.slice(0, 4) === B.isoDay(today).slice(0, 4) ? brk.dates.replace(/ \d{4}$/, '') : brk.dates;
 }
 
+/* The photo across the top of a card: decorative (alt is empty, the link text names the break), lazy, 16:10 like the files. */
+function cardPhoto(brk) {
+  const theme = THEMES[brk.photo];
+  if (!theme) throw new Error(`india-breaks.js: ${brk.id} has no valid photo theme (photo: ${JSON.stringify(brk.photo)}); see build/data/break-photos.js`);
+  return Photo({ ...theme, alt: '', sizes: PHOTO_SIZES, ratio: 'l', class: 'wit-card__photo' });
+}
+
 function breakCardHtml(esc, brk, today) {
   const first = brk.suggestions[0];
   return `<li class="wit-card-item" data-wit-card data-regions="${esc(brk.regions.join(' '))}" data-start="${esc(brk.startDate)}" data-end="${esc(brk.endDate)}" data-id="${esc(brk.id)}">
           <a class="wit-card" href="${PAGE}#${esc(brk.id)}">
+            ${cardPhoto(brk)}
             <p class="eyebrow eyebrow--accent wit-card__dates">${esc(cardDates(brk, today))} \u00b7 ${nightsLabel(brk.nights)}</p>
             <h3 class="h3 wit-card__t">${esc(brk.name)}</h3>
             <p class="wit-card__note">${esc(firstSentence(brk.note))}</p>
