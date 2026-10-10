@@ -452,7 +452,7 @@
         var waitedMs = Math.max(0, Date.now() - new Date(q.createdAt).getTime());
         var waitedHours = Math.floor(waitedMs / 3600000);
         var waitedLabel = waitedHours < 1 ? 'Waiting less than an hour' : (waitedHours < 24 ? 'Waiting ' + waitedHours + 'h' : 'Waiting ' + Math.floor(waitedHours / 24) + 'd ' + (waitedHours % 24) + 'h');
-        waitingMarkup = '<div class="admin-quote-card__waiting">' + esc(waitedLabel) + (waitedMs > QUOTE_REPLY_SLA_HOURS * 60 * 60 * 1000 ? ' <span class="admin-badge badge--overdue">Over ' + QUOTE_REPLY_SLA_HOURS + 'h</span>' : '') + '</div><button class="btn admin-quote-card__reply" type="button" data-mark-quote-replied="' + esc(q.id) + '">Mark replied</button>';
+        waitingMarkup = '<div class="admin-quote-card__waiting">' + esc(waitedLabel) + (waitedMs > QUOTE_REPLY_SLA_HOURS * 60 * 60 * 1000 ? ' <span class="admin-badge badge--overdue">Over ' + QUOTE_REPLY_SLA_HOURS + 'h</span>' : '') + '</div><div class="admin-quote-card__actions">' + draftReplyMarkup(q) + '<button class="btn admin-quote-card__reply" type="button" data-mark-quote-replied="' + esc(q.id) + '">Mark replied</button></div>';
       } else if (q.firstReplyAt) {
         waitingMarkup = '<div class="admin-quote-card__waiting">First reply · ' + esc(formatDate(q.firstReplyAt)) + '</div>';
       }
@@ -467,6 +467,13 @@
         '<div class="admin-quote-card__amount">' + amountDisplay + '</div>' + waitingMarkup +
         '</div>';
     }).join('');
+  }
+
+  /* Draft reply opens the designer's own mail app with a prefilled first reply. Friday sends nothing. */
+  function draftReplyMarkup(q) {
+    var draft = window.FridayQuoteReplyDraft && window.FridayQuoteReplyDraft.build(q);
+    if (!draft) return '';
+    return '<a class="btn admin-quote-card__reply admin-quote-card__draft" href="' + esc(draft.href) + '" data-draft-quote-reply="' + esc(q.id) + '">Draft reply</a>';
   }
 
   function checklistHtml(c) {
@@ -969,6 +976,12 @@
       }
 
       /* Quote actions */
+      /* Draft reply: let the mail link open; count the click as a $click (no traveler details). */
+      var draftReply = e.target.closest('[data-draft-quote-reply]');
+      if (draftReply) {
+        if (window.FridayAnalytics) window.FridayAnalytics.track('$click', { path: '/admin.html', control: 'draft-reply' });
+        return;
+      }
       var markReplied = e.target.closest('[data-mark-quote-replied]');
       if (markReplied) {
         e.preventDefault();

@@ -498,4 +498,6 @@
 .admin-quote-card.is-done { opacity: 0.55; }
 .admin-quote-card__waiting { margin-top: .7rem; color: var(--fg-mute); font-size: .78rem; }
 .admin-quote-card__reply { margin-top: .65rem; }
+.admin-quote-card__actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.admin-quote-card__actions .admin-quote-card__reply { margin-top: .65rem; }
 .badge--overdue { margin-left: .35rem; background: rgba(176,58,46,.1); color: #922b21; border: 1px solid rgba(176,58,46,.25); }
