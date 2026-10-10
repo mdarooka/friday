@@ -1221,10 +1221,10 @@ ${PageHero({
 })}
 <section class="section section--flush-top"><div class="wrap">
   <div class="grid" style="align-items:start">
-    ${publicGuidePages().map((guide, index) => `<article class="c-6 c-md-12" data-reveal style="--i:${index % 2}">
+    ${[...publicGuidePages(), { file: LW.PAGE, title: LW.LABEL, scene: 'dunes', tone: 'sand', dek: 'The long weekends, festival breaks and school holidays ahead, region by region.' }].map((guide, index) => `<article class="c-6 c-md-12" data-reveal style="--i:${index % 2}">
       <a class="card" href="${guide.file}"><div class="card__plate">${Plate(`guide-hub-${guide.file}`, { ratio: 'l', scene: guide.scene, tone: guide.tone, svgRatio: 'landscape' })}</div>
-        <p class="eyebrow eyebrow--accent">Friday guide</p><h2 class="card__t">${T.esc(guide.title)}</h2>
-        <p class="card__d">Read the ${T.esc(guide.title)} guide and choose a starting point for your trip.</p>
+        <p class="eyebrow eyebrow--accent">${guide.dek ? 'Planning guide' : 'Friday guide'}</p><h2 class="card__t">${T.esc(guide.title)}</h2>
+        <p class="card__d">${guide.dek ? T.esc(guide.dek) : `Read the ${T.esc(guide.title)} guide and choose a starting point for your trip.`}</p>
         <span class="link">Read the guide <span class="arrow">&rarr;</span></span>
       </a>
     </article>`).join('')}
