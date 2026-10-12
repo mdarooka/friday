@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createApp } from '../server/app.mjs';
+import { waitUntil } from './helpers.mjs';
 import { vaultModeOptions } from './fake-vault.mjs';
 const origin='http://localhost:4871';
 async function fixture(t,options={}) {
@@ -112,8 +113,8 @@ test('Deep jobs persist progress, save drafts and do not overwrite manual edits'
   assert.equal((await request('/api/research/'+started.result.job.id,'GET',undefined,b.cookie)).status,404);
   assert.equal((await request('/api/research','POST',{prompt:'Again',tripId:trip.id},a.cookie)).status,409);
   await request('/api/trips/'+trip.id,'PUT',{version:1,data:{...trip.data,brief:'My manual edit'}},a.cookie);
-  release();let job;
-  for(let i=0;i<40;i++){job=(await request('/api/research/'+started.result.job.id,'GET',undefined,a.cookie)).result.job;if(job.status!=='running')break;await new Promise(r=>setTimeout(r,10));}
+  release();
+  const job = await waitUntil(async () => { const current = (await request('/api/research/'+started.result.job.id,'GET',undefined,a.cookie)).result.job; return { done: current.status !== 'running', value: current }; });
   assert.equal(job.status,'completed');
   const saved=(await request('/api/trips/'+trip.id,'GET',undefined,a.cookie)).result.record;
   assert.equal(saved.data.brief,'My manual edit');assert.deepEqual(saved.data.days,[]);assert.equal(saved.data.researchDraft.days[0].title,'Gardens');assert.equal(saved.data.messages.length,2);assert.equal(saved.data.messages[1].places[0].title,'Garden museum');

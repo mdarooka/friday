@@ -142,6 +142,8 @@ test('deletion request has a 30-day due date, is owner-private, and staff comple
   assert.equal((await db.one(`SELECT COUNT(*) AS count FROM trip_share_responses r JOIN trip_share_participants p ON p.token_hash=r.token_hash AND p.participant_id=r.participant_id WHERE p.name='Keep Friend'`)).count, 1);
   assert.equal(await db.one('SELECT refresh_token FROM google_connections WHERE user_id=$1', [owner.result.user.id]), undefined);
   assert.equal(await db.one('SELECT id FROM callback_requests WHERE owner_id=$1', [owner.result.user.id]), undefined);
+  assert.equal(await db.one('SELECT id FROM funnel_events WHERE owner_id=$1', [owner.result.user.id]), undefined);
+  assert.ok(Number((await db.one('SELECT COUNT(*) AS count FROM funnel_events WHERE owner_id=$1', [other.result.user.id])).count) > 0);
   assert.equal(await db.one('SELECT event_key FROM ai_conversation_events WHERE owner_id=$1', [owner.result.user.id]), undefined);
   assert.equal(await db.one('SELECT id FROM enquiries WHERE lower(data::jsonb->>\'email\')=lower($1)', [owner.result.user.email]), undefined);
   assert.equal(await db.one('SELECT id FROM itineraries WHERE user_id=$1', [owner.result.user.id]), undefined);

@@ -135,24 +135,34 @@ export function createFridayWorkflow({db,store,env=process.env,fetch:fetcher=fet
     if(confirmed!==true||!Number.isInteger(version))fail(422,'Review and confirm the current draft version.');
     const draft=await getDraft(draftId,owner.id);if(!draft)fail(404,'This draft was not found.');if(draft.version!==version)fail(409,'This draft changed. Review the latest version before handoff.');
     const questions=essentials(draft);if(questions.length)fail(422,'The draft needs complete dates, destination, travelers, budget choice and selected listings before handoff.');
-    const created=nowIso(),id=randomUUID(),snapshot=JSON.stringify({...draft,snapshotAt:created});
-    try{await store.createFridayHandoffWithQuote(db,{id,ownerId:owner.id,draftId,version,snapshot,status:'queued',created},{id:randomUUID(),handoffId:id,ownerId:owner.id,customerEmail:owner.email,snapshot,status:'pending',created});}catch{const prior=(await store.listFridayHandoffs(db,owner.id)).find(h=>h.draft_id===draftId&&h.version===version);if(prior)return {id:prior.id,status:prior.status,createdAt:prior.created,snapshot:JSON.parse(prior.snapshot)};throw new Error('Unable to queue this handoff.');}
+    const created=nowIso(),id=randomUUID(),quoteId=randomUUID(),snapshot=JSON.stringify({...draft,snapshotAt:created}),customerName=clean(owner.name,100);
+    try{await store.createFridayHandoffWithQuote(db,{id,ownerId:owner.id,draftId,version,snapshot,status:'queued',created},{id:quoteId,handoffId:id,ownerId:owner.id,customerEmail:owner.email,customerName,snapshot,status:'pending',created},{eventType:'quote_requested',subjectId:quoteId,ownerId:owner.id,data:{kind:'friday_quote',path:'planner'},created});}catch{const prior=(await store.listFridayHandoffs(db,owner.id)).find(h=>h.draft_id===draftId&&h.version===version);if(prior)return {id:prior.id,status:prior.status,createdAt:prior.created,snapshot:JSON.parse(prior.snapshot)};throw new Error('Unable to queue this handoff.');}
     return {id,status:'queued',createdAt:created,snapshot:JSON.parse(snapshot)};
   }
   async function listHandoffs(owner){return (await store.listFridayHandoffs(db,owner.id)).map(r=>({id:r.id,draftId:r.draft_id,version:r.version,snapshot:JSON.parse(r.snapshot),status:r.status,createdAt:r.created}));}
-  async function adminList(owner,allowed){if(!allowed.has(String(owner.email||'').toLowerCase()))fail(403,'Your account is not on the quote administration allowlist.');return (await store.listFridayQuotes(db)).map(r=>({id:r.id,handoffId:r.handoff_id,customerEmail:r.customer_email,snapshot:JSON.parse(r.snapshot),status:r.status,quote:r.quote?JSON.parse(r.quote):null,attemptedAt:r.attempted_at,createdAt:r.created,firstReplyAt:r.first_reply_at}));}
+  async function adminList(owner,allowed){if(!allowed.has(String(owner.email||'').toLowerCase()))fail(403,'Your account is not on the quote administration allowlist.');return (await store.listFridayQuotes(db)).map(r=>({id:r.id,handoffId:r.handoff_id,customerEmail:r.customer_email,customerName:r.customer_name||'',snapshot:JSON.parse(r.snapshot),status:r.status,quote:r.quote?JSON.parse(r.quote):null,attemptedAt:r.attempted_at,createdAt:r.created,firstReplyAt:r.first_reply_at}));}
+  async function rememberQuoteReply(record, timing) {
+    await store.recordFunnelEvent(db, { eventType: 'quote_replied', subjectId: record.id, ownerId: record.owner_id, data: { kind: 'friday_quote', hoursWaited: timing.hoursWaited }, created: timing.firstReplyAt });
+    return timing;
+  }
   async function markQuoteReplied(owner,allowed,id){
     if(!allowed.has(String(owner.email||'').toLowerCase()))fail(403,'Your account is not on the quote administration allowlist.');
     const record=await store.getFridayQuote(db,id);if(!record)fail(404,'Quote request not found.');
-    if(record.first_reply_at)return replyTiming(record.created,record.first_reply_at);
+    if(record.first_reply_at)return rememberQuoteReply(record, replyTiming(record.created,record.first_reply_at));
     if(record.status!=='pending')fail(409,'Only an open quote can be marked replied.');
     const repliedAt=nowIso();
     if(!await store.markFridayQuoteReplied(db,id,repliedAt)){
       const latest=await store.getFridayQuote(db,id);
-      if(latest?.first_reply_at)return replyTiming(latest.created,latest.first_reply_at);
+      if(latest?.first_reply_at)return rememberQuoteReply(latest, replyTiming(latest.created,latest.first_reply_at));
       fail(409,'This quote is no longer open.');
     }
-    return replyTiming(record.created,repliedAt);
+    return rememberQuoteReply(record, replyTiming(record.created,repliedAt));
+  }
+  async function recordDraftClick(owner,allowed,id){
+    if(!allowed.has(String(owner.email||'').toLowerCase()))fail(403,'Your account is not on the quote administration allowlist.');
+    const record=await store.getFridayQuote(db,id);if(!record)fail(404,'Quote request not found.');
+    await store.recordFunnelEvent(db,{eventType:'draft_reply_clicked',subjectId:record.id,ownerId:record.owner_id,data:{kind:'friday_quote'}});
+    return {ok:true};
   }
   function replyTiming(created,repliedAt){return {firstReplyAt:repliedAt,hoursWaited:Math.max(0,(Date.parse(repliedAt)-Date.parse(created))/3600000)};}
   async function quotePayload(owner,allowed,id,input){if(!allowed.has(String(owner.email||'').toLowerCase()))fail(403,'Your account is not on the quote administration allowlist.');const r=await store.getFridayQuote(db,id);if(!r)fail(404,'Quote request not found.');if(r.status!=='pending')fail(409,'This quote has already been submitted for delivery and cannot be changed.');const amount=input.amount,currency=String(input.currency||'').toUpperCase(),details=clean(input.details,4000);if(typeof amount!=='number'||!Number.isFinite(amount)||amount<0||amount>100000000||! /^[A-Z]{3}$/.test(currency)||!details)fail(422,'Provide a valid amount, currency and quote details.');const snapshot=JSON.parse(r.snapshot);const itinerary=snapshot.kind==='reel'?reelText(snapshot):(snapshot.items||[]).map(x=>`• ${x.title}${x.proposedSegments?.length?`\n${x.proposedSegments.map(s=>`  ${segmentText(s)}`).join('\n')}`:''}${x.customizationRequest?`\n  Traveler request, pending review: ${x.customizationRequest}`:''}`).join('\n');const subject='Your Friday travel quote';const text=`Friday travel quote\n\n${details}\n\nAmount: ${currency} ${amount.toFixed(2)}\n\nYour selected plan:\n${itinerary||snapshot.destination}\n\nDestination: ${snapshot.destination}\nTravel dates: ${snapshot.dates?.start||''} to ${snapshot.dates?.end||''}\nTravelers: ${snapshot.travelers}\nBudget: ${snapshot.kind==='reel'?'Not requested':snapshot.flexibleBudget?'Flexible':snapshot.budget}\n\nThis quote was prepared by the Friday team. Dates, inclusions and availability are subject to the details above.`;const hashInput={quote:{amount,currency,details},snapshot:r.snapshot,to:r.customer_email,subject,text};return {record:r,quote:{amount,currency,details,preparedBy:owner.email},preview:{to:r.customer_email,subject,text,previewHash:hash(JSON.stringify(hashInput))}};}
@@ -163,5 +173,5 @@ export function createFridayWorkflow({db,store,env=process.env,fetch:fetcher=fet
     await store.setFridayQuoteStatus(db,id,status);
     return {id,status,quote};
   }
-  return {plan,listDrafts,handoff,listHandoffs,adminList,markQuoteReplied,previewQuote,sendQuote};
+  return {plan,listDrafts,handoff,listHandoffs,adminList,markQuoteReplied,recordDraftClick,previewQuote,sendQuote};
 }

@@ -17,6 +17,19 @@ const quote = {
   snapshot: { destination: 'Kerala', dates: { start: '2026-12-01', end: '2026-12-10' }, travelers: 2 },
 };
 
+test('draft reply greets the traveller by first name and falls back when the name is missing', () => {
+  const named = load().build({ ...quote, customerName: 'Ada Lovelace' });
+  assert.match(named.body, /^Hello Ada,/);
+  assert.equal(named.body.includes('Lovelace'), false);
+  const injected = load().build({ ...quote, customerName: 'Ada\r\nBcc: spy@example.com' });
+  assert.match(injected.body, /^Hello Ada,/);
+  assert.equal(injected.body.includes('\r'), false);
+  assert.equal(injected.body.includes('\nBcc'), false);
+  const emailName = load().build({ ...quote, customerName: 'ada@example.com' });
+  assert.match(emailName.body, /^Hello,/);
+  assert.match(load().build(quote).body, /^Hello,/);
+});
+
 test('draft reply opens a mailto link to the traveller with trip details and a Friday sign-off', () => {
   const draft = load().build(quote);
   assert.equal(draft.to, 'traveler@example.com');
@@ -51,11 +64,12 @@ test('no draft without a usable traveller email, and header-breaking text is fla
   assert.equal(injected.href.includes('%0D%0ABcc'), false);
 });
 
-test('the console wires Draft reply as a visible link that only counts a $click and does not send', async () => {
+test('the console wires Draft reply as a visible link that records the click and does not send', async () => {
   const admin = await read('assets/js/admin.js');
   assert.match(admin, /function draftReplyMarkup\(q\)/);
   assert.match(admin, />Draft reply<\/a>/);
   assert.match(admin, /FridayAnalytics\.track\('\$click', \{ path: '\/admin\.html', control: 'draft-reply' \}\)/);
+  assert.match(admin, /\/api\/admin\/quotes\/' \+ encodeURIComponent\(draftId\) \+ '\/draft-click'/);
   const generate = await read('build/generate.js');
   assert.match(generate, /'assets\/js\/quote-reply-draft\.js', 'assets\/js\/admin\.js'/);
   const html = await read('admin.html');

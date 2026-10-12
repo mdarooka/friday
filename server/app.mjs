@@ -44,6 +44,13 @@ const str = (v,name,max=1000,required=false) => {
   return name === 'password' ? v : v.trim();
 };
 const email = v => { const e = str(v,'email',254,true).toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) fail(422,'Please enter a valid email.'); return e; };
+const commissionQuotePath = (body, villa) => {
+  if (villa) return 'villa';
+  const text = (Array.isArray(body.composition) ? body.composition : []).filter(item => typeof item === 'string').join(' ').toLowerCase();
+  if (text.includes('package')) return 'package';
+  if (text.includes('villa')) return 'villa';
+  return 'enquiry';
+};
 const indianPhone = value => { const digits = typeof value === 'string' ? value.replace(/[\s()-]/g, '') : ''; const match = /^(?:\+?91)?([6-9]\d{9})$/.exec(digits); if (!match) fail(422,'Enter a valid 10-digit Indian mobile number, with or without +91.'); return '+91' + match[1]; };
 const kinds = new Set(['trips','places','lists','bookings','memories','alerts','imports']);
 const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(+new Date(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0,10) === value;
@@ -237,6 +244,7 @@ export function createApp(options = {}) {
     validate(kind,data); const id=randomUUID(), updated=new Date().toISOString();
     if (kind==='trips') await trips.insert({id,userId:uid,data:JSON.stringify(data),updated});
     else await store.insertRecord(db,{id,userId:uid,kind,data:JSON.stringify(data),updated});
+    if (kind==='trips') await store.recordFunnelEvent(db,{eventType:'trip_started',subjectId:id,ownerId:uid,data:{kind:'trip'},created:updated});
     return parseRecord(await getRecord(id,uid,kind));
   };
   const cookie = (token, age) => `friday_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${secure?'; Secure':''}`;
@@ -288,6 +296,14 @@ export function createApp(options = {}) {
       }
       if (url.pathname === '/index.html' && ['GET','HEAD'].includes(method)) {
         res.writeHead(308, { Location: `/${url.search}`, 'Cache-Control': 'public, max-age=86400' });
+        res.end();
+        return;
+      }
+      // Permanent move from the old Bombay page. Kept on the server, after the public proxy, so the
+      // original query (for example ?region=MH) is still on the request. A vercel.json Location route
+      // matches the path only and would drop that query.
+      if ((url.pathname === '/when-bombay-travels.html' || url.pathname === '/when-bombay-travels') && ['GET','HEAD'].includes(method)) {
+        res.writeHead(308, { Location: `/when-india-travels.html${url.search}`, 'Cache-Control': 'public, max-age=86400' });
         res.end();
         return;
       }
@@ -741,13 +757,14 @@ export function createApp(options = {}) {
         const relatedTrips=tripRows.map(row=>({id:row.id,data:JSON.parse(row.data),version:row.version,updated:row.updated}));
         const callbacks=await store.listOwnedCallbackRequests(db,user.id);
         const quotes=(await store.listOwnerFridayQuotes(db,user.id)).map(row=>({...row,snapshot:JSON.parse(row.snapshot),quote:row.quote?JSON.parse(row.quote):null}));
+        const funnelEvents=(await store.listOwnerFunnelEvents(db,user.id)).map(row=>({id:row.id,eventType:row.event_type,subjectId:row.subject_id,data:JSON.parse(row.data),created:row.created}));
         const handoffs=(await store.listFridayHandoffs(db,user.id)).map(row=>({...row,snapshot:JSON.parse(row.snapshot)}));
         const drafts=(await store.listFridayDrafts(db,user.id)).map(row=>({...row,data:JSON.parse(row.data)}));
         const conversations=await store.listOwnerAiConversationEvents(db,user.id);
         const enquiries=(await store.listOwnerEnquiries(db,user.hexclave_email||user.email)).map(row=>({...row,data:JSON.parse(row.data)}));
         const itineraries=(await store.listOwnerItineraries(db,user.id)).map(row=>({...row,request:JSON.parse(row.request),plan:JSON.parse(row.plan)}));
         const jobs=(await store.listOwnerJobs(db,user.id)).map(row=>({...row,result:row.result?JSON.parse(row.result):null}));
-        const exportBody={format:'friday-account-export',version:1,exportedAt:new Date().toISOString(),account:{email:user.hexclave_email||user.email,name:user.hexclave_name||user.name,profile:JSON.parse(user.profile||'{}')},trips:relatedTrips,records,planning:{drafts,handoffs,quotes,reelChats:await store.listOwnerReelChats(db,user.id),generatedItineraries:itineraries,researchJobs:jobs},requests:{callbacks,enquiries,quotes},aiConversationEvents:conversations,shareLinks:await store.listOwnerShares(db,user.id),shareActivity:await store.listOwnerShareActivity(db,user.id),sharedFeedback:await store.listOwnerTripFeedback(db,user.id),googleConnections:await store.listGoogleConnections(db,user.id).then(rows=>rows.map(({kind,scopes,connected_at})=>({kind,scopes,connectedAt:connected_at}))),friendResponses:await store.listOwnerFriendResponses(db,user.id),newsletterSubscription:await store.getNewsletterSubscriber(db,user.hexclave_email||user.email)};
+        const exportBody={format:'friday-account-export',version:1,exportedAt:new Date().toISOString(),account:{email:user.hexclave_email||user.email,name:user.hexclave_name||user.name,profile:JSON.parse(user.profile||'{}')},trips:relatedTrips,records,planning:{drafts,handoffs,quotes,reelChats:await store.listOwnerReelChats(db,user.id),generatedItineraries:itineraries,researchJobs:jobs},requests:{callbacks,enquiries,quotes},funnelEvents,aiConversationEvents:conversations,shareLinks:await store.listOwnerShares(db,user.id),shareActivity:await store.listOwnerShareActivity(db,user.id),sharedFeedback:await store.listOwnerTripFeedback(db,user.id),googleConnections:await store.listGoogleConnections(db,user.id).then(rows=>rows.map(({kind,scopes,connected_at})=>({kind,scopes,connectedAt:connected_at}))),friendResponses:await store.listOwnerFriendResponses(db,user.id),newsletterSubscription:await store.getNewsletterSubscriber(db,user.hexclave_email||user.email)};
         const filename='friday-data-'+new Date().toISOString().slice(0,10)+'.json';
         res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Content-Disposition':`attachment; filename="${filename}"`,'Cache-Control':'no-store, private','X-Content-Type-Options':'nosniff'});
         res.end(JSON.stringify(exportBody,null,2));return;
@@ -978,7 +995,7 @@ export function createApp(options = {}) {
         const callbacks=await Promise.all((await store.listCallbackRequests(db)).map(async row=>({checklist:{items:PREQUOTE_ITEMS.map(i=>({id:i.id,label:i.label})),...await getChecklist(db,row.id)},id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,tripContext:row.trip_context?JSON.parse(row.trip_context):null,topic:row.topic||null,from:row.from,villaId:row.villa_id,villaName:row.villa_name,villaCity:row.villa_city,villaGuests:row.villa_guests,status:row.status,createdAt:row.created})));
         const destinationRequests=(await store.listEnquiries(db)).filter(row=>row.kind==='destination_request').map(row=>({row,data:JSON.parse(row.data)})).map(({row,data})=>({id:row.id,kind:'destination_request',customerEmail:data.email||null,name:data.name,phone:data.phone||null,destination:data.destination,month:data.month||null,groupSize:data.groupSize||null,notes:data.notes||null,createdAt:row.created}));
         const villaEnquiries=(await store.listEnquiries(db)).filter(row=>row.kind==='commissions').map(row=>({row,data:JSON.parse(row.data)})).filter(item=>item.data.villa).map(({row,data})=>({id:row.id,kind:'villa_enquiry',customerEmail:data.email,name:data.name,villa:data.villa,data,createdAt:row.created}));
-        return send(200,{quotes:[...villaEnquiries,...destinationRequests,...callbacks,...quotes]});
+        return send(200,{quotes:[...villaEnquiries,...destinationRequests,...callbacks,...quotes],quoteStats:await store.quoteFunnelStats(db)});
       }
       const adminTrip=p.match(/^\/api\/admin\/trips\/([A-Za-z0-9_-]{1,160})$/);
       if(adminTrip){
@@ -1007,6 +1024,8 @@ export function createApp(options = {}) {
       }
       const quotePreview=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/preview$/i);
       const quoteReplied=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/replied$/i);
+      const quoteDraftClick=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/draft-click$/i);
+      if(quoteDraftClick){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,await friday.recordDraftClick(user,effectiveQuoteAdmins,quoteDraftClick[1]));}
       if(quoteReplied){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{reply:await friday.markQuoteReplied(user,effectiveQuoteAdmins,quoteReplied[1])});}
       if(quotePreview){allow('POST');if(!user)fail(401,'Please sign in.');return send(200,{preview:await friday.previewQuote(user,effectiveQuoteAdmins,quotePreview[1],body)});}
       const quoteSend=p.match(/^\/api\/admin\/quotes\/([0-9a-f-]{36})\/send$/i);
@@ -1135,6 +1154,7 @@ export function createApp(options = {}) {
         const id=randomUUID(),created=new Date().toISOString();
         const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {}),...(topic?{topic}:{}),...(tripContext?{tripContext:[tripContext.name,tripContext.destination,tripContext.startDate&&tripContext.endDate?`${tripContext.startDate} to ${tripContext.endDate}`:tripContext.startDate||tripContext.endDate].filter(Boolean).join(' · ')}:{}),...(villa?{from:'villa',villaId:villa.id,villa:{id:villa.id,name:villa.name,city:villa.city,guests:villa.maxGuests}}:{})};
         await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,ownerId:user?.id||null,tripContext,status:'new',created,topic,from:villa?'villa':null,...(villa?{villaId:villa.id,villaName:villa.name,villaCity:villa.city,villaGuests:villa.maxGuests}:{})});
+        await store.recordFunnelEvent(db,{eventType:'callback_requested',subjectId:id,ownerId:user?.id||null,data:{entryPoint},created});
         const checklistToken=await issueChecklist(db,{callbackId:id,ownerId:user?.id||null,now:created});
         const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
         const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
@@ -1169,6 +1189,7 @@ export function createApp(options = {}) {
           const villa=villaRow?publicVilla(villaRow):null;
           const data={...body,email:email(body.email),name,from:villa?'villa':null,villaId:villa?villa.id:null,villa:villa?{id:villa.id,name:villa.name,city:villa.city,guests:villa.maxGuests}:undefined};
           await store.saveEnquiry(db,{id,kind:'commissions',data:JSON.stringify(data),created});
+          await store.recordFunnelEvent(db,{eventType:'quote_requested',subjectId:id,ownerId:user.id,data:{kind:'enquiry',path:commissionQuotePath(body,villa)},created});
           const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
           const [receipt,notification]=await Promise.all([
             emailService.enquiryReceipt({id,name,email:data.email}),

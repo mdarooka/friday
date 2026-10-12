@@ -1304,6 +1304,10 @@ ${PageHero({
 
 <section class="section section--flush-top">
   <div class="wrap">
+    <nav class="contact-paths" aria-label="How to reach Friday">
+      <a class="btn btn--solid" href="#quote">Request a quote</a>
+      <a class="btn" href="#callback-title">Call me back</a>
+    </nav>
     <div class="grid">
       <div class="c-7 c-md-12">
         <section class="callback-card" aria-labelledby="callback-title" style="border:1px solid var(--rule);padding:clamp(1.25rem,3vw,2rem);margin-bottom:2rem">

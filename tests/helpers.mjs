@@ -28,6 +28,17 @@ export async function startApp(t, { env = {}, ...options } = {}) {
   return { base, request, server, db: server.db };
 }
 
+/** Poll until `read` returns `{ done: true, value }`, or the timeout. Research jobs finish quickly alone and slowly when the suite shares the machine. */
+export async function waitUntil(read, { timeoutMs = 8000, intervalMs = 25 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let result = await read();
+  while (!result.done && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+    result = await read();
+  }
+  return result.value;
+}
+
 export async function signUp(request, name = 'A', extra = {}) {
   const res = await request('/api/auth/signup', 'POST', { name, email: `${name}@example.com`, password: 'long test password 123' }, extra);
   if (res.status !== 200) throw new Error('signup failed ' + res.status);

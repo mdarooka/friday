@@ -120,6 +120,42 @@
 }
 
 /* Quote delivery styles */
+.admin-quote-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .35rem 1.5rem;
+  margin: 0 0 1.25rem;
+  padding: 1rem 1.1rem 1.05rem;
+  background: var(--paper-2);
+  border: 1px solid var(--rule-soft);
+}
+.admin-quote-stats__count,
+.admin-quote-stats__sla {
+  margin: .3rem 0 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  line-height: 1;
+  color: var(--ink);
+}
+.admin-quote-stats__weeks {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem 1rem;
+  margin: .85rem 0 0;
+  padding: .8rem 0 0;
+  list-style: none;
+  border-top: 1px solid var(--rule-soft);
+  font-size: .75rem;
+  letter-spacing: .04em;
+  color: var(--fg-mute);
+}
+.admin-quote-stats__weeks strong { margin-left: .35rem; color: var(--ink); font-weight: 500; }
+@media (max-width: 640px) {
+  .admin-quote-stats { grid-template-columns: 1fr; }
+}
+
 .admin-quotes-split {
   display: grid;
   grid-template-columns: minmax(16rem, 1fr) minmax(22rem, 1.4fr);

@@ -1120,6 +1120,11 @@ a:hover > .offering-art.plate--photo > .plate__svg { transform: none; transition
   }
 }
 
+/* Contact: both paths stay on the page. The choice sits above them so a phone can reach the quote without scrolling past the callback form. */
+.contact-paths { display: flex; flex-wrap: wrap; gap: .75rem; margin: 0 0 1.75rem; }
+.contact-paths .btn { min-height: 44px; }
+#quote, #callback-title, .callback-card { scroll-margin-top: 5.5rem; }
+
 /* ---------------------------------------------------------------- When India travels */
 .lw-cities { display: flex; flex-wrap: wrap; gap: .6rem; list-style: none; margin: 1.1rem 0 0; padding: 0; }
 .lw-city-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 1.3rem; font-size: var(--t-label); text-transform: uppercase; letter-spacing: .18em; text-decoration: none; color: var(--fg); border: 1px solid var(--rule); border-radius: 999px; transition: background .3s var(--ease), color .3s var(--ease), border-color .3s var(--ease); }

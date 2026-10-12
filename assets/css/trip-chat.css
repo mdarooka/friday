@@ -591,3 +591,33 @@ button.ch-tool__row:hover { color: var(--fg-soft); }
   .fx .ch-col { gap: 22px; }
   .fx .ch-q__actions { justify-content: flex-start; }
 }
+
+/* Phone tap targets. The visible control itself is at least 44px; an invisible ::before hit area does not change the box that gets measured. Desktop sizes stay as drawn above. */
+@media (max-width: 720px) {
+  .fx :is(
+    button,
+    [role="button"],
+    a.fx-btn,
+    a.fx-link,
+    summary,
+    .fx-btn,
+    .fx-icon-btn,
+    .fx-seg__btn,
+    .fx-segtab,
+    .fx-chip:not(.fx-chip--mono),
+    .fx-nav__row,
+    .fx-burger,
+    .fx-mode,
+    .fx-new__suggestion,
+    .fx-send,
+    .wsp-btn,
+    .wsp-iconbtn,
+    .ch-pill,
+    .ch-chip,
+    .fm-btn,
+    .fm-collapse
+  ) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
