@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startApp, signUp } from './helpers.mjs';
+import { startApp, signUp, waitUntil } from './helpers.mjs';
 
 test('AI conversation events are owner-scoped, replayable, and review access is allowlisted', async t => {
   const { request } = await startApp(t, {
@@ -125,12 +125,10 @@ test('trip research records the original question before the provider starts and
   assert.match(JSON.parse(during.result.events[0].content).request.prompt, /quiet gardens in Kyoto/);
 
   releaseProvider();
-  let job;
-  for (let i = 0; i < 50; i++) {
-    job = (await request('/api/research/' + started.result.job.id, 'GET', undefined, { cookie: owner.cookie })).result.job;
-    if (job.status !== 'running') break;
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
+  const job = await waitUntil(async () => {
+    const current = (await request('/api/research/' + started.result.job.id, 'GET', undefined, { cookie: owner.cookie })).result.job;
+    return { done: current.status !== 'running', value: current };
+  });
   assert.equal(job.status, 'completed');
   const after = await request('/api/admin/ai-conversations?ownerId=' + encodeURIComponent(owner.result.user.id) + '&conversationId=kyoto-thread', 'GET', undefined, { cookie: reviewer.cookie });
   assert.equal(after.result.events.length, 1);

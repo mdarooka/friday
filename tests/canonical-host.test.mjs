@@ -200,6 +200,17 @@ test('production redirects non-canonical hosts, noindexes only those responses, 
   assert.equal(home.headers.location, '/?src=legacy');
   assert.equal(home.headers['x-robots-tag'], undefined);
 
+  const bombay = await raw(server, '/when-bombay-travels.html?region=MH', { host: 'fridaytravel.vercel.app' });
+  assert.equal(bombay.status, 308);
+  assert.equal(bombay.headers.location, '/when-india-travels.html?region=MH');
+  assert.equal(bombay.headers['cache-control'], 'public, max-age=86400');
+  const bombayHead = await raw(server, '/when-bombay-travels.html?region=MH', { host: 'fridaytravel.vercel.app' }, 'HEAD');
+  assert.equal(bombayHead.status, 308);
+  assert.equal(bombayHead.headers.location, '/when-india-travels.html?region=MH');
+  const bombayBare = await raw(server, '/when-bombay-travels?region=GA', { host: 'fridaytravel.vercel.app' });
+  assert.equal(bombayBare.status, 308);
+  assert.equal(bombayBare.headers.location, '/when-india-travels.html?region=GA');
+
   const robotsMeta = '<meta name="robots" content="noindex, nofollow">';
   for (const path of ['/trip.html', '/app.html', '/admin.html', '/admin-villas.html']) {
     const privatePage = await raw(server, path, { host: 'fridaytravel.vercel.app' });

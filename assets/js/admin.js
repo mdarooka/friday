@@ -94,6 +94,9 @@
 
     /* Quotes */
     dom.quoteSetupNote = $('[data-quote-setup-note]', dom.page);
+    dom.quoteWeekCount = $('[data-quote-week-count]', dom.page);
+    dom.quoteSla = $('[data-quote-sla]', dom.page);
+    dom.quoteWeeks = $('[data-quote-weeks]', dom.page);
     dom.quotesList = $('[data-admin-quotes]', dom.page);
     dom.quoteDrawer = $('[data-quote-drawer]', dom.page);
     dom.closeQuoteDrawerBtn = $('[data-close-quote-drawer]', dom.page);
@@ -413,10 +416,29 @@
 
     FridayAdmin.request('/api/admin/quotes').then(function (res) {
       state.quotes = res.quotes || [];
+      renderQuoteStats(res.quoteStats);
       renderQuotes(state.quotes);
     }).catch(function (err) {
       dom.quotesList.innerHTML = empty('Could not load quotes: ' + err.message);
     });
+  }
+
+  function weekLabel(iso) {
+    var d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  }
+
+  function renderQuoteStats(stats) {
+    var current = stats && stats.currentWeek;
+    if (dom.quoteWeekCount) dom.quoteWeekCount.textContent = current ? String(current.quotes) : '—';
+    var sla = stats && stats.repliedWithin30Hours;
+    if (dom.quoteSla) dom.quoteSla.textContent = sla && sla.percent != null ? sla.percent + '%' : '—';
+    if (dom.quoteWeeks) {
+      dom.quoteWeeks.innerHTML = (stats && stats.weeks || []).map(function (week) {
+        return '<li><span>' + esc(weekLabel(week.week)) + '</span><strong>' + esc(week.quotes) + '</strong></li>';
+      }).join('');
+    }
   }
 
   function renderQuotes(quotes) {
@@ -976,10 +998,12 @@
       }
 
       /* Quote actions */
-      /* Draft reply: let the mail link open; count the click as a $click (no traveler details). */
+      /* Draft reply: let the mail link open. Count the click in Friday's own log and as a Hexclave $click. No traveller details, and Friday still sends nothing. */
       var draftReply = e.target.closest('[data-draft-quote-reply]');
       if (draftReply) {
         if (window.FridayAnalytics) window.FridayAnalytics.track('$click', { path: '/admin.html', control: 'draft-reply' });
+        var draftId = draftReply.getAttribute('data-draft-quote-reply');
+        if (draftId) FridayAdmin.request('/api/admin/quotes/' + encodeURIComponent(draftId) + '/draft-click', 'POST', {}).catch(function () {});
         return;
       }
       var markReplied = e.target.closest('[data-mark-quote-replied]');

@@ -1,5 +1,5 @@
 /* Drafts the first reply to a waiting quote as a mailto link. Friday never sends it: the designer's own mail app opens with the draft.
-   Only fields the quote already stores are used (destination, dates, group size, traveller email). Missing ones are left out. */
+   Only fields the quote already stores are used (traveller name, destination, dates, group size, traveller email). Missing ones are left out. */
 (function () {
   'use strict';
 
@@ -21,6 +21,14 @@
     return n === 1 ? '1 traveller' : n + ' travellers';
   }
 
+  /* First token of a stored name, when it reads as a name. An email or a blank falls back to "Hello,". */
+  function greeting(quote) {
+    var raw = clean((quote && (quote.customerName || quote.name)) || '', 80);
+    var first = raw.split(' ').filter(Boolean)[0] || '';
+    if (!first || first.length > 40 || first.indexOf('@') !== -1 || !/\p{L}/u.test(first)) return 'Hello,';
+    return 'Hello ' + first + ',';
+  }
+
   /* Returns { to, subject, body, href } for a quote with a usable email, or null. */
   function build(quote) {
     var to = quote && clean(quote.customerEmail, 320);
@@ -34,7 +42,7 @@
     var trip = destination ? 'your ' + destination + ' trip' : 'your trip';
     var details = [dates, group].filter(Boolean).join(', ');
     var lines = [
-      'Hello,',
+      greeting(quote),
       '',
       'Thank you for planning ' + trip + (details ? ' (' + details + ')' : '') + ' with Friday.',
       '',

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createApp } from '../server/app.mjs';
 import { openStore, createUser, insertRecord, createShare } from '../server/store.mjs';
-import { startApp, signUp, origin } from './helpers.mjs';
+import { startApp, signUp, origin, waitUntil } from './helpers.mjs';
 import { createFakeVault, fakeKeys } from './fake-vault.mjs';
 import { createVaultClient, createVaultTripStore, VaultError, hashKey, encryptValue, decryptValue } from '../server/storage/hexclave-vault.mjs';
 import { resolveTripStorage } from '../server/storage/index.mjs';
@@ -211,7 +211,7 @@ test('vault mode: research updates the vault trip and Google imports validate tr
   const id = (await request('/api/trips', 'POST', { data: trip() }, { cookie: a.cookie })).result.record.id;
   const started = await request('/api/research', 'POST', { prompt: 'Kyoto', tripId: id }, { cookie: a.cookie });
   assert.equal(started.status, 202);
-  let job; for (let i = 0; i < 100; i++) { job = (await request('/api/research/' + started.result.job.id, 'GET', undefined, { cookie: a.cookie })).result.job; if (job.status !== 'running') break; await new Promise(r => setTimeout(r, 10)); }
+  const job = await waitUntil(async () => { const current = (await request('/api/research/' + started.result.job.id, 'GET', undefined, { cookie: a.cookie })).result.job; return { done: current.status !== 'running', value: current }; });
   assert.equal(job.status, 'completed');
   const saved = (await request('/api/trips/' + id, 'GET', undefined, { cookie: a.cookie })).result.record;
   assert.equal(saved.data.researchDraft.days[0].title, 'Gardens'); assert.equal(saved.version, 2);
