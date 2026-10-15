@@ -129,7 +129,7 @@ Deep is the default research mode. All user-facing research, reel import and iti
 | Booking-aware Friday drafts and human quote queue | Implemented; owner-scoped booking context, published catalog listings, versioned handoffs and allowlisted team quotes (`docs/friday-workflow.md`) |
 | Live fare polling | Not implemented |
 | Social-post extraction | Implemented when AI provider credentials are configured; it verifies cited public post content and waits for the user to save suggestions |
-| Reel to itinerary and human quote request | Implemented for signed-in travelers when AI research is configured; asks them to confirm the exact place, cites researched stops, keeps drafts price-free and editable, then freezes reviewed drafts for the team quote queue (`docs/friday-workflow.md`) |
+| Reel to itinerary and human quote request | Implemented for signed-in travelers when AI research is configured; plans reels in the place they show, anywhere in the world; asks them to confirm the exact place, or, when the place can't be identified or verified, offers a "Match the vibe" choice of three real places with a similar feel (labelled as a vibe match in chat and in the team note); cites researched stops, keeps drafts price-free and editable, then freezes reviewed drafts for the team quote queue (`docs/friday-workflow.md`) |
 | Email verification and password reset | Provided by Hexclave when the project and production email sender are configured |
 
 Research responses may cite sources and suggest places and itinerary days. The user reviews and applies itinerary drafts; saved records remain scoped to their account. The airport catalogue is curated and is not a global airport database.
