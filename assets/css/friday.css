@@ -636,6 +636,30 @@ button.menu__link:disabled { opacity: .45; cursor: wait; }
 .hero__note { max-width: 30em; font-size: var(--t-sm); color: rgba(244,241,234,.78); }
 .hero__cta { justify-self: center; }
 .hero__meta .scrollcue { justify-self: end; }
+.hero-diwali {
+  margin-top: clamp(.8rem, 2vw, 1.3rem);
+  padding: .75rem .9rem .85rem;
+  max-width: 38rem;
+  border: 1px solid var(--rule);
+  background: rgba(12, 11, 9, .46);
+}
+.hero-diwali h2 {
+  margin: .15rem 0 .3rem;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.25rem, 2.2vw, 1.7rem);
+  line-height: 1.15;
+  letter-spacing: -.02em;
+}
+.hero-diwali p { margin: 0 0 .3rem; font-size: var(--t-sm); line-height: 1.45; color: rgba(244,241,234,.86); }
+.hero-diwali__actions { display: flex; flex-wrap: wrap; gap: .45rem; margin: .45rem 0 0; }
+a[data-whatsapp-slot]:not(.is-on) { display: none; }
+.hero-diwali .btn { color: var(--paper); border-color: rgba(244,241,234,.45); }
+.hero-diwali .btn--solid { background: var(--paper); color: #15140F; border-color: var(--paper); }
+.lw-pin { padding-top: clamp(1.4rem, 3vw, 2.2rem); border-bottom: 1px solid var(--rule); }
+.lw-pin__picks { margin: .7rem 0 0; }
+.lw-pin .hero-diwali__actions { margin-top: .9rem; }
+.lw-break__book { margin-top: .35rem; }
 
 .scrollcue {
   display: inline-flex; align-items: center; gap: .8rem;

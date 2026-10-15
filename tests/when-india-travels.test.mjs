@@ -49,7 +49,7 @@ test('every row has the schema, sources, and open-ended suggestions (no destinat
     assert.equal(B.nightsBetween(brk.startDate, brk.endDate), brk.nights, `${brk.id} nights`);
     assert.ok(!('picks' in brk), `${brk.id} has no picks`);
     const suggestions = brk.suggestions || [];
-    assert.ok(suggestions.length <= 2, brk.id);
+    assert.ok(suggestions.length <= 3, brk.id);
     if (brk.nights >= B.MIN_NIGHTS) assert.ok(suggestions.length >= 1, `${brk.id} has a suggestion`);
     for (const sug of suggestions) {
       assert.ok(typeof sug.place === 'string' && sug.place.length >= 2 && sug.place.length <= 60, `${brk.id}: place`);
@@ -212,7 +212,7 @@ test('every guide page offers both Plan with Friday and Talk to a designer, and 
 test('the callback flow reads ?topic= and sends it with the request', async () => {
   const script = await read('assets/js/friday.js');
   assert.match(script, /villaParams\.get\('topic'\)/);
-  assert.match(script, /\.\.\.\(topic\?\{topic\}:\{\}\)/);
+  assert.match(script, /topic:formTopic\|\|topic/);
   const contact = await read('contact.html');
   assert.match(contact, /id="callback-title"/);
   assert.match(contact, /data-callback-form/);
@@ -385,7 +385,7 @@ test('the homepage section renders from the data: heading, lede, link, and one c
     assert.doesNotMatch(m[4], /<p class="wit-card__note">[^<]*[.!?]\s+\S/, 'one sentence only');
   });
   assert.ok(cards.every((m, i) => i === 0 || upcoming[i - 1].startDate <= upcoming[i].startDate), 'date order');
-  const dates = (id) => cards[upcoming.findIndex((b) => b.id === id)][4].match(/wit-card__dates">([^<]*)</)[1];
+  const dates = (id) => cards.find((m) => m[3].endsWith('#' + id))[4].match(/wit-card__dates">([^<]*)</)[1];
   if (buildToday.startsWith('2026')) assert.equal(dates('dussehra-2026'), '17–20 Oct · 3 nights');
 });
 

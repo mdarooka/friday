@@ -1,6 +1,6 @@
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 
-/* PROVISIONAL CONTENT. These five items are a first draft written without real data.
+/* PROVISIONAL CONTENT. These six items are a first draft written without real data.
  * OWNER: replace them with items drawn from real stalled quotes (the questions you most often
  * had to chase before you could price a trip). This is the single source of truth: the server
  * validates against it, the planner modal fetches it from GET /api/callbacks/checklist-items,
@@ -12,7 +12,16 @@ export const PREQUOTE_ITEMS = [
   { id: 'budget', label: 'Budget band per person', placeholder: 'e.g. 80k–1.2L, excluding flights' },
   { id: 'musthaves', label: 'Must-haves and deal-breakers', placeholder: 'e.g. beach villa; no early starts' },
   { id: 'passport', label: 'Passport nationality and visa status', placeholder: 'e.g. Indian passport, no visa yet' },
+  { id: 'foodpace', label: 'Food and pace', placeholder: 'e.g. Jain or vegetarian meals; elders who prefer a slower pace' },
 ];
+
+/** A one-line pace from the last trip, used only to pre-fill Food and pace. */
+export function paceLine(pace) {
+  if (pace === 'relaxed') return 'A slower pace';
+  if (pace === 'normal') return 'A balanced pace';
+  if (pace === 'full') return 'Fuller days';
+  return '';
+}
 const MAX_TEXT = 200;
 const sha = value => createHash('sha256').update(value).digest('hex');
 

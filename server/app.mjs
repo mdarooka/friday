@@ -31,7 +31,8 @@ import { extractBooking, htmlToText, jsonLdObjects } from './booking-extraction.
 import { carryVerification, verifyBooking } from './booking-confidence.mjs';
 import { forwardAddressFor, forwardTokenFromRecipient, inboundSecretMatches, newForwardToken, saveForwardedBooking } from './forward-booking.mjs';
 import { quoteDigestMode, digestRecipient, runQuoteDigest, startQuoteDigestLoop } from './quote-digest.mjs';
-import { PREQUOTE_ITEMS, issueChecklist, saveChecklist, getChecklist } from './prequote-checklist.mjs';
+import { PREQUOTE_ITEMS, issueChecklist, saveChecklist, getChecklist, paceLine } from './prequote-checklist.mjs';
+import { replyBy } from './reply-by.mjs';
 import { briefingAutosendMode, runBriefingSweep, startBriefingLoop, REQUIRED_DRY_RUN_DAYS } from './briefing-scheduler.mjs';
 import { ensureRobotsMeta, hostPolicy, isPrivateSurface, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, hiddenRobotsTxt, ROBOTS_NOINDEX, visitorHost, isPublicProxyRequest, PROXY_HEADER } from './canonical-host.mjs';
 import { deployInfo } from './deploy-info.mjs';
@@ -863,7 +864,7 @@ export function createApp(options = {}) {
       if(p==='/api/friday/handoffs'){
         if(!user)fail(401,'Please sign in.');
         if(method==='GET')return send(200,{handoffs:await friday.listHandoffs(user)});
-        if(method==='POST')return send(201,{handoff:await friday.handoff(user,body)});
+        if(method==='POST')return send(201,{handoff:await friday.handoff(user,body),replyBy:replyBy()});
         fail(405,'Method not allowed.');
       }
       if(p==='/api/friday/status'){
@@ -999,7 +1000,7 @@ export function createApp(options = {}) {
       }
       if(p==='/api/admin/quotes'){
         allow('GET');if(!user)fail(401,'Please sign in.');const quotes=await friday.adminList(user,effectiveQuoteAdmins);
-        const callbacks=await Promise.all((await store.listCallbackRequests(db)).map(async row=>({checklist:{items:PREQUOTE_ITEMS.map(i=>({id:i.id,label:i.label})),...await getChecklist(db,row.id)},id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,tripContext:row.trip_context?JSON.parse(row.trip_context):null,topic:row.topic||null,from:row.from,villaId:row.villa_id,villaName:row.villa_name,villaCity:row.villa_city,villaGuests:row.villa_guests,status:row.status,createdAt:row.created})));
+        const callbacks=await Promise.all((await store.listCallbackRequests(db)).map(async row=>({checklist:{items:PREQUOTE_ITEMS.map(i=>({id:i.id,label:i.label})),...await getChecklist(db,row.id)},id:row.id,kind:'callback',customerEmail:null,name:row.name,phone:row.phone,bestTime:row.best_time,entryPoint:row.entry_point,tripId:row.trip_id,tripContext:row.trip_context?JSON.parse(row.trip_context):null,topic:row.topic||null,reelUrl:row.reel_url||null,gift:row.gift===1,from:row.from,villaId:row.villa_id,villaName:row.villa_name,villaCity:row.villa_city,villaGuests:row.villa_guests,status:row.status,createdAt:row.created})));
         const destinationRequests=(await store.listEnquiries(db)).filter(row=>row.kind==='destination_request').map(row=>({row,data:JSON.parse(row.data)})).map(({row,data})=>({id:row.id,kind:'destination_request',customerEmail:data.email||null,name:data.name,phone:data.phone||null,destination:data.destination,month:data.month||null,groupSize:data.groupSize||null,notes:data.notes||null,createdAt:row.created}));
         const villaEnquiries=(await store.listEnquiries(db)).filter(row=>row.kind==='commissions').map(row=>({row,data:JSON.parse(row.data)})).filter(item=>item.data.villa).map(({row,data})=>({id:row.id,kind:'villa_enquiry',customerEmail:data.email,name:data.name,villa:data.villa,data,createdAt:row.created}));
         return send(200,{quotes:[...villaEnquiries,...destinationRequests,...callbacks,...quotes],quoteStats:await store.quoteFunnelStats(db)});
@@ -1118,7 +1119,18 @@ export function createApp(options = {}) {
         const result=await google({path:p,method,body,user,url});
         if(result){if(result.redirect){res.writeHead(result.status,{Location:result.redirect,'Cache-Control':'no-store'});res.end();return;}return send(result.status,result.data);}
       }
-      if (p==='/api/callbacks/checklist-items' && method==='GET') return send(200,{items:PREQUOTE_ITEMS});
+      if (p==='/api/callbacks/checklist-items' && method==='GET') {
+        const prefill={};
+        if(user){
+          let profile={};try{profile=JSON.parse(user.profile||'{}')||{};}catch{profile={};}
+          const trips=await store.listRecords(db,user.id,'trips');
+          let pace='';
+          if(trips[0]){try{const data=JSON.parse(trips[0].data);pace=data.pace||data.prefs?.pace||data.claudeState?.pace||'';}catch{pace='';}}
+          const food=[typeof profile.other==='string'?profile.other.trim():'',paceLine(pace)].filter(Boolean).join('. ');
+          if(food)prefill.foodpace=food.slice(0,200);
+        }
+        return send(200,{items:PREQUOTE_ITEMS.map(item=>({...item,prefill:prefill[item.id]||''}))});
+      }
       const checklistRoute=p.match(/^\/api\/callbacks\/([0-9a-f-]{36})\/checklist$/i);
       if (checklistRoute) {
         allow('PUT');rate('form:'+ip,30);
@@ -1141,10 +1153,18 @@ export function createApp(options = {}) {
         const bestTime=str(body.bestTime,'best time',20,true);
         if(!['morning','afternoon','evening'].includes(bestTime)) fail(422,'Choose a time of day for the call.');
         const submittedEntryPoint=str(body.entryPoint,'entry point',20,true);
-        if(!['planner','contact','villas'].includes(submittedEntryPoint)) fail(422,'This callback request could not be placed.');
+        if(!['planner','contact','villas','departure'].includes(submittedEntryPoint)) fail(422,'This callback request could not be placed.');
         const tripId=body.tripId==null||body.tripId===''?null:str(body.tripId,'trip link',160);
         if(tripId&&!/^[A-Za-z0-9_-]+$/.test(tripId)) fail(422,'This trip link is not valid.');
         const topic=body.topic==null||body.topic===''?null:str(body.topic,'topic',200);
+        let reelUrl=null;
+        if(body.reelUrl!=null&&body.reelUrl!==''){
+          const raw=str(body.reelUrl,'reel link',500);
+          let parsed;try{parsed=new URL(raw);}catch{fail(422,'Paste a full reel link, starting with https.');}
+          if(parsed.protocol!=='https:')fail(422,'Paste a full reel link, starting with https.');
+          reelUrl=parsed.toString().slice(0,500);
+        }
+        const gift=body.gift===true||body.gift===1||body.gift==='1'||body.gift==='on';
         const villaId=body.villaId==null||body.villaId===''?null:str(body.villaId,'villa',180);
         const villaRow=villaId?await store.getPublishedVilla(db,villaId):null;
         if(villaId&&!villaRow) fail(422,'This villa is no longer available.');
@@ -1159,13 +1179,13 @@ export function createApp(options = {}) {
           if(!tripContext.name&&!tripContext.destination&&!tripContext.startDate&&!tripContext.endDate)tripContext=null;
         }
         const id=randomUUID(),created=new Date().toISOString();
-        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {}),...(topic?{topic}:{}),...(tripContext?{tripContext:[tripContext.name,tripContext.destination,tripContext.startDate&&tripContext.endDate?`${tripContext.startDate} to ${tripContext.endDate}`:tripContext.startDate||tripContext.endDate].filter(Boolean).join(' · ')}:{}),...(villa?{from:'villa',villaId:villa.id,villa:{id:villa.id,name:villa.name,city:villa.city,guests:villa.maxGuests}}:{})};
-        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,ownerId:user?.id||null,tripContext,status:'new',created,topic,from:villa?'villa':null,...(villa?{villaId:villa.id,villaName:villa.name,villaCity:villa.city,villaGuests:villa.maxGuests}:{})});
+        const data={request:'Call me back',name,phone,bestTime,entryPoint,...(tripId?{tripId}: {}),...(topic?{topic}:{}),...(reelUrl?{reelUrl}:{}),...(gift?{gift:true}:{}),...(tripContext?{tripContext:[tripContext.name,tripContext.destination,tripContext.startDate&&tripContext.endDate?`${tripContext.startDate} to ${tripContext.endDate}`:tripContext.startDate||tripContext.endDate].filter(Boolean).join(' · ')}:{}),...(villa?{from:'villa',villaId:villa.id,villa:{id:villa.id,name:villa.name,city:villa.city,guests:villa.maxGuests}}:{})};
+        await store.createCallbackRequest(db,{id,name,phone,bestTime,entryPoint,tripId,ownerId:user?.id||null,tripContext,status:'new',created,topic,reelUrl,gift,from:villa?'villa':null,...(villa?{villaId:villa.id,villaName:villa.name,villaCity:villa.city,villaGuests:villa.maxGuests}:{})});
         await store.recordFunnelEvent(db,{eventType:'callback_requested',subjectId:id,ownerId:user?.id||null,data:{entryPoint},created});
         const checklistToken=await issueChecklist(db,{callbackId:id,ownerId:user?.id||null,now:created});
         const inbox=typeof env.FRIDAY_ENQUIRY_EMAIL==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL)?env.FRIDAY_ENQUIRY_EMAIL.trim().toLowerCase():'';
         const notification=inbox?await emailService.enquiryNotification({id,inbox,data}):null;
-        return send(201,{id,saved:true,checklistToken,delivery:{notification:notification?.status||'blocked'}});
+        return send(201,{id,saved:true,checklistToken,replyBy:replyBy(),delivery:{notification:notification?.status||'blocked'}});
       }
       if (p==='/api/destination-requests' && method==='POST') {
         rate('form:'+ip,5);
@@ -1202,7 +1222,7 @@ export function createApp(options = {}) {
             emailService.enquiryReceipt({id,name,email:data.email}),
             inbox?emailService.enquiryNotification({id,inbox,data}):null,
           ]);
-          return send(201,{id,saved:true,delivery:{receipt:receipt?.status||'blocked',notification:notification?.status||'blocked'}});
+          return send(201,{id,saved:true,replyBy:replyBy(),delivery:{receipt:receipt?.status||'blocked',notification:notification?.status||'blocked'}});
         }
         const address=email(body.email);
         await store.upsertNewsletterSubscriber(db,{email:address,consentAt:created,source:'website',created});

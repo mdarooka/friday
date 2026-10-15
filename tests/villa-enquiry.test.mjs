@@ -53,7 +53,7 @@ test('contact quote anchor and mobile villa enquiry button are present in the ge
   assert.match(contact.result, /id="quote" data-commission/);
   const villas = await request('/assets/js/villas.js');
   assert.match(villas.result, /Ask Friday about this villa/);
-  assert.match(villas.result, /contact\.html\?'.*#quote/);
+  assert.match(villas.result, /contact\.html\?'.*#callback-title/);
   const styles = await request('/assets/css/villas.css');
   assert.match(styles.result, /villa-enquiry-cta \{ flex-basis: 100%; justify-content: center; \}/);
 });

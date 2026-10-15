@@ -179,13 +179,19 @@
         if (editClarification) questions += '<label class="fx-check"><input type="checkbox" data-answer="designerReview" ' + (state.answers.designerReview ? 'checked' : '') + '> Let the travel designer handle this change</label>';
         if (state.draft) state.listings = state.draft.listingIds || state.listings;
         function segmentsMarkup(items) { return (items || []).map(function (s) { var day = s.d || s.day || '', title = s.t || s.title || s.name || 'Travel experience', desc = s.x || s.description || ''; return '<li>' + (day ? '<strong>' + esc(day) + ' · </strong>' : '') + esc(title) + (desc ? ' — ' + esc(desc) : '') + '</li>'; }).join(''); }
+        function briefMarkup(draft) {
+          if (!state.draftFresh || !draft) return '';
+          var dates = draft.dates || {};
+          var items = (draft.items || []).map(function (x) { return '<li>' + esc(x.title || 'Stop') + '</li>'; }).join('');
+          return '<button class="fx-btn fx-btn--line" type="button" data-print-brief>Print one-page brief</button><article class="fx-trip-brief"><p class="fx-trip-brief__mark">Friday</p><h1>' + esc(draft.destination || 'Trip brief') + '</h1><p>' + esc(dates.start || 'Dates to confirm') + ' – ' + esc(dates.end || '') + ' · ' + esc(draft.travelers || '') + ' travelers · ' + esc(draft.budget || 'Flexible budget') + '</p>' + (items ? '<ol>' + items + '</ol>' : '') + (draft.instructions ? '<p>' + esc(draft.instructions) + '</p>' : '') + '<p class="fx-trip-brief__note">Frozen package draft. A designer confirms dates, stays and prices before anything is held.</p></article>';
+        }
         if (data.draft && questionSet.length === 0) {
           state.pendingInstructions = data.draft.instructions || state.pendingInstructions || '';
           Object.keys(state.answers).forEach(function (key) { if (/^instructions_\d+$/.test(key)) delete state.answers[key]; });
           delete state.answers.designerReview;
         }
         var noMatches = canRecommend && !remaining.length && !(data.listings || []).length && !state.listings.length;
-        result.innerHTML = (questionSet.length ? '<p class="fx-hint">Add any missing trip details.</p>' : '') + (questions ? '<h3>Trip details</h3>' + questions : '') + (data.text && !questions && !state.draft && !(data.listings || []).length ? '<p class="fx-hint">' + esc(data.text) + '</p>' : '') + (noMatches ? '<p class="fx-hint">No matching Friday listings yet. Change the destination or trip request, then review again.</p><label class="fx-field fx-label">Destination<input class="fx-input" data-answer="destination" value="' + esc(state.answers.destination || '') + '"></label>' : '') + (state.draft ? '<section class="fx-integration-card"><div><strong>Package draft</strong><p>' + esc(state.draft.destination || '') + ' · ' + esc((state.draft.dates || {}).start || '') + '–' + esc((state.draft.dates || {}).end || '') + ' · ' + esc(state.draft.travelers || '') + ' travelers · ' + esc(state.draft.budget || 'Flexible budget') + '</p>' + (state.draft.editSummary ? '<p class="fx-hint">' + esc(state.draft.editSummary) + '</p>' : '') + '<details><summary>Package details</summary>' + (state.draft.items || []).map(function (x) { return '<article><strong>' + esc(x.title) + '</strong>' + (x.editSummary ? '<p>' + esc(x.editSummary) + '</p>' : '') + (x.customizationRequest ? '<p><strong>Requested edits:</strong> ' + esc(x.customizationRequest) + '</p>' : '') + (x.proposedSegments && x.proposedSegments.length ? '<p>Included</p><ul>' + segmentsMarkup(x.proposedSegments) + '</ul>' : '') + (x.removedSegments && x.removedSegments.length ? '<p>Removed</p><ul>' + segmentsMarkup(x.removedSegments) + '</ul>' : '') + '</article>'; }).join('') + '</details><label class="fx-field fx-label">Package changes<textarea class="fx-input" data-edit-instructions rows="2">' + esc(state.pendingInstructions !== undefined ? state.pendingInstructions : state.draft.instructions || '') + '</textarea></label></div></section>' : '');
+        result.innerHTML = (questionSet.length ? '<p class="fx-hint">Add any missing trip details.</p>' : '') + (questions ? '<h3>Trip details</h3>' + questions : '') + (data.text && !questions && !state.draft && !(data.listings || []).length ? '<p class="fx-hint">' + esc(data.text) + '</p>' : '') + (noMatches ? '<p class="fx-hint">No matching Friday listings yet. Change the destination or trip request, then review again.</p><label class="fx-field fx-label">Destination<input class="fx-input" data-answer="destination" value="' + esc(state.answers.destination || '') + '"></label>' : '') + (state.draft ? '<section class="fx-integration-card"><div><strong>Package draft</strong>' + briefMarkup(state.draft) + '<p>' + esc(state.draft.destination || '') + ' · ' + esc((state.draft.dates || {}).start || '') + '–' + esc((state.draft.dates || {}).end || '') + ' · ' + esc(state.draft.travelers || '') + ' travelers · ' + esc(state.draft.budget || 'Flexible budget') + '</p>' + (state.draft.editSummary ? '<p class="fx-hint">' + esc(state.draft.editSummary) + '</p>' : '') + '<details><summary>Package details</summary>' + (state.draft.items || []).map(function (x) { return '<article><strong>' + esc(x.title) + '</strong>' + (x.editSummary ? '<p>' + esc(x.editSummary) + '</p>' : '') + (x.customizationRequest ? '<p><strong>Requested edits:</strong> ' + esc(x.customizationRequest) + '</p>' : '') + (x.proposedSegments && x.proposedSegments.length ? '<p>Included</p><ul>' + segmentsMarkup(x.proposedSegments) + '</ul>' : '') + (x.removedSegments && x.removedSegments.length ? '<p>Removed</p><ul>' + segmentsMarkup(x.removedSegments) + '</ul>' : '') + '</article>'; }).join('') + '</details><label class="fx-field fx-label">Package changes<textarea class="fx-input" data-edit-instructions rows="2">' + esc(state.pendingInstructions !== undefined ? state.pendingInstructions : state.draft.instructions || '') + '</textarea></label></div></section>' : '');
         result.querySelectorAll('[data-answer]').forEach(function (el) { el.addEventListener('change', function () { state.answers[el.dataset.answer] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : (el.dataset.answer === 'bookingIds' ? [el.value] : el.value); }); });
       } catch (e) { result.innerHTML = ''; error(e.message || 'Friday could not check this request.'); }
     }
@@ -197,7 +203,7 @@
       { label: 'Send for a human quote', onClick: async function (c, button) {
         if (!state.draft || !state.draftFresh) { error('Review the latest version with Friday before sending it for a quote.'); return; }
         button.disabled = true;
-        try { var r = await request('/api/friday/handoffs', 'POST', { draftId: state.draft.id, version: state.draft.version, confirmed: true }); if (window.FridayQuoteAnalytics) window.FridayQuoteAnalytics.track(window.FridayQuoteAnalytics.plannerPath(), r.handoff && r.handoff.id); doc.dispatchEvent(new Event('friday:handoff-created')); body.querySelector('[data-plan-result]').insertAdjacentHTML('beforeend', '<p role="status">Sent to Friday’s team for a quote. Status: ' + esc(r.handoff.status) + (r.handoff.customerEmail ? ' · Customer email: ' + esc(r.handoff.customerEmail) : '') + '</p>'); }
+        try { var r = await request('/api/friday/handoffs', 'POST', { draftId: state.draft.id, version: state.draft.version, confirmed: true }); if (window.FridayQuoteAnalytics) window.FridayQuoteAnalytics.track(window.FridayQuoteAnalytics.plannerPath(), r.handoff && r.handoff.id); doc.dispatchEvent(new Event('friday:handoff-created')); body.querySelector('[data-plan-result]').insertAdjacentHTML('beforeend', '<p role="status">Sent to Friday’s team for a quote. Status: ' + esc(r.handoff.status) + (r.handoff.customerEmail ? ' · Customer email: ' + esc(r.handoff.customerEmail) : '') + (r.replyBy && r.replyBy.text ? '. ' + esc(r.replyBy.text) + '.' : '') + '</p>'); }
         catch (e) { error(e.message || 'Could not send this draft.'); } finally { button.disabled = false; }
       } }
     ] });
@@ -206,6 +212,14 @@
     function markDraftDirty() { if (!state.draft) return; state.draftFresh = false; var dlg = body.closest('[role="dialog"]'), send = dlg && Array.from(dlg.querySelectorAll('button')).find(function (b) { return b.textContent === 'Send for a human quote'; }); if (send) send.disabled = true; }
     body.addEventListener('input', function (e) { if (e.target.matches('[data-edit-instructions]')) state.text = e.target.value; if (e.target.matches('[data-edit-instructions], [data-plan-message]')) clearDesignerReview(); markDraftDirty(); });
     body.addEventListener('change', function (e) { if (e.target.matches('[data-include-memory]')) state.includeRemembered = e.target.checked; if (e.target.matches('[data-edit-instructions]')) clearDesignerReview(); markDraftDirty(); });
+    body.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('[data-print-brief]');
+      if (!btn) return;
+      doc.body.classList.add('fx-printing-brief');
+      function done() { doc.body.classList.remove('fx-printing-brief'); }
+      window.addEventListener('afterprint', done, { once: true });
+      window.print();
+    });
     request('/api/friday/drafts').then(function (r) { var drafts = (r.drafts || []).filter(function (d) { return d.kind !== 'reel'; }), slot = body.querySelector('[data-saved-drafts]'); if (!slot) return; slot.innerHTML = drafts.length ? drafts.map(function (d) { return '<button class="fx-btn fx-btn--line" type="button" data-resume-draft="' + esc(d.id) + '">' + esc(d.destination || 'Trip draft') + ' · ' + esc((d.dates || {}).start || 'Dates to confirm') + '</button>'; }).join('') : '<span class="fx-hint">No saved package drafts.</span>'; slot.addEventListener('click', function (e) { var b = e.target.closest('[data-resume-draft]'); if (!b) return; var d = drafts.find(function (x) { return x.id === b.dataset.resumeDraft; }); if (d) { state.draft = d; state.draftFresh = false; state.answers = { destination: d.destination, startDate: d.dates && d.dates.start, endDate: d.dates && d.dates.end, travelers: d.travelers, budget: d.budget, listingIds: d.listingIds || [] }; state.listings = d.listingIds || []; state.pendingInstructions = d.instructions || ''; state.text = d.instructions || ''; renderIntro(); body.querySelector('[data-plan-message]').value = 'Continue editing this saved travel package'; } }); }).catch(function () {});
     return close;
   }
@@ -443,12 +457,25 @@
     var statusTripId = '';
     function currentTrip() { return FT.store && FT.store.trip ? FT.store.trip() : null; }
     function idFor(trip) { return trip && trip.id || ''; }
+    function replyPromise(created) {
+      var fallback = 'We’ll reply within 30 hours';
+      if (!created) return fallback;
+      var due = new Date(new Date(created).getTime() + 30 * 60 * 60 * 1000);
+      if (!isFinite(due.getTime())) return fallback;
+      var parts = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }).formatToParts(due);
+      function part(type) { var found = parts.find(function (item) { return item.type === type; }); return found ? found.value : ''; }
+      var minute = part('minute'), period = part('dayPeriod').toUpperCase();
+      var clock = minute === '00' ? part('hour') + ' ' + period : part('hour') + ':' + minute + ' ' + period;
+      var label = (part('weekday') + ' ' + clock).replace(/\s+/g, ' ').trim();
+      return label ? 'Your designer replies by ' + label : fallback;
+    }
     function statusLabel() {
       callbackCta.classList.toggle('is-confirmed', !!currentStatus);
-      var confirmedLabel = '<span>Your designer has this trip</span><span class="fx-planner-callback__promise">We’ll reply within 30 hours</span>';
+      var promise = currentStatus ? replyPromise(currentStatus.created) : '';
+      var confirmedLabel = '<span>Your designer has this trip</span><span class="fx-planner-callback__promise">' + promise + '</span>';
       if (currentStatus) { if (callbackCta.innerHTML !== confirmedLabel) callbackCta.innerHTML = confirmedLabel; }
       else if (callbackCta.textContent !== 'Talk to your designer') callbackCta.textContent = 'Talk to your designer';
-      callbackCta.setAttribute('aria-label', currentStatus ? 'Your designer has this trip. Friday will reply within 30 hours.' : 'Talk to your designer about this trip');
+      callbackCta.setAttribute('aria-label', currentStatus ? 'Your designer has this trip. ' + promise + '.' : 'Talk to your designer about this trip');
     }
     function refreshStatus() {
       var trip = currentTrip(), tripId = idFor(trip);
@@ -482,7 +509,8 @@
       var trip = currentTrip();
       if (currentStatus) {
         var body = doc.createElement('div');
-        body.innerHTML = '<p class="fx-integration-card" role="status"><strong>Your designer has this trip.</strong><br>We’ll reply within 30 hours. Your request stays with Friday’s travel-design team.</p>';
+        var promise = replyPromise(currentStatus && currentStatus.created);
+        body.innerHTML = '<p class="fx-integration-card" role="status"><strong>Your designer has this trip.</strong><br>' + esc(promise) + '. Your request stays with Friday’s travel-design team.</p>';
         FT.ui.modal({ title: 'Trip request received', body: body, actions: [{ label: 'Close' }] });
         return;
       }

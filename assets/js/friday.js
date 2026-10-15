@@ -380,13 +380,18 @@
       const button=form.querySelector('[type=submit]'),status=form.querySelector('[data-callback-status]');button.disabled=true;
       if(status)status.textContent='Sending your request…';
       try{
-        const entries=new FormData(form),data={name:entries.get('name'),phone:entries.get('phone'),bestTime:entries.get('bestTime'),entryPoint:form.dataset.entryPoint||'contact',...(topic?{topic}:{}),...(villaContext?{villaId:villaContext.id}:{})};
+        const entries=new FormData(form);
+        const formTopic=(entries.get('topic')||'').toString().replace(/[\u0000-\u001f\u007f]+/g,' ').trim().slice(0,200);
+        const reelUrl=(entries.get('reelUrl')||'').toString().trim().slice(0,500);
+        const gift=entries.get('gift')==='on'||entries.get('gift')==='1';
+        const data={name:entries.get('name'),phone:entries.get('phone'),bestTime:entries.get('bestTime'),entryPoint:form.dataset.entryPoint||'contact',...((formTopic||topic)?{topic:formTopic||topic}:{}),...(reelUrl?{reelUrl}:{}),...(gift?{gift:true}:{}),...(villaContext?{villaId:villaContext.id}:{})};
         const {response,result}=await postSignedIn('/api/callbacks',data,'designer');
         if(!response.ok)throw new Error(result.error||'Your request could not be saved. Please try again.');
         if(window.FridayCallbackAnalytics)window.FridayCallbackAnalytics.track('contact',result.id);
         form.reset();form.querySelector('[name="bestTime"]').value='morning';
         document.dispatchEvent(new CustomEvent('friday:callback-saved',{detail:{id:result.id,checklistToken:result.checklistToken,anchor:form.parentElement}}));
-        if(status)status.textContent=result.delivery?.notification==='provider_accepted'?'Thanks. Friday’s team has your number and will call at that time.':result.delivery?.notification==='delivery_unknown'?'Your request is saved. Friday could not confirm the team notification.':'Your request is saved. The team will call at that time.';
+        const promise=result.replyBy&&result.replyBy.text?' '+result.replyBy.text+'.':'';
+        if(status)status.textContent=(result.delivery?.notification==='provider_accepted'?'Thanks. Friday’s team has your number and will call at that time.':result.delivery?.notification==='delivery_unknown'?'Your request is saved. Friday could not confirm the team notification.':'Your request is saved. The team will call at that time.')+promise;
       }catch(err){if(status){status.textContent=err.message||'Your request could not be saved. Please try again.';if(err.signIn)status.append(' ',signInLink(err.signIn));}}
       finally{button.disabled=false;}
     }));
@@ -416,7 +421,7 @@
       try{
         const result=await submitCommission(form);if(window.FridayQuoteAnalytics)window.FridayQuoteAnalytics.track(window.FridayQuoteAnalytics.pathForEnquiry(form),result.id);const first=($('[name="name"]',form).value||'').trim().split(/\s+/)[0],slot=$('[data-sent-name]');
         if(slot)slot.textContent=first?`, ${first}`:'';
-        const deliveryNote=$('[data-commission-delivery-note]');if(deliveryNote){const team=result.delivery?.notification,receipt=result.delivery?.receipt;const teamText=team==='provider_accepted'?'A notification is on its way to the Friday team.':team==='delivery_unknown'?'Friday could not confirm the team notification, so it will not retry automatically.':'Team email notifications are not configured yet.';const receiptText=receipt==='provider_accepted'?' A confirmation email is on its way.':receipt==='delivery_unknown'?' Friday could not confirm delivery of your confirmation email.':' Confirmation email delivery is not configured yet.';deliveryNote.textContent=`Your enquiry has been saved. ${teamText}${receiptText}`;}
+        const deliveryNote=$('[data-commission-delivery-note]');if(deliveryNote){const team=result.delivery?.notification,receipt=result.delivery?.receipt;const teamText=team==='provider_accepted'?'A notification is on its way to the Friday team.':team==='delivery_unknown'?'Friday could not confirm the team notification, so it will not retry automatically.':'Team email notifications are not configured yet.';const receiptText=receipt==='provider_accepted'?' A confirmation email is on its way.':receipt==='delivery_unknown'?' Friday could not confirm delivery of your confirmation email.':' Confirmation email delivery is not configured yet.';const replyText=result.replyBy&&result.replyBy.text?' '+result.replyBy.text+'.':'';deliveryNote.textContent=`Your enquiry has been saved. ${teamText}${receiptText}${replyText}`;}
         form.classList.add('is-sent');if(sent){sent.classList.add('is-shown');sent.setAttribute('tabindex','-1');sent.focus({preventScroll:true});sent.scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'});}
       }catch(err){errorNote(form,err.message,err.signIn?signInLink(err.signIn):null);}finally{btn.disabled=false;}
     });
@@ -431,6 +436,26 @@
   function initSundry() {
     const y = $('[data-year]');
     if (y) y.textContent = new Date().getFullYear();
+  }
+
+  /* WhatsApp sits beside Call me back only when the server has a real number. */
+  function initWhatsApp() {
+    const slots = $$('[data-whatsapp-slot]');
+    if (!slots.length) return;
+    fetch('/api/capabilities', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then((res) => (res.ok ? res.json() : {}))
+      .then((caps) => {
+        const number = caps && caps.whatsappNumber;
+        if (!/^\d{8,15}$/.test(number || '')) return;
+        const text = 'Hi, I\u2019d like to talk with a Friday designer.';
+        slots.forEach((slot) => {
+          slot.href = 'https://wa.me/' + number + '?text=' + encodeURIComponent(slot.dataset.whatsappText || text);
+          slot.target = '_blank';
+          slot.rel = 'noopener noreferrer';
+          slot.classList.add('is-on');
+        });
+      })
+      .catch(() => {});
   }
 
   /* -------------------------------------------------------------- auth */
@@ -523,6 +548,7 @@
     initCursor();
     initForm();
     initSundry();
+    initWhatsApp();
     initAuth();
     document.documentElement.classList.add('js-ready');
   };

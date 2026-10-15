@@ -31,7 +31,7 @@ test('empty queue is skipped; done callbacks are excluded; oldest first with age
   await addCallback('c-new', 1); await addCallback('c-old', 3); await addCallback('c-done', 5, 'done');
   const items = await collectQueue({ db, store, now });
   assert.deepEqual(items.map(i => i.age), ['waiting 3 days', 'waiting 1 day']);
-  assert.equal(items[0].checklist, '0/5');
+  assert.equal(items[0].checklist, '0/6');
 });
 
 test('dry-run sends nothing, once per day, and logs no addresses or phones', async t => {
@@ -59,7 +59,7 @@ test('live is gated until 3 dry-run days, then sends one digest with phone, chec
   assert.equal(sent[0].to, 'designer@example.com');
   assert.match(sent[0].text, /\+919876543210/);
   assert.match(sent[0].text, /waiting 5 days/);
-  assert.match(sent[0].text, /checklist 3\/5 complete/);
+  assert.match(sent[0].text, /checklist 3\/6 complete/);
   assert.match(sent[0].text, /https:\/\/friday\.example\/admin\.html#quotes/);
   assert.equal((await run('live', 3)).skipped, 'already_ran');
   assert.equal(sent.length, 1);
