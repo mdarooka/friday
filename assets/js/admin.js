@@ -566,12 +566,17 @@
 
     var snap = q.snapshot || {};
     var itemsList = (snap.items || []).map(function (i) { return i.title; }).filter(Boolean).join(', ');
+    var dayList = (snap.days || []).slice(0, 12).map(function (d, i) {
+      var stops = (d.items || []).map(function (it) { return it && it.title; }).filter(Boolean).slice(0, 8).join(', ');
+      return '<li>Day ' + (i + 1) + (d.date ? ' · ' + esc(d.date) : '') + (d.title ? ' · ' + esc(d.title) : '') + (stops ? ' — ' + esc(stops) : '') + '</li>';
+    }).join('');
     var summaryHtml = '<p><strong>Client:</strong> ' + esc(q.customerEmail || '') + '</p>' +
       '<p><strong>Destination:</strong> ' + esc(snap.destination || '—') + '</p>' +
       '<p><strong>Dates:</strong> ' + esc(snap.dates?.start || '') + ' to ' + esc(snap.dates?.end || '') + '</p>' +
       '<p><strong>Travelers:</strong> ' + esc(snap.travelers || '—') + '</p>' +
       '<p><strong>Budget:</strong> ' + esc(snap.flexibleBudget ? 'Flexible' : (snap.budget || '—')) + '</p>' +
       (itemsList ? '<p><strong>Selected listings:</strong> ' + esc(itemsList) + '</p>' : '') +
+      (dayList ? '<p><strong>Days:</strong></p><ul>' + dayList + '</ul>' : '') +
       (snap.instructions ? '<p><strong>Client notes:</strong> <em>' + esc(snap.instructions) + '</em></p>' : '') +
       (snap.tripId ? tripButtonHtml(snap.tripId) : '') +
       bookingVerifyHtml(snap.selectedBookings);

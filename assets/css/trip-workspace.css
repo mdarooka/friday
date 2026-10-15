@@ -96,6 +96,13 @@
   box-shadow: 0 0 0 3px rgba(217, 119, 87, .14);
 }
 .wsp-top__right { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.wsp-quote {
+  display: inline-flex; align-items: center; height: 36px; padding: 0 12px;
+  border: 1px solid var(--rule); border-radius: 999px; color: var(--fg-soft); font-size: 14px; white-space: nowrap;
+}
+.wsp-quote:hover { background: var(--paper-3); color: var(--ink); }
+.wsp-quote:disabled { opacity: .45; }
+.wsp-quote__short { display: none; }
 .wsp-share {
   display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 18px;
   border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 14px; font-weight: 400;
@@ -571,7 +578,9 @@
 @media (max-width: 899px) {
   .wsp-top { padding: 0 8px 0 12px; gap: 8px; }
   .wsp-top__side { display: inline-grid; margin-left: 0; }
-  .wsp-mark, .wsp-top__div, .wsp-act span, .wsp-share span { display: none; }
+  .wsp-mark, .wsp-top__div, .wsp-act span, .wsp-share span, .wsp-quote__full { display: none; }
+  .wsp-quote__short { display: inline; }
+  .wsp-quote { padding: 0 10px; }
   .wsp-act { display: none; }
   .wsp-share { width: 36px; padding: 0; justify-content: center; }
   .wsp-title__btn { font-size: 1.25rem; }

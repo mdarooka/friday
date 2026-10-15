@@ -1,4 +1,42 @@
+import { createRequire } from 'node:module';
 import siteData from '../build/data.js';
+
+const require = createRequire(import.meta.url);
+let placeCatalogCache;
+function placeCatalog() {
+  if (!placeCatalogCache) {
+    try { placeCatalogCache = require('../build/trip-data/index.js').DESTINATIONS || {}; }
+    catch { placeCatalogCache = {}; }
+  }
+  return placeCatalogCache;
+}
+function catalogDest(destId) {
+  const catalog = placeCatalog();
+  if (typeof destId !== 'string' || !Object.prototype.hasOwnProperty.call(catalog, destId)) return null;
+  return catalog[destId];
+}
+/** Catalog name for a saved place id. An unknown id stays the id the traveller stored. */
+function placeName(destId, placeId) {
+  if (typeof placeId !== 'string' || !placeId.trim()) return '';
+  const id = placeId.trim();
+  const dest = catalogDest(destId);
+  const places = dest && dest.places && typeof dest.places === 'object' ? dest.places : null;
+  const place = places && Object.prototype.hasOwnProperty.call(places, id) ? places[id] : null;
+  const name = place && typeof place.name === 'string' ? place.name.trim() : '';
+  return name || id;
+}
+function itemTitle(item, destId) {
+  if (typeof item === 'string') return clean(item, 160);
+  const named = clean(item?.title || item?.name || '', 160);
+  if (named) return named;
+  return typeof item?.place === 'string' ? clean(placeName(destId, item.place), 160) : '';
+}
+function destinationName(tripData, state) {
+  const named = clean(tripData.destination || state.destination || tripData.destName || '', 120);
+  if (named) return named;
+  const dest = catalogDest(tripData.destId);
+  return dest && typeof dest.name === 'string' ? clean(dest.name, 120) : '';
+}
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const validDate = value => typeof value === 'string' && ISO_DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
@@ -35,8 +73,10 @@ export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient,
     return { id: row.id, data };
   }).filter(({ data }) => data.tripId === tripId || data.claudeState?.tripId === tripId);
   const confirmed = linked.filter(({ data }) => bookingDateConfirmed(data) && dateAndTime(data.start || data.date).date);
-  const tripDate = tripData.startDate || state.startDate || state.prefs?.dates?.start || '';
-  const endDate = tripData.endDate || state.endDate || state.prefs?.dates?.end || '';
+  const prefs = tripData.prefs && typeof tripData.prefs === 'object' && !Array.isArray(tripData.prefs) ? tripData.prefs : {};
+  const prefDates = prefs.dates && typeof prefs.dates === 'object' && !Array.isArray(prefs.dates) ? prefs.dates : {};
+  const tripDate = tripData.startDate || state.startDate || state.prefs?.dates?.start || prefDates.start || '';
+  const endDate = tripData.endDate || state.endDate || state.prefs?.dates?.end || prefDates.end || '';
   const shiftDay = (date, n) => new Date(Date.parse(`${date}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
   const span = ({ data }) => { const start = dateAndTime(data.start || data.date).date; return { start, end: dateAndTime(data.end).date || start }; };
   let matching, departureDate;
@@ -64,18 +104,22 @@ export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient,
       location: clean(data.location || '', 180),
     };
   });
-  const days = Array.isArray(tripData.days) ? tripData.days.slice(0, 180).map(day => ({
+  const explicitDays = Array.isArray(tripData.days) && tripData.days.length ? tripData.days : null;
+  const planDays = tripData.plan && typeof tripData.plan === 'object' && Array.isArray(tripData.plan.days) ? tripData.plan.days : [];
+  const sourceDays = explicitDays || planDays;
+  const days = sourceDays.slice(0, 180).map(day => ({
     title: clean(day?.title || day?.town || day?.area || '', 120),
     date: validDate(day?.date) ? day.date : '',
     notes: clean(day?.notes || '', 400),
     items: Array.isArray(day?.items) ? day.items.slice(0, 100).map(item => ({
-      title: clean(typeof item === 'string' ? item : item?.title || item?.name || item?.place || '', 160),
+      title: itemTitle(item, tripData.destId),
       time: clean(item?.time || '', 40),
       notes: clean(item?.notes || item?.note || item?.description || '', 240),
       address: clean(item?.address || '', 180),
     })).filter(item => item.title) : [],
-  })).filter(day => day.title || day.date || day.items.length) : [];
-  const staySource = tripData.stay && typeof tripData.stay === 'object' ? tripData.stay : null;
+  })).filter(day => day.title || day.date || day.items.length);
+  const planStayId = tripData.plan && typeof tripData.plan === 'object' && typeof tripData.plan.stay === 'string' ? tripData.plan.stay : '';
+  const staySource = tripData.stay && typeof tripData.stay === 'object' && !Array.isArray(tripData.stay) ? tripData.stay : (planStayId ? { name: placeName(tripData.destId, planStayId) } : null);
   const stay = staySource && clean(staySource.name || staySource.title || '', 160) ? {
     name: clean(staySource.name || staySource.title, 160),
     address: clean(staySource.address || '', 180),
@@ -83,8 +127,8 @@ export function prepareBriefing({ tripId, tripData, bookingRows = [], recipient,
     end: validDate(staySource.end) ? staySource.end : '',
   } : null;
   const questions = questionList(tripData);
-  const title = clean(tripData.title || state.title || tripData.destination || 'Your Friday trip');
-  const destination = clean(tripData.destination || state.destination || '', 120);
+  const destination = destinationName(tripData, state);
+  const title = clean(tripData.title || state.title || tripData.destination || tripData.destName || destination || 'Your Friday trip');
   const dateLabel = departureDate ? `${departureDate}${validDate(endDate) ? ` to ${endDate}` : ''}` : 'Dates to confirm';
   const backUrl = `${String(origin || '').replace(/\/$/, '')}/trip-briefing.html?ref=briefing&trip=${encodeURIComponent(tripId)}${/^[a-z]{1,20}$/.test(source) ? `&src=${source}` : ''}`;
   const contact = `${String(origin || '').replace(/\/$/, '')}/contact.html`;
