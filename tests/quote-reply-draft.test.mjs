@@ -64,9 +64,17 @@ test('no draft without a usable traveller email, and header-breaking text is fla
   assert.equal(injected.href.includes('%0D%0ABcc'), false);
 });
 
+test('draft reply signs with the designer name and falls back to Friday', () => {
+  const signed = load().build({ ...quote, customerName: 'Ada Lovelace' }, { signer: 'Meera Shah' });
+  assert.match(signed.body, /Warm regards,\nMeera Shah$/);
+  const blank = load().build(quote, { signer: '   ' });
+  assert.match(blank.body, /Warm regards,\nFriday$/);
+});
+
 test('the console wires Draft reply as a visible link that records the click and does not send', async () => {
   const admin = await read('assets/js/admin.js');
   assert.match(admin, /function draftReplyMarkup\(q\)/);
+  assert.match(admin, /signer: \(state\.user && state\.user\.name\) \|\| 'Friday'/);
   assert.match(admin, />Draft reply<\/a>/);
   assert.match(admin, /FridayAnalytics\.track\('\$click', \{ path: '\/admin\.html', control: 'draft-reply' \}\)/);
   assert.match(admin, /\/api\/admin\/quotes\/' \+ encodeURIComponent\(draftId\) \+ '\/draft-click'/);

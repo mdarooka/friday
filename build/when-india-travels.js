@@ -15,6 +15,28 @@ const LABEL = 'When India travels';
 const safeJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, (c) => '\\u' + c.charCodeAt(0).toString(16));
 
 const nightsLabel = (n) => `${n} night${n === 1 ? '' : 's'}`;
+const DIWALI_PIN_UNTIL = '2026-11-09';
+
+function bookByDate(brk) {
+  if (!(brk.types || []).includes('festival')) return '';
+  return new Date(Date.parse(`${brk.startDate}T00:00:00Z`) - 30 * 86400000).toISOString().slice(0, 10);
+}
+
+function bookByLabel(brk) {
+  const day = bookByDate(brk);
+  return day ? `Book by ${B.formatRange(day, day)}` : '';
+}
+
+function diwaliPinned(today) {
+  return B.isoDay(today) < DIWALI_PIN_UNTIL;
+}
+
+function pinDiwaliFirst(rows, today) {
+  if (!diwaliPinned(today)) return rows;
+  const index = rows.findIndex((brk) => brk.id === 'diwali-2026');
+  if (index <= 0) return rows;
+  return [rows[index], ...rows.slice(0, index), ...rows.slice(index + 1)];
+}
 
 const topicFor = (brk, place) => `${brk.name} \u00b7 ${place}`;
 
@@ -55,6 +77,7 @@ function rowHtml(esc, brk, guides) {
         <p class="eyebrow eyebrow--accent">${esc(brk.dates)} \u00b7 ${nightsLabel(brk.nights)} \u00b7 ${esc(regionLabel(brk))}</p>
         <h3 class="h3" id="${esc(brk.id)}-h">${esc(brk.name)}</h3>
         <p class="lw-break__note">${esc(brk.note)}</p>
+        ${bookByLabel(brk) ? `<p class="lw-break__note lw-break__book">${esc(bookByLabel(brk))}. Catalogue starting points, not live inventory. A designer confirms what can be held.</p>` : ''}
         ${brk.verified ? '' : '<p class="lw-break__note lw-break__tbc" data-wit-tbc>Date still to be confirmed.</p>'}
       </header>
       <div class="lw-picks">${brk.suggestions.map((sug) => suggestionHtml(esc, brk, sug, guides)).join('')}</div>
@@ -104,6 +127,7 @@ ${PageHero({
     <p class="lw-status" data-wit-status role="status" aria-live="polite"></p>
   </div>
 </section>
+${diwaliPin(esc, today, guides)}
 <div class="lw-cities-list" data-wit-list>
 ${B.GROUPS.map((g) => groupSection(esc, g, today, guides)).join('\n')}
 </div>
@@ -193,4 +217,44 @@ function homeTeaser({ esc, today }) {
 ${dataScript()}`;
 }
 
-module.exports = { PAGE, LABEL, whenIndiaTravelsBody, homeTeaser, clientData, topicFor };
+function diwaliBreak(today) {
+  if (!diwaliPinned(today)) return null;
+  return B.upcomingBreaks(today, { all: true }).find((brk) => brk.id === 'diwali-2026') || null;
+}
+
+function diwaliActions(esc, brk) {
+  const plan = `trip.html?place=${encodeURIComponent('Goa')}&start=${brk.startDate}&nights=${brk.nights}`;
+  const call = `contact.html?topic=${encodeURIComponent('Diwali 2026 long weekend')}#callback-title`;
+  return `<p class="hero-diwali__actions"><a class="btn btn--sm btn--solid" href="${esc(plan)}">Plan this break <span class="arrow">&rarr;</span></a><a class="btn btn--sm" href="${esc(call)}">Call me back <span class="arrow">&rarr;</span></a><a class="btn btn--sm" data-whatsapp-slot>WhatsApp</a></p>`;
+}
+
+function diwaliPin(esc, today, guides) {
+  const brk = diwaliBreak(today);
+  if (!brk) return '';
+  const picks = brk.suggestions.map((sug) => {
+    const guide = (guides || []).find((item) => item.names.includes(String(sug.place).toLowerCase()));
+    const href = guide ? guide.file : `trip.html?place=${encodeURIComponent(sug.place)}&start=${brk.startDate}&nights=${brk.nights}`;
+    return `<a class="link" href="${esc(href)}">${esc(sug.place)}</a>`;
+  }).join(', ');
+  return `<section class="section section--tight lw-pin" data-diwali-pin aria-labelledby="diwali-pin-h"><div class="wrap">
+    <p class="eyebrow">Pinned through 8 November</p>
+    <h2 class="h2" id="diwali-pin-h">${esc(brk.name)}</h2>
+    <p class="lede">${esc(brk.dates)} · ${esc(bookByLabel(brk))}. Goa, Rajasthan and Kerala, from the catalogue. Not live inventory; a designer confirms what can be held.</p>
+    <p class="lw-pin__picks">${picks}</p>
+    ${diwaliActions(esc, brk)}
+  </div></section>`;
+}
+
+function diwaliHero({ esc, today }) {
+  const brk = diwaliBreak(today);
+  if (!brk) return '';
+  return `<aside class="hero-diwali" aria-label="Diwali long weekend">
+    <p class="eyebrow">Long weekend · pinned through 8 November</p>
+    <h2>${esc(brk.name)}</h2>
+    <p>${esc(brk.dates)}. ${esc(bookByLabel(brk))}.</p>
+    <p>Goa, Rajasthan and Kerala. Catalogue starting points, not live inventory. A designer confirms.</p>
+    ${diwaliActions(esc, brk)}
+  </aside>`;
+}
+
+module.exports = { PAGE, LABEL, whenIndiaTravelsBody, homeTeaser, clientData, topicFor, diwaliHero, diwaliPinned, pinDiwaliFirst };

@@ -30,9 +30,10 @@
   }
 
   /* Returns { to, subject, body, href } for a quote with a usable email, or null. */
-  function build(quote) {
+  function build(quote, options) {
     var to = quote && clean(quote.customerEmail, 320);
     if (!to || !EMAIL.test(to)) return null;
+    var signer = clean(options && options.signer, 80) || 'Friday';
     var snap = (quote && quote.snapshot) || {};
     var destination = clean(snap.destination, 120);
     var dates = datesText(snap.dates);
@@ -49,7 +50,7 @@
       'I am reviewing your plan now and will come back to you with your quote shortly. If anything has changed since you wrote to us, just reply to this email.',
       '',
       'Warm regards,',
-      'Friday'
+      signer
     ];
     var body = lines.join('\n');
     var href = 'mailto:' + encodeURIComponent(to) +

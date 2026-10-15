@@ -511,7 +511,7 @@
 
   /* Draft reply opens the designer's own mail app with a prefilled first reply. Friday sends nothing. */
   function draftReplyMarkup(q) {
-    var draft = window.FridayQuoteReplyDraft && window.FridayQuoteReplyDraft.build(q);
+    var draft = window.FridayQuoteReplyDraft && window.FridayQuoteReplyDraft.build(q, { signer: (state.user && state.user.name) || 'Friday' });
     if (!draft) return '';
     return '<a class="btn admin-quote-card__reply admin-quote-card__draft" href="' + esc(draft.href) + '" data-draft-quote-reply="' + esc(q.id) + '">Draft reply</a>';
   }
@@ -556,7 +556,7 @@
       var tripLink = q.tripId ? tripButtonHtml(q.tripId) : '';
       var tripContext = q.tripContext || {};
       var tripSummary = q.tripContext ? '<p><strong>Trip:</strong> ' + esc(tripContext.name || 'Your trip') + (tripContext.destination ? ' · ' + esc(tripContext.destination) : '') + '</p>' + ((tripContext.startDate || tripContext.endDate) ? '<p><strong>Dates:</strong> ' + esc(tripContext.startDate || 'Not set') + (tripContext.endDate ? ' to ' + esc(tripContext.endDate) : '') + '</p>' : '') : '';
-      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + (q.topic ? '<p><strong>About:</strong> ' + esc(q.topic) + '</p>' : '') + (q.villaName ? '<p><strong>Villa:</strong> ' + esc(q.villaName) + '</p><p><strong>City:</strong> ' + esc(q.villaCity || '') + '</p><p><strong>Guest capacity:</strong> ' + esc(q.villaGuests || 'Not listed') + '</p>' : '') + tripSummary + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>' + checklistHtml(q.checklist) + '<p><button type="button" class="villa-text-button" data-callback-status="' + esc(q.id) + '" data-next-status="' + (q.status === 'done' ? 'open' : 'done') + '">' + (q.status === 'done' ? 'Reopen' : 'Mark done') + '</button></p>';
+      dom.quoteSummaryInfo.innerHTML = '<p><strong>Name:</strong> ' + esc(q.name || '') + '</p><p><strong>Phone:</strong> <a href="tel:' + esc(q.phone || '') + '">' + esc(q.phone || '') + '</a></p><p><strong>Best time:</strong> ' + esc(q.bestTime || '') + '</p><p><strong>From:</strong> ' + esc(q.entryPoint || '') + '</p>' + (q.topic ? '<p><strong>About:</strong> ' + esc(q.topic) + '</p>' : '') + (q.reelUrl ? '<p><strong>Reel:</strong> <a href="' + esc(q.reelUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(q.reelUrl) + '</a></p>' : '') + (q.gift ? '<p><strong>Gift:</strong> Gift a Friday weekend</p>' : '') + (q.villaName ? '<p><strong>Villa:</strong> ' + esc(q.villaName) + '</p><p><strong>City:</strong> ' + esc(q.villaCity || '') + '</p><p><strong>Guest capacity:</strong> ' + esc(q.villaGuests || 'Not listed') + '</p>' : '') + tripSummary + tripLink + '<p><strong>Received:</strong> ' + esc(formatDate(q.createdAt)) + '</p>' + checklistHtml(q.checklist) + '<p><button type="button" class="villa-text-button" data-callback-status="' + esc(q.id) + '" data-next-status="' + (q.status === 'done' ? 'open' : 'done') + '">' + (q.status === 'done' ? 'Reopen' : 'Mark done') + '</button></p>';
       dom.quoteNote.textContent = 'Call this traveler at their preferred time. This is a callback request, not a quote to send.';
       renderQuotes(state.quotes);
       return;

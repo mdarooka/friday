@@ -58,6 +58,7 @@ const home = `
       <a class="btn btn--solid hero__cta" href="trip.html">Plan a trip with Friday <span class="arrow">&rarr;</span></a>
       <a class="scrollcue" href="#offerings"><i></i> Explore</a>
     </div>
+    ${LW.diwaliHero({ esc: T.esc, today: BUILD_TODAY })}
   </div>
 </section>
 
@@ -447,6 +448,7 @@ ${PageHero({
     <p>The monsoon can make the Sahyadris beautiful and also change road, trail and beach conditions. Maharashtra Tourism’s <a href="https://maharashtratourism.gov.in/monsoon-tourism/" target="_blank" rel="noopener noreferrer">monsoon guide</a> is a useful starting point, not a live safety or closure notice.</p>
   </article>
 </div></section>
+${guideFeedback('mumbai-quiet-weekend')}
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Make the weekend yours</p><h2 class="h2">Two nights.<br>Your kind of quiet.</h2><p class="lede" style="margin-top:1rem">Tell Friday your dates, how you want to travel, and what a good stay feels like. We’ll check the details with you.</p></div>
   <div class="c-5 c-md-12"><a class="btn" href="contact.html?from=mumbai-quiet-weekend">Ask Friday to plan this weekend <span class="arrow">&rarr;</span></a><p style="margin-top:1.4rem"><a class="link" href="when-india-travels.html?region=MH">Planning around a long weekend? <span class="arrow">&rarr;</span></a></p></div>
@@ -998,6 +1000,21 @@ ${Closer({
 
 /* ==================================================== 8. Departures */
 
+const seatInterest = (title) => {
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return `
+        <form class="form callback-form" data-callback-form data-entry-point="departure" novalidate style="margin-top:1.6rem" data-reveal>
+          <p class="card__d">Tell me when seats open. This is a sample itinerary, not a live seat map. A designer says when a departure can be held.</p>
+          <input type="hidden" name="topic" value="${T.esc(title)}">
+          <div class="field" style="margin-top:.8rem"><label class="field__label" for="seats-${slug}">Your name</label><input class="field__input" id="seats-${slug}" name="name" type="text" maxlength="100" required autocomplete="name"></div>
+          <div class="field"><label class="field__label">Phone number</label><input class="field__input" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="10 digits or +91" maxlength="18" pattern="[\\s\\(\\)\\-]*(?:\\+[\\s\\(\\)\\-]*9[\\s\\(\\)\\-]*1|9[\\s\\(\\)\\-]*1)?[\\s\\(\\)\\-]*[6-9](?:[\\s\\(\\)\\-]*[0-9]){9}[\\s\\(\\)\\-]*" required></div>
+          <div class="field"><label class="field__label">Best time to call</label><select class="field__select" name="bestTime" required><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></div>
+          <button class="btn btn--solid" type="submit">Tell me when seats open <span class="arrow">&rarr;</span></button>
+          <p class="card__d" data-signin-hint="designer" style="margin-top:.8rem">You&rsquo;ll need to sign in to send this. <a class="link" href="trip.html?signin=designer">Sign in or create an account</a></p>
+          <p class="card__d" data-callback-status role="status" aria-live="polite"></p>
+        </form>`;
+};
+
 const depIndex = `
 ${PageHero({
   eyebrow: 'Sample packages',
@@ -1019,6 +1036,7 @@ ${PageHero({
         <p class="lede" style="margin-top:1.2rem" data-reveal>${d.lede}</p>
         <p class="card__d" style="margin-top:1rem" data-reveal>${d.note}</p>
         <p style="margin-top:1.4rem" data-reveal><a class="link" href="contact.html?quote_path=package">Ask about this journey <span class="arrow">&rarr;</span></a></p>
+        ${seatInterest(d.title)}
       </div>
     </article>`).join('')}
   </div>
@@ -1308,6 +1326,7 @@ ${PageHero({
     <nav class="contact-paths" aria-label="How to reach Friday">
       <a class="btn btn--solid" href="#quote">Request a quote</a>
       <a class="btn" href="#callback-title">Call me back</a>
+      <a class="btn" data-whatsapp-slot>WhatsApp</a>
     </nav>
     <div class="grid">
       <div class="c-7 c-md-12">
@@ -1322,7 +1341,9 @@ ${PageHero({
               <div class="c-6 c-sm-12 field"><label class="field__label" for="callback-phone">Phone number</label><input class="field__input" id="callback-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="10 digits or +91" maxlength="18" pattern="[\\s\\(\\)\\-]*(?:\\+[\\s\\(\\)\\-]*9[\\s\\(\\)\\-]*1|9[\\s\\(\\)\\-]*1)?[\\s\\(\\)\\-]*[6-9](?:[\\s\\(\\)\\-]*[0-9]){9}[\\s\\(\\)\\-]*" required></div>
             </div>
             <div class="field"><label class="field__label" for="callback-time">Best time to call</label><select class="field__select" id="callback-time" name="bestTime" required><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></div>
-            <button class="btn btn--solid" type="submit">Call me back <span class="arrow">&rarr;</span></button>
+            <div class="field"><label class="field__label" for="callback-reel">Paste a reel link <span>(optional)</span></label><input class="field__input" id="callback-reel" name="reelUrl" type="url" inputmode="url" maxlength="500" placeholder="https://"><p class="card__d">A designer checks every place.</p></div>
+            <label class="chip"><input type="checkbox" name="gift" value="on"> Gift a Friday weekend</label>
+            <p class="callback-actions"><button class="btn btn--solid" type="submit">Call me back <span class="arrow">&rarr;</span></button> <a class="btn" data-whatsapp-slot>WhatsApp</a></p>
             <p class="card__d" data-signin-hint="designer" style="margin-top:.8rem">You&rsquo;ll need to sign in to send this. <a class="link" href="trip.html?signin=designer&amp;return=contact.html%23callback-title">Sign in or create an account</a></p>
             <p class="card__d" data-callback-status role="status" aria-live="polite"></p>
           </form>

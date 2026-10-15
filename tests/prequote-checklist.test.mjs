@@ -5,10 +5,11 @@ import { PREQUOTE_ITEMS } from '../server/prequote-checklist.mjs';
 
 const callback = { name: 'Traveler Jane', phone: '9876543210', bestTime: 'morning', entryPoint: 'planner' };
 
-test('pre-quote checklist has five provisional items and saves with the creation token', async t => {
+test('pre-quote checklist has six provisional items and saves with the creation token', async t => {
   const { request } = await startApp(t, { env: { AUTH_PROVIDER: 'local', QUOTE_ADMIN_EMAILS: 'quoteadmin@example.com' }, hexclaveAuth: { configured: false, currentUser: async () => null } });
-  assert.equal(PREQUOTE_ITEMS.length, 5);
-  assert.equal((await request('/api/callbacks/checklist-items')).result.items.length, 5);
+  assert.equal(PREQUOTE_ITEMS.length, 6);
+  assert.equal(PREQUOTE_ITEMS.some((item) => item.id === 'foodpace'), true);
+  assert.equal((await request('/api/callbacks/checklist-items')).result.items.length, 6);
   const admin = await signUp(request, 'QuoteAdmin');
   assert.equal((await request('/api/callbacks', 'POST', callback)).status, 401);
   const made = await request('/api/callbacks', 'POST', callback, { cookie: admin.cookie });
@@ -20,11 +21,11 @@ test('pre-quote checklist has five provisional items and saves with the creation
   assert.equal((await request(url, 'PUT', { answers }, { cookie: admin.cookie })).status, 403);
   const saved = await request(url, 'PUT', { checklistToken: made.result.checklistToken, answers }, { cookie: admin.cookie });
   assert.equal(saved.status, 200);
-  assert.deepEqual([saved.result.done, saved.result.total], [2, 5]);
+  assert.deepEqual([saved.result.done, saved.result.total], [2, 6]);
   assert.equal(saved.result.answers.bogus, undefined);
   const queue = await request('/api/admin/quotes', 'GET', undefined, { cookie: admin.cookie });
   const row = queue.result.quotes.find(q => q.id === made.result.id);
-  assert.deepEqual([row.checklist.done, row.checklist.total], [2, 5]);
+  assert.deepEqual([row.checklist.done, row.checklist.total], [2, 6]);
   assert.equal(row.checklist.answers.dates.text, 'Dec 12-19');
 });
 

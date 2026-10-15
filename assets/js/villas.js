@@ -69,7 +69,7 @@
 
   function detailHero(v) {
     var map = safeUrl(v.googleMapsUrl);
-    var enquiry = 'contact.html?' + toQuery({ quote_path: 'villa', villa: v.id, villa_name: v.name, city: v.city, guests: v.maxGuests }) + '#quote';
+    var enquiry = 'contact.html?' + toQuery({ quote_path: 'villa', villa: v.id, villa_name: v.name, city: v.city, guests: v.maxGuests }) + '#callback-title';
     return '<section class="villa-detail__hero"><div class="villa-detail__art" aria-hidden="true"><span></span></div><div><p class="eyebrow">' + esc(v.city || 'Friday stay') + '</p><h1 class="villa-detail__name">' + esc(v.name || 'A Friday stay') + '</h1><p class="villa-detail__copy">' + esc(v.description || '') + '</p><div class="villa-detail__facts">' + (v.bedrooms ? '<span>' + esc(v.bedrooms) + ' bedrooms</span>' : '') + (v.maxGuests ? '<span>Up to ' + esc(v.maxGuests) + ' guests</span>' : '') + '</div><div class="villa-detail__actions">' + (map ? '<a class="btn" href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">View location <span class="arrow">&rarr;</span></a>' : '') + '<a class="btn btn--solid villa-enquiry-cta" href="' + esc(enquiry) + '">Ask Friday about this villa <span class="arrow">&rarr;</span></a><a class="btn" href="#villa-plan">Plan around this home <span class="arrow">&darr;</span></a></div></div></section>';
   }
   function initDetail(root) {

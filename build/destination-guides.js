@@ -4,6 +4,8 @@
  * Public destination guide pages. Each entry is rendered by generate.js from its
  * trip-data catalog (areas + places). Keep FAQ copy editorial and free of live prices.
  */
+const { guideFeedback } = require('./guide-feedback');
+
 const GUIDES = [
   {
     id: 'kerala',
@@ -355,6 +357,7 @@ ${routesSection}
   </article>
 </div></section>
 ${faqSection}
+${guideFeedback(id)}
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">${guide.cta.title}</h2><p class="lede" style="margin-top:1rem">${guide.cta.lede}</p></div>
   <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" data-guide-destination="${esc(id)}" href="trip.html?destination=${esc(id)}&amp;from_guide=${esc(id)}#/new">${esc(guide.cta.plannerLabel)} <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" data-guide-destination="${esc(id)}" href="contact.html?quote_path=guide&amp;destination=${esc(id)}">Ask Friday about a quote <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="callback" data-guide-destination="${esc(id)}" href="contact.html?topic=${encodeURIComponent(catalog.name)}#callback-title">Talk to a designer <span class="arrow">&rarr;</span></a></div>

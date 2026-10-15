@@ -23,6 +23,7 @@
         var row = el('div', { class: 'prequote__row' }), label = el('label'), tick = el('input', { type: 'checkbox' });
         label.appendChild(tick); label.appendChild(el('span', {}, item.label));
         var text = el('input', { type: 'text', maxlength: '200', placeholder: item.placeholder || '', 'aria-label': item.label });
+        if (item.prefill) { text.value = String(item.prefill).slice(0, 200); tick.checked = true; }
         text.addEventListener('input', function () { if (text.value.trim()) tick.checked = true; });
         row.appendChild(label); row.appendChild(text); box.appendChild(row);
         return { id: item.id, tick: tick, text: text };
