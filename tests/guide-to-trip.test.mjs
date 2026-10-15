@@ -44,7 +44,12 @@ test('every guide page links the planner with destination, from_guide and #/new,
   for (const file of guides) {
     const id = file.replace('-guide.html', '');
     const html = await read(file);
-    assert.ok(html.includes(`href="trip.html?destination=${id}&amp;from_guide=${id}#/new"`), `${file} planner CTA`);
+    if (id === 'kyoto') {
+      assert.ok(html.includes('href="trip.html?from_guide=kyoto#/new"'), `${file} planner CTA`);
+      assert.ok(!html.includes('trip.html?destination=kyoto'), `${file} does not start a retired destination`);
+    } else {
+      assert.ok(html.includes(`href="trip.html?destination=${id}&amp;from_guide=${id}#/new"`), `${file} planner CTA`);
+    }
     assert.match(html, /data-guide-cta="planner"/);
     assert.ok(await read(`build/trip-data/${id}.js`), `${id} is a catalogue destination`);
   }

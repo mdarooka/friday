@@ -438,6 +438,22 @@ const departures = [
     ],
     includes: [], note: 'Sample itinerary concept only. Dates, pricing, inclusions and availability are not confirmed.',
   },
+  {
+    slug: 'lapland-christmas', title: 'Lapland at Christmas', kicker: 'Sample journey', scene: 'aurora', tone: 'indigo', sample: true,
+    dates: '', length: 'Illustrative shape, with a spare aurora night', party: '', band: '',
+    lede: 'A sample Christmas shape for Finnish Lapland, taken from Friday’s Cold Light note: a glass roof, a frozen lake, and no light pollution. Not a live departure. A spare night is left open.',
+    body: [
+      'Friday’s Cold Light composition names Finnish Lapland as a glass roof, a frozen lake and no light pollution, and treats the aurora as latitude, moon and cloud rather than a promise.',
+      'This sample leaves one night unscheduled so weather can take it. No stay is named, and no price is listed. A designer confirms what can be held.',
+    ],
+    itinerary: [
+      { d: 'Arrival', t: 'Settle north', x: 'Arrive and keep the first evening unhurried. Sample shape only; nothing is held.' },
+      { d: 'A still day', t: 'Frozen lake', x: 'Time on the lake country the Cold Light note describes, if the day allows.' },
+      { d: 'Spare night', t: 'Aurora, unpromised', x: 'A night left open. A sighting is a chance, not part of the booking. The catalogue does not promise one.' },
+      { d: 'Return', t: 'South again', x: 'Leave room to travel back. Dates and stays are not confirmed.' },
+    ],
+    includes: [], note: 'Sample itinerary only. Not live inventory. Spare night left open for the aurora, unpromised. No stay is named and no price is listed. A designer confirms what can be held.',
+  },
 ];
 
 /* ------------------------------------------------------------------- studio */
@@ -500,6 +516,44 @@ const fieldNotes = [
       'Use them as a starting point, then check current weather and local operating guidance before you book. Friday’s guide does not confirm live conditions.'
     ],
     sources: [{ label: 'Kerala Tourism travel basics', href: 'https://www.keralatourism.org/faq/20-things-to-know-before-you-visit-kerala' }, { label: 'Friday’s Kerala guide', href: 'kerala-guide.html' }]
+  },
+  {
+    slug: 'goa-for-diwali',
+    title: 'Goa for the Diwali week',
+    place: 'Goa',
+    dek: 'A catalogue note for the long weekend: one coast, and a designer confirms what can be held.',
+    scene: 'sea', tone: 'ember', destination: 'goa',
+    body: [
+      'Friday’s Goa catalogue treats the dry winter months as the comfortable stretch for beaches, and it says festival weeks, including the stretch toward Christmas, are busier. Diwali sits in that season. These are catalogue starting points, not live rooms or flights.',
+      'With a short break, the guide suggests one stretch of coast rather than north, south and inland in one loop. North-coast beaches cluster around Calangute, Anjuna and Vagator; the south is the longer beach at Colva. Panjim and Old Goa are a focused day, not a second base.',
+      'Nothing here is a price or a held room. A designer confirms what can actually be booked for your dates.'
+    ],
+    sources: [{ label: 'Friday’s Goa guide', href: 'goa-guide.html' }, { label: 'Diwali on When India travels', href: 'when-india-travels.html#diwali-2026' }]
+  },
+  {
+    slug: 'rajasthan-for-diwali',
+    title: 'Rajasthan for the Diwali week',
+    place: 'Rajasthan',
+    dek: 'Cool, clear days in the catalogue, with three cities as a ceiling for a short break.',
+    scene: 'dunes', tone: 'sand', destination: 'rajasthan',
+    body: [
+      'Friday’s Diwali note on When India travels points to cool, clear days in Udaipur, Jaipur and Jodhpur, with festival lights in the old towns. The Rajasthan guide describes winter as the easier season and says three cities is a comfortable ceiling for a week. Jaisalmer sits far enough away that the guide leaves it for a longer trip.',
+      'Diwali week is busy. The catalogue is not a live list of rooms or drivers. A designer confirms what can be held.',
+    ],
+    sources: [{ label: 'Friday’s Rajasthan guide', href: 'rajasthan-guide.html' }, { label: 'Diwali on When India travels', href: 'when-india-travels.html#diwali-2026' }]
+  },
+  {
+    slug: 'what-friday-shipped',
+    title: 'What Friday shipped',
+    place: 'Friday',
+    dek: 'A short note on planning tools already on the site. Not a travel fact.',
+    scene: 'city', tone: 'slate', destination: '',
+    planHref: 'trip.html',
+    body: [
+      'This is a product note, not a place. A few tools are already on Friday, so you can use them without waiting for a new guide.',
+      'You can send a reel for any place, not only the destinations already in the catalogue. If the guides do not list where you want to go, Request a destination and the team reads it. On a short hop, the planner asks before it changes a hotel. A WhatsApp or Facebook link can be read as a card. In the quote queue, Draft reply opens a first note in the designer’s own mail; Friday does not send it. The quote path is easier to reach on a phone.',
+    ],
+    sources: [{ label: 'Request a destination', href: 'guides.html' }, { label: 'Plan a trip', href: 'trip.html' }, { label: 'Contact Friday', href: 'contact.html' }]
   }
 ];
 
