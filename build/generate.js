@@ -32,7 +32,8 @@ const page = (file, opts) => {
   /* villa.html has no listing id; the real homes are villa.html?id=… and stay out of the sitemap. */
   if (!privatePage && !opts.robots && file !== 'villa.html') publicPages.push(file);
   const extraScripts = [...(privatePage ? [] : ['assets/js/guide-analytics.js']), ...(opts.extraScripts || [])].filter((src) => src !== 'assets/js/native-page-analytics.js');
-  written.push(write(file, layout({ ...opts, canonical: privatePage || opts.robots ? null : file, robots: privatePage ? 'noindex, nofollow' : (opts.robots || null), extraScripts, nativeAnalytics: !privatePage })));
+  const talk = opts.talk === false ? null : (opts.talk || ((/-guide\.html$/.test(file) || file === 'mumbai-quiet-weekend.html') ? opts.title : null));
+  written.push(write(file, layout({ ...opts, canonical: privatePage || opts.robots ? null : file, robots: privatePage ? 'noindex, nofollow' : (opts.robots || null), extraScripts, nativeAnalytics: !privatePage, talk })));
 };
 
 /* ========================================================== 1. Home */

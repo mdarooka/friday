@@ -340,7 +340,11 @@ export function createApp(options = {}) {
           if (!searchIndexingEnabled || isPrivateSurface('/' + relative, url.search)) html = ensureRobotsMeta(html);
           content = Buffer.from(html);
         }
-        else if (relative === 'sitemap.xml') content = Buffer.from(rewriteSitemapOrigins(content.toString('utf8'), origin));
+        else if (relative === 'sitemap.xml') {
+          let xml = rewriteSitemapOrigins(content.toString('utf8'), origin);
+          if ((await store.listPublishedVillas(db)).length === 0) xml = xml.replace(/<url>\s*<loc>[^<]*\/(?:villas|villa)\.html<\/loc>[\s\S]*?<\/url>\s*/g, '');
+          content = Buffer.from(xml);
+        }
         else if (relative === 'robots.txt') content = Buffer.from(searchIndexingEnabled ? rewriteRobotsSitemap(content.toString('utf8'), origin) : hiddenRobotsTxt(origin));
         if (relative==='app.html' || relative==='trip.html') {
           const sharedToken=url.searchParams.get('share')||'';
@@ -1411,6 +1415,13 @@ export function createApp(options = {}) {
         const briefing=prepareBriefing({tripId,tripData,bookingRows:await store.listRecords(db,user.id,'bookings'),recipient:user.email,origin});
         const {recipient,subject,text,html,...content}=briefing;
         return send(200,{briefing:content});
+      }
+      const tripQuote=p.match(/^\/api\/trips\/([a-f0-9-]{36})\/quote$/i);
+      if(tripQuote){
+        allow('POST');if(!user)fail(401,'Please sign in to ask for a quote.');rate('trip-quote:'+user.id,8);
+        const tripId=tripQuote[1],row=await getRecord(tripId,user.id,'trips');
+        const result=await friday.quoteTrip({id:user.id,email:user.hexclave_email||user.email,name:user.hexclave_name||user.name},tripId,JSON.parse(row.data));
+        return send(result.already?200:201,{already:result.already,quote:result.quote,replyBy:result.replyBy});
       }
       const match=p.match(/^\/api\/(trips|places|lists|bookings|memories|alerts|imports)(?:\/([a-f0-9-]+))?$/);
       if(match) {

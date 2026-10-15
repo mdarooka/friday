@@ -230,6 +230,7 @@
       '<div class="wsp-title" data-ws="titlewrap"><button type="button" class="wsp-title__btn" data-ws="title" title="Rename trip"></button></div>' +
       '<div class="wsp-top__right">' +
         '<a class="wsp-briefing" data-ws="briefing" href="trip-briefing.html">Trip briefing</a>' +
+        '<button type="button" class="wsp-quote" data-ws="quote"><span class="wsp-quote__full">Ask for a quote</span><span class="wsp-quote__short">Quote</span></button>' +
         '<button type="button" class="wsp-share" data-ws="share" aria-haspopup="true" aria-expanded="false">{{share}}<span>Share</span></button>' +
         '<button type="button" class="wsp-act" data-ws="activity" aria-label="Activity">{{users}}<span>Activity</span></button>' +
         '<button type="button" class="wsp-iconbtn" data-ws="dots" aria-label="More" aria-haspopup="true" aria-expanded="false">{{dots}}</button>' +
@@ -425,6 +426,7 @@
     E.side.addEventListener('click', toggleSide);
     E.title.addEventListener('click', startRename);
     E.share.addEventListener('click', function () { openShare(E.share); });
+    E.quote.addEventListener('click', function () { askForQuote(E.quote); });
     E.briefing.addEventListener('click', function (event) {
       var trip = T();
       if (!trip) { event.preventDefault(); return; }
@@ -439,6 +441,18 @@
     Array.prototype.forEach.call(S.root.querySelectorAll('.wsp-seg [data-view]'), function (b) {
       b.addEventListener('click', function () { setView(b.getAttribute('data-view')); });
     });
+  }
+
+  function askForQuote(btn) {
+    var trip = T(); if (!trip || !btn) return;
+    if (!F.backend || !F.backend.user || !F.backend.quoteTrip) { toast('Please sign in to ask for a quote.'); return; }
+    btn.disabled = true;
+    F.backend.quoteTrip(trip.id).then(function (r) {
+      var text = r && r.replyBy && r.replyBy.text ? r.replyBy.text : 'Your designer has this trip.';
+      toast(text);
+    }).catch(function (e) {
+      toast((e && e.message) || 'Friday could not send this quote.');
+    }).then(function () { btn.disabled = false; });
   }
 
   function toggleSide() {

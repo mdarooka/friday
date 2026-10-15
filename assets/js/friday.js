@@ -458,6 +458,24 @@
       .catch(() => {});
   }
 
+  /* Villa links stay in the HTML. Hide them while the published collection is empty. */
+  function hideEmptyVillas() {
+    fetch('/api/villas', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data || !Array.isArray(data.villas) || data.villas.length) return;
+        document.querySelectorAll('a[href="villas.html"], a[href="/villas.html"]').forEach((anchor) => {
+          if (anchor.classList.contains('card')) {
+            const article = anchor.closest('article');
+            if (article) { article.hidden = true; return; }
+          }
+          const item = anchor.closest('li');
+          (item || anchor).hidden = true;
+        });
+      })
+      .catch(() => {});
+  }
+
   /* -------------------------------------------------------------- auth */
 
   function initAuth() {
@@ -549,6 +567,7 @@
     initForm();
     initSundry();
     initWhatsApp();
+    hideEmptyVillas();
     initAuth();
     document.documentElement.classList.add('js-ready');
   };

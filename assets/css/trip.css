@@ -590,7 +590,7 @@ input[type="search"].fx-input::-webkit-search-cancel-button { display: none; }
 @media print {
   .fx { height: auto; overflow: visible; background: #fff; }
   .fx-app { display: block; height: auto; }
-  .fx-start-header, .fx-side, .fx-burger, .fx-float-toggle, .fx-scrim, .fx-planner-contact, [data-layer] { display: none !important; }
+  .fx-start-header, .fx-side, .fx-burger, .fx-float-toggle, .fx-scrim, .fx-planner-contact, .fx-talk-chip, [data-layer] { display: none !important; }
   .fx-main, .fx[data-route="trip"] .fx-main { overflow: visible; height: auto; }
   .fx-page { min-height: 0; }
   .fx-page--trip, .fx-page--trip > [data-trip-root] { height: auto; }
@@ -878,6 +878,32 @@ button[data-preview] { margin-bottom: 1rem; }
   .fx-planner-contact .fx-planner-callback { white-space: normal; }
   .fx-planner-whatsapp__full { display: none; }
   .fx-planner-whatsapp__short { display: inline; }
+}
+
+/* Mobile planner chip. The header rail stays in normal flow; this chip is a separate control. */
+.fx-talk-chip {
+  display: none;
+}
+@media (max-width: 720px) {
+  .fx-talk-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 12px;
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    z-index: 40;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    font-size: .8rem;
+    box-shadow: 0 8px 24px rgba(21, 20, 15, .08);
+  }
+  .fx-talk-chip[hidden] { display: none; }
 }
 
 /* Booking confidence strip */

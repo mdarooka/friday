@@ -2,6 +2,8 @@ import { randomUUID, createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { claudeMessage, parseJsonText } from './providers/claude.mjs';
 import { perplexityAnswer } from './providers/perplexity.mjs';
+import { prepareBriefing } from './briefing.mjs';
+import { replyBy } from './reply-by.mjs';
 
 const require = createRequire(import.meta.url);
 const catalog = require('../build/data.js');
@@ -45,6 +47,7 @@ async function bookingFacts(store, db, ownerId, scope) {
 }
 
 export function reelText(d){return [...(d.inspiredBy?.mode==='vibe'?[`Note: Friday couldn't identify the reel's place${d.inspiredBy.placeName||d.inspiredBy.destination?` (traveler mentioned ${[d.inspiredBy.placeName,d.inspiredBy.destination].filter(Boolean).join(', ')})`:''}; ${d.destination} was chosen for a similar vibe: ${d.inspiredBy.reason}`]:[]),`Reel: ${d.source?.url||''} (${d.source?.status==='public_post_cited'?'Public post cited; video not independently verified':'Based on traveler-confirmed place'})`,...(d.days||[]).map((day,i)=>`Day ${i+1}: ${day.title} ${day.date||''}\n${day.notes||''}\n${(day.items||[]).map(it=>`• ${it.title} — ${it.description||''}\n  Source: ${it.sourceUrl||''}`).join('\n')}`),...(d.warnings||[]),`Traveler changes: ${d.instructions||'None'}`].join('\n\n');}
+function plannerItinerary(snapshot){return (snapshot.days||[]).map((day,i)=>{const head=`Day ${i+1}${day.date?` · ${day.date}`:''}${day.title?` · ${day.title}`:''}`;const items=(day.items||[]).map(it=>`  • ${it.time?`${it.time} · `:''}${it.title}${it.notes?` — ${it.notes}`:''}`).join('\n');return [head,items,day.notes?`  ${day.notes}`:''].filter(Boolean).join('\n');}).join('\n');}
 
 export function createFridayWorkflow({db,store,env=process.env,fetch:fetcher=fetch,tripFind,aiConfig={},email}) {
   const getDraft=async(id,owner)=>{const r=await store.getFridayDraft(db,id,owner);return r&&{id:r.id,version:r.version,...JSON.parse(r.data),createdAt:r.created,updatedAt:r.updated};};
@@ -139,6 +142,60 @@ export function createFridayWorkflow({db,store,env=process.env,fetch:fetcher=fet
     try{await store.createFridayHandoffWithQuote(db,{id,ownerId:owner.id,draftId,version,snapshot,status:'queued',created},{id:quoteId,handoffId:id,ownerId:owner.id,customerEmail:owner.email,customerName,snapshot,status:'pending',created},{eventType:'quote_requested',subjectId:quoteId,ownerId:owner.id,data:{kind:'friday_quote',path:'planner'},created});}catch{const prior=(await store.listFridayHandoffs(db,owner.id)).find(h=>h.draft_id===draftId&&h.version===version);if(prior)return {id:prior.id,status:prior.status,createdAt:prior.created,snapshot:JSON.parse(prior.snapshot)};throw new Error('Unable to queue this handoff.');}
     return {id,status:'queued',createdAt:created,snapshot:JSON.parse(snapshot)};
   }
+  function publicPlannerQuote(row){return {id:row.id,status:row.status,createdAt:row.created,snapshot:row.snapshot};}
+  async function pendingPlannerQuote(ownerId, tripId) {
+    for (const row of await store.listOwnerFridayQuotes(db, ownerId)) {
+      if (row.status !== 'pending') continue;
+      let snap = {};
+      try { snap = JSON.parse(row.snapshot) || {}; } catch { continue; }
+      if (snap.kind === 'planner_trip' && snap.tripId === tripId) return { ...row, snapshot: snap };
+    }
+    return null;
+  }
+  /** One click from a saved planner trip. The itinerary is read on the server; chat is left out. */
+  async function quoteTrip(owner, tripId, tripData) {
+    const email = clean(owner?.email || '', 254).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(422, 'A signed-in email is required before Friday can request a quote.');
+    const id = clean(String(tripId || ''), 160);
+    if (!/^[a-f0-9-]{36}$/i.test(id)) fail(422, 'A trip is required.');
+    const data = tripData && typeof tripData === 'object' && !Array.isArray(tripData) ? tripData : {};
+    const briefing = prepareBriefing({ tripId: id, tripData: data, bookingRows: [], recipient: '', origin: '' });
+    const destination = briefing.destination;
+    const days = briefing.days;
+    if (!destination && !days.length) fail(422, 'Add a destination or a day before asking for a quote.');
+    const prior = await pendingPlannerQuote(owner.id, id);
+    if (prior) return { already: true, quote: publicPlannerQuote(prior), replyBy: replyBy(new Date(prior.created)) };
+    const draftId = `planner:${id}`;
+    const handoffs = await store.listFridayHandoffs(db, owner.id);
+    const version = handoffs.filter(row => row.draft_id === draftId).length + 1;
+    const travelersRaw = Number.isInteger(data.travelers) ? data.travelers : (data.prefs && Number.isInteger(data.prefs.travelers) ? data.prefs.travelers : null);
+    const pace = clean(typeof data.pace === 'string' ? data.pace : (data.prefs && typeof data.prefs.pace === 'string' ? data.prefs.pace : ''), 80);
+    const created = nowIso();
+    const snapshotObj = {
+      kind: 'planner_trip', tripId: id, title: briefing.title, destination,
+      dates: { start: briefing.departureDate || '', end: briefing.endDate || '' },
+      ...(travelersRaw > 0 ? { travelers: travelersRaw } : {}),
+      ...(pace ? { pace } : {}),
+      days,
+      ...(briefing.stay ? { stay: briefing.stay } : {}),
+      instructions: 'A designer confirms stays, prices and availability. Nothing is held.',
+      flexibleBudget: true, snapshotAt: created,
+    };
+    const snapshot = JSON.stringify(snapshotObj);
+    const handoffId = randomUUID(), quoteId = randomUUID();
+    const customerName = clean(owner.name, 100);
+    try {
+      await store.createFridayHandoffWithQuote(db,
+        { id: handoffId, ownerId: owner.id, draftId, version, snapshot, status: 'queued', created },
+        { id: quoteId, handoffId, ownerId: owner.id, customerEmail: email, customerName, snapshot, status: 'pending', created },
+        { eventType: 'quote_requested', subjectId: quoteId, ownerId: owner.id, data: { kind: 'planner_trip', path: 'planner', tripId: id }, created });
+    } catch {
+      const raced = await pendingPlannerQuote(owner.id, id);
+      if (raced) return { already: true, quote: publicPlannerQuote(raced), replyBy: replyBy(new Date(raced.created)) };
+      throw new Error('Unable to queue this quote.');
+    }
+    return { already: false, quote: { id: quoteId, status: 'pending', createdAt: created, snapshot: snapshotObj }, replyBy: replyBy(new Date(created)) };
+  }
   async function listHandoffs(owner){return (await store.listFridayHandoffs(db,owner.id)).map(r=>({id:r.id,draftId:r.draft_id,version:r.version,snapshot:JSON.parse(r.snapshot),status:r.status,createdAt:r.created}));}
   async function adminList(owner,allowed){if(!allowed.has(String(owner.email||'').toLowerCase()))fail(403,'Your account is not on the quote administration allowlist.');return (await store.listFridayQuotes(db)).map(r=>({id:r.id,handoffId:r.handoff_id,customerEmail:r.customer_email,customerName:r.customer_name||'',snapshot:JSON.parse(r.snapshot),status:r.status,quote:r.quote?JSON.parse(r.quote):null,attemptedAt:r.attempted_at,createdAt:r.created,firstReplyAt:r.first_reply_at}));}
   async function rememberQuoteReply(record, timing) {
@@ -165,7 +222,7 @@ export function createFridayWorkflow({db,store,env=process.env,fetch:fetcher=fet
     return {ok:true};
   }
   function replyTiming(created,repliedAt){return {firstReplyAt:repliedAt,hoursWaited:Math.max(0,(Date.parse(repliedAt)-Date.parse(created))/3600000)};}
-  async function quotePayload(owner,allowed,id,input){if(!allowed.has(String(owner.email||'').toLowerCase()))fail(403,'Your account is not on the quote administration allowlist.');const r=await store.getFridayQuote(db,id);if(!r)fail(404,'Quote request not found.');if(r.status!=='pending')fail(409,'This quote has already been submitted for delivery and cannot be changed.');const amount=input.amount,currency=String(input.currency||'').toUpperCase(),details=clean(input.details,4000);if(typeof amount!=='number'||!Number.isFinite(amount)||amount<0||amount>100000000||! /^[A-Z]{3}$/.test(currency)||!details)fail(422,'Provide a valid amount, currency and quote details.');const snapshot=JSON.parse(r.snapshot);const itinerary=snapshot.kind==='reel'?reelText(snapshot):(snapshot.items||[]).map(x=>`• ${x.title}${x.proposedSegments?.length?`\n${x.proposedSegments.map(s=>`  ${segmentText(s)}`).join('\n')}`:''}${x.customizationRequest?`\n  Traveler request, pending review: ${x.customizationRequest}`:''}`).join('\n');const subject='Your Friday travel quote';const text=`Friday travel quote\n\n${details}\n\nAmount: ${currency} ${amount.toFixed(2)}\n\nYour selected plan:\n${itinerary||snapshot.destination}\n\nDestination: ${snapshot.destination}\nTravel dates: ${snapshot.dates?.start||''} to ${snapshot.dates?.end||''}\nTravelers: ${snapshot.travelers}\nBudget: ${snapshot.kind==='reel'?'Not requested':snapshot.flexibleBudget?'Flexible':snapshot.budget}\n\nThis quote was prepared by the Friday team. Dates, inclusions and availability are subject to the details above.`;const hashInput={quote:{amount,currency,details},snapshot:r.snapshot,to:r.customer_email,subject,text};return {record:r,quote:{amount,currency,details,preparedBy:owner.email},preview:{to:r.customer_email,subject,text,previewHash:hash(JSON.stringify(hashInput))}};}
+  async function quotePayload(owner,allowed,id,input){if(!allowed.has(String(owner.email||'').toLowerCase()))fail(403,'Your account is not on the quote administration allowlist.');const r=await store.getFridayQuote(db,id);if(!r)fail(404,'Quote request not found.');if(r.status!=='pending')fail(409,'This quote has already been submitted for delivery and cannot be changed.');const amount=input.amount,currency=String(input.currency||'').toUpperCase(),details=clean(input.details,4000);if(typeof amount!=='number'||!Number.isFinite(amount)||amount<0||amount>100000000||! /^[A-Z]{3}$/.test(currency)||!details)fail(422,'Provide a valid amount, currency and quote details.');const snapshot=JSON.parse(r.snapshot);const itinerary=snapshot.kind==='reel'?reelText(snapshot):snapshot.kind==='planner_trip'?plannerItinerary(snapshot):(snapshot.items||[]).map(x=>`• ${x.title}${x.proposedSegments?.length?`\n${x.proposedSegments.map(s=>`  ${segmentText(s)}`).join('\n')}`:''}${x.customizationRequest?`\n  Traveler request, pending review: ${x.customizationRequest}`:''}`).join('\n');const subject='Your Friday travel quote';const text=`Friday travel quote\n\n${details}\n\nAmount: ${currency} ${amount.toFixed(2)}\n\nYour selected plan:\n${itinerary||snapshot.destination}\n\nDestination: ${snapshot.destination}\nTravel dates: ${snapshot.dates?.start||''} to ${snapshot.dates?.end||''}\nTravelers: ${snapshot.travelers ?? 'Not listed'}\nBudget: ${snapshot.kind==='reel'?'Not requested':snapshot.flexibleBudget?'Flexible':snapshot.budget}\n\nThis quote was prepared by the Friday team. Dates, inclusions and availability are subject to the details above.`;const hashInput={quote:{amount,currency,details},snapshot:r.snapshot,to:r.customer_email,subject,text};return {record:r,quote:{amount,currency,details,preparedBy:owner.email},preview:{to:r.customer_email,subject,text,previewHash:hash(JSON.stringify(hashInput))}};}
   async function previewQuote(owner,allowed,id,input){return (await quotePayload(owner,allowed,id,input)).preview;}
   async function sendQuote(owner,allowed,id,input){if(!email?.configured)fail(503,'Quote email delivery is not configured through Hexclave.');const {record:r,quote,preview}=await quotePayload(owner,allowed,id,input);if(!input.previewHash||input.previewHash!==preview.previewHash)fail(409,'The quote changed after review. Preview it again before sending.');const attempted=nowIso();const changed=await store.claimFridayQuote(db,id,JSON.stringify({...quote,preparedAt:attempted}),attempted);if(!changed)fail(409,'This quote is already being sent.');
     const result=await email.quote({id,to:preview.to,subject:preview.subject,text:preview.text});
@@ -173,5 +230,5 @@ export function createFridayWorkflow({db,store,env=process.env,fetch:fetcher=fet
     await store.setFridayQuoteStatus(db,id,status);
     return {id,status,quote};
   }
-  return {plan,listDrafts,handoff,listHandoffs,adminList,markQuoteReplied,recordDraftClick,previewQuote,sendQuote};
+  return {plan,listDrafts,handoff,quoteTrip,listHandoffs,adminList,markQuoteReplied,recordDraftClick,previewQuote,sendQuote};
 }
