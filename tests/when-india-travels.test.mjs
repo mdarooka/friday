@@ -122,7 +122,7 @@ test('Ladakh is only a May/June suggestion, Kyoto is never suggested, and places
     }
   }
   assert.ok(ladakh > 0);
-  assert.ok(!/kyoto/i.test(html), 'no Kyoto on the page');
+  assert.doesNotMatch(html, /kyoto/i, 'Kyoto is not a break suggestion and has no public guide link');
   assert.ok(places.size >= 20, 'a wide spread of places');
   for (const place of ['Coorg', 'Andaman Islands', 'Meghalaya', 'Bhutan', 'Himachal Pradesh', 'Vietnam']) assert.ok(places.has(place), place);
 });
@@ -146,7 +146,7 @@ test('the three groups render in order, with no hidden attributes in the static 
   }
 });
 
-const GUIDE_FILES = { goa: 'goa-guide.html', kerala: 'kerala-guide.html', rajasthan: 'rajasthan-guide.html', 'near bombay': 'mumbai-quiet-weekend.html' };
+const GUIDE_FILES = { goa: 'goa-guide.html', kerala: 'kerala-guide.html', rajasthan: 'rajasthan-guide.html', ladakh: 'ladakh-guide.html', 'sri lanka': 'srilanka-guide.html', 'near bombay': 'mumbai-quiet-weekend.html' };
 const guideOf = (place) => GUIDE_FILES[String(place).toLowerCase()] || null;
 
 test('suggestions render per row: a guide link when Friday has a guide, otherwise planner and designer links', () => {

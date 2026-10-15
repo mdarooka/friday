@@ -5,6 +5,7 @@
  * trip-data catalog (areas + places). Keep FAQ copy editorial and free of live prices.
  */
 const { guideFeedback } = require('./guide-feedback');
+const { EXTRA_GUIDES } = require('./extra-guides');
 
 const GUIDES = [
   {
@@ -259,6 +260,7 @@ const GUIDES = [
       plannerLabel: 'Plan your Rajasthan trip',
     },
   },
+  ...EXTRA_GUIDES,
 ];
 
 function guideById(id) {
@@ -360,7 +362,7 @@ ${faqSection}
 ${guideFeedback(id)}
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">${guide.cta.title}</h2><p class="lede" style="margin-top:1rem">${guide.cta.lede}</p></div>
-  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" data-guide-destination="${esc(id)}" href="trip.html?destination=${esc(id)}&amp;from_guide=${esc(id)}#/new">${esc(guide.cta.plannerLabel)} <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" data-guide-destination="${esc(id)}" href="contact.html?quote_path=guide&amp;destination=${esc(id)}">Ask Friday about a quote <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="callback" data-guide-destination="${esc(id)}" href="contact.html?topic=${encodeURIComponent(catalog.name)}#callback-title">Talk to a designer <span class="arrow">&rarr;</span></a></div>
+  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" data-guide-destination="${esc(id)}" href="${esc(guide.plannerHref || `trip.html?destination=${id}&from_guide=${id}#/new`)}">${esc(guide.cta.plannerLabel)} <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" data-guide-destination="${esc(id)}" href="contact.html?quote_path=guide&amp;destination=${esc(id)}">Ask Friday about a quote <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="callback" data-guide-destination="${esc(id)}" href="contact.html?topic=${encodeURIComponent(catalog.name)}#callback-title">Talk to a designer <span class="arrow">&rarr;</span></a></div>
 </div></section>`;
 }
 

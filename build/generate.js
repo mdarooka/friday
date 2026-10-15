@@ -16,7 +16,7 @@ const LW = require('./when-india-travels');
 /* The date the build treats as today (breaks that have ended are left out). FRIDAY_BUILD_DATE=YYYY-MM-DD pins it. */
 const BUILD_TODAY = /^\d{4}-\d{2}-\d{2}$/.test(process.env.FRIDAY_BUILD_DATE || '') ? process.env.FRIDAY_BUILD_DATE : require('./data/india-breaks').isoDay();
 /* Per-guide share card ({ image, alt }) for layout()'s `social` option: assets/images/og/<id>-guide.jpg, absolute and version-stamped. */
-const guideSocial = (id, alt) => ({ image: cardUrl(`${id}-guide`, PUBLIC_ORIGIN), alt });
+const guideSocial = (id, alt) => ({ image: cardUrl(`${id}-guide`, PUBLIC_ORIGIN) || cardUrl(id, PUBLIC_ORIGIN), alt });
 
 const OUT = path.join(__dirname, '..');
 const write = (file, html) => {
@@ -1288,6 +1288,7 @@ ${PageHero({
 page('field-notes.html', { title: 'Field Notes', description: 'Short planning notes based on Friday’s destination guides and catalogue, with sources and links to plan a trip.', body: notesIndex, active: 'field-notes.html', lightHead: true, canonical: 'field-notes.html' });
 
 D.fieldNotes.forEach((n, idx) => {
+  const planHref = n.planHref || `trip.html?destination=${encodeURIComponent(n.destination)}&amp;from_note=${encodeURIComponent(n.slug)}#/new`;
   const body = `
 <article>
 ${PageHero({
@@ -1303,12 +1304,14 @@ ${PageHero({
 </div></section>
 <section class="section section--tight"><div class="wrap wrap--narrow"><div class="rule"><p class="eyebrow">Sources</p><ul>${n.sources.map((source) => `<li><a class="link" href="${T.esc(source.href)}"${source.href.startsWith('http') ? ' target="_blank" rel="noopener noreferrer"' : ''}>${T.esc(source.label)} <span class="arrow">&rarr;</span></a></li>`).join('')}</ul></div></div></section>
 </article>
-<section class="section inverse section--tight"><div class="wrap grid" style="align-items:center"><div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">Make the idea<br>your own.</h2><p class="lede" style="margin-top:1rem">Use this note as a starting point, then shape the details around your dates and pace.</p></div><div class="c-5 c-md-12"><a class="btn" href="trip.html?destination=${encodeURIComponent(n.destination)}&amp;from_note=${encodeURIComponent(n.slug)}#/new">Plan this with Friday <span class="arrow">&rarr;</span></a></div></div></section>
+<section class="section inverse section--tight"><div class="wrap grid" style="align-items:center"><div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">Make the idea<br>your own.</h2><p class="lede" style="margin-top:1rem">Use this note as a starting point, then shape the details around your dates and pace.</p></div><div class="c-5 c-md-12"><a class="btn" href="${planHref}">Plan this with Friday <span class="arrow">&rarr;</span></a></div></div></section>
 <section class="section section--tight"><div class="wrap"><p class="eyebrow">Next note</p><a class="link" href="note-${D.fieldNotes[(idx + 1) % D.fieldNotes.length].slug}.html">${T.esc(D.fieldNotes[(idx + 1) % D.fieldNotes.length].title)} <span class="arrow">&rarr;</span></a></div></section>`;
   page(`note-${n.slug}.html`, { title: n.title, description: n.dek, body, active: 'field-notes.html', lightHead: true, canonical: `note-${n.slug}.html` });
 });
 const liveNotePages = new Set(D.fieldNotes.map((n) => `note-${n.slug}.html`));
 fs.readdirSync(OUT).filter((file) => /^note-.+\.html$/.test(file) && !liveNotePages.has(file)).forEach((file) => fs.unlinkSync(path.join(OUT, file)));
+const liveGuidePages = new Set(guideFiles());
+fs.readdirSync(OUT).filter((file) => /^[a-z0-9-]+-guide\.html$/.test(file) && !liveGuidePages.has(file)).forEach((file) => fs.unlinkSync(path.join(OUT, file)));
 
 /* =================================================== 11. Commission */
 

@@ -241,6 +241,7 @@ function diwaliPin(esc, today, guides) {
     <h2 class="h2" id="diwali-pin-h">${esc(brk.name)}</h2>
     <p class="lede">${esc(brk.dates)} · ${esc(bookByLabel(brk))}. Goa, Rajasthan and Kerala, from the catalogue. Not live inventory; a designer confirms what can be held.</p>
     <p class="lw-pin__picks">${picks}</p>
+    <p class="lw-pin__notes"><a class="link" href="note-goa-for-diwali.html">A note on Goa for Diwali</a> · <a class="link" href="note-rajasthan-for-diwali.html">A note on Rajasthan for Diwali</a></p>
     ${diwaliActions(esc, brk)}
   </div></section>`;
 }
@@ -253,6 +254,7 @@ function diwaliHero({ esc, today }) {
     <h2>${esc(brk.name)}</h2>
     <p>${esc(brk.dates)}. ${esc(bookByLabel(brk))}.</p>
     <p>Goa, Rajasthan and Kerala. Catalogue starting points, not live inventory. A designer confirms.</p>
+    <p><a class="link" href="note-goa-for-diwali.html">Goa note</a> · <a class="link" href="note-rajasthan-for-diwali.html">Rajasthan note</a></p>
     ${diwaliActions(esc, brk)}
   </aside>`;
 }

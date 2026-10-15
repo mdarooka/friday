@@ -41,6 +41,7 @@ test('the new-trip screen seeds and focuses the prompt, and a guide link with tr
 test('every guide page links the planner with destination, from_guide and #/new, and its destination exists', async () => {
   const guides = readdirSync(new URL('..', import.meta.url)).filter((f) => /^[a-z]+-guide\.html$/.test(f));
   assert.ok(guides.includes('kerala-guide.html'));
+  assert.ok(!guides.includes('kyoto-guide.html'));
   for (const file of guides) {
     const id = file.replace('-guide.html', '');
     const html = await read(file);
