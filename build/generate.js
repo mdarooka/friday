@@ -284,7 +284,7 @@ ${PageHero({
 ${guideFeedback('kerala')}
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Take the next step</p><h2 class="h2">Make Kerala<br>your own route.</h2><p class="lede" style="margin-top:1rem">Start with the places that interest you, then shape the pace and dates with Friday.</p></div>
-  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" href="trip.html?destination=kerala&amp;from_guide=kerala#/new">Plan your Kerala trip <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" href="contact.html?quote_path=guide&amp;destination=kerala">Ask Friday about a quote <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="callback" data-guide-destination="kerala" href="contact.html?topic=Kerala#callback-title">Talk to a designer <span class="arrow">&rarr;</span></a></div>
+  <div class="c-5 c-md-12" style="display:grid;gap:1rem"><a class="btn" data-guide-cta="planner" href="trip.html?destination=kerala&amp;from_guide=kerala#/new">Plan your Kerala trip <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="quote" href="contact.html?quote_path=guide&amp;destination=kerala#quote">Ask Friday about a quote <span class="arrow">&rarr;</span></a><a class="link" data-guide-cta="callback" data-guide-destination="kerala" href="contact.html?topic=Kerala#callback-title">Talk to a designer <span class="arrow">&rarr;</span></a></div>
 </div></section>`;
 page('kerala-guide.html', {
   title: 'Kerala Travel Guide: Itineraries, Munnar & Backwaters',
@@ -451,7 +451,7 @@ ${PageHero({
 ${guideFeedback('mumbai-quiet-weekend')}
 <section class="section inverse"><div class="wrap grid" style="align-items:center">
   <div class="c-7 c-md-12"><p class="eyebrow">Make the weekend yours</p><h2 class="h2">Two nights.<br>Your kind of quiet.</h2><p class="lede" style="margin-top:1rem">Tell Friday your dates, how you want to travel, and what a good stay feels like. We’ll check the details with you.</p></div>
-  <div class="c-5 c-md-12"><a class="btn" href="contact.html?from=mumbai-quiet-weekend">Ask Friday to plan this weekend <span class="arrow">&rarr;</span></a><p style="margin-top:1.4rem"><a class="link" href="when-india-travels.html?region=MH">Planning around a long weekend? <span class="arrow">&rarr;</span></a></p></div>
+  <div class="c-5 c-md-12"><a class="btn" data-guide-cta="quote" data-guide-destination="mumbai-quiet-weekend" href="contact.html?from=mumbai-quiet-weekend&amp;quote_path=guide&amp;destination=mumbai-quiet-weekend#quote">Ask Friday to plan this weekend <span class="arrow">&rarr;</span></a><p style="margin-top:1.4rem"><a class="link" href="when-india-travels.html?region=MH">Planning around a long weekend? <span class="arrow">&rarr;</span></a></p></div>
 </div></section>`;
 page('mumbai-quiet-weekend.html', {
   title: 'Quiet 2-Night Weekend Breaks from Mumbai | Friday',

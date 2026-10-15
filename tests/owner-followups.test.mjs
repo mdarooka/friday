@@ -120,7 +120,7 @@ test('designer calls stay on the existing callback, and empty villas hide in the
   const weekend = await read('mumbai-quiet-weekend.html');
   const about = await read('about.html');
   assert.match(guide, /data-guide-cta="callback"[^>]*>Talk to a designer/);
-  assert.match(weekend, /contact\.html\?from=mumbai-quiet-weekend/);
+  assert.match(weekend, /contact\.html\?from=mumbai-quiet-weekend&amp;quote_path=guide&amp;destination=mumbai-quiet-weekend#quote/);
   assert.match(weekend, /Ask Friday to plan this weekend/);
   for (const html of [guide, weekend, about]) assert.doesNotMatch(html, /data-talk-bar/);
   const siteCss = await read('assets/css/friday.css');

@@ -336,6 +336,23 @@
         if (villaStay) villaStay.checked = true;
       }
     }
+    /* A guide's "Ask Friday about a quote" link opens #quote with the place already in the trip field. */
+    function guideTripLabel(raw) {
+      const names = { goa: 'Goa', kerala: 'Kerala', rajasthan: 'Rajasthan', ladakh: 'Ladakh', srilanka: 'Sri Lanka', 'mumbai-quiet-weekend': 'Mumbai weekend' };
+      const cleaned = String(raw || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 120);
+      return names[cleaned.toLowerCase()] || cleaned;
+    }
+    const guideTrip = guideTripLabel(villaParams.get('destination'));
+    const quoteForm = document.getElementById('quote');
+    if (guideTrip && quoteForm && !villaContext) {
+      const shape = quoteForm.querySelector('[name="shape"]');
+      if (shape && !shape.value) shape.value = guideTrip;
+    }
+    if (location.hash === '#quote' && quoteForm) {
+      const revealQuote = () => quoteForm.scrollIntoView({ block: 'start' });
+      revealQuote();
+      if (document.readyState !== 'complete') window.addEventListener('load', revealQuote, { once: true });
+    }
     /* ?topic= (for example from a When India travels "Call me back" link) is mentioned to the team with the callback request. */
     const topic = (villaParams.get('topic') || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 200);
     if (topic) {
