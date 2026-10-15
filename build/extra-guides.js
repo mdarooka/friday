@@ -1,6 +1,6 @@
 'use strict';
-/* Public guides for catalogues that already exist. Copy stays inside those catalogues.
- * Sample place data is not live inventory. Kyoto stays out of the new-trip list. */
+/* Public guides for catalogues that are offered as new trips. Copy stays inside those catalogues.
+ * Sample place data is not live inventory. */
 
 const sampleIntro = 'These are places from Friday’s hand-researched destination catalogue. Ratings and review counts in that catalogue are sample data, not live figures. A designer confirms what can be held.';
 
@@ -86,91 +86,6 @@ const EXTRA_GUIDES = [
       title: 'Make Sri Lanka<br>your own route.',
       lede: 'Start from the catalogue, then shape dates and pace with Friday. A designer confirms rooms and drives.',
       plannerLabel: 'Plan your Sri Lanka trip',
-    },
-  },
-  {
-    id: 'kyoto',
-    file: 'kyoto-guide.html',
-    footerLabel: 'Kyoto guide',
-    title: 'Kyoto in Autumn: Temples, One Neighbourhood a Day',
-    description: 'An autumn starting point from Friday’s Kyoto catalogue: foliage from mid-November, one area a day, and no live bookings. Kyoto is not in the new-trip list; a designer plans it with you.',
-    plannerHref: 'trip.html?from_guide=kyoto#/new',
-    areaOrder: ['higashiyama', 'gion', 'central', 'arashiyama', 'northwest', 'n-higashiyama', 'fushimi', 'ohara-kurama', 'uji'],
-    hero: {
-      eyebrow: 'A Friday field guide',
-      title: 'Autumn, one<br>neighbourhood a day.',
-      lede: 'From Friday’s Kyoto catalogue. Autumn colour generally peaks from mid-November to early December. This is sample catalogue data, not a live plan. Kyoto is not offered as a new trip in the planner; ask a designer.',
-      seed: 'kyoto-guide',
-      scene: 'forest',
-      tone: 'ember',
-    },
-    days: {
-      eyebrow: 'How many days do you need in Kyoto in autumn?',
-      title: 'One area a day.',
-      body: 'The catalogue keeps each day to one area, because the sights are spread out and buses are slow when the temples are busy. The lengths it offers are about five days, a week, or ten days. They are prompts. Famous temples go first thing in the morning.',
-    },
-    season: {
-      eyebrow: 'When do the maples turn?',
-      title: 'Mid-November into early December.',
-      body: 'The catalogue says autumn colour generally peaks from mid-November to early December, a little earlier in the northern hills and later in the centre. Weekends are crowded. Kiyomizu-dera has an autumn evening opening. Kodai-ji’s evening illumination is popular. Nijo Castle’s garden is at its best in mid-November. Tenryu-ji’s maples turn in mid-to-late November. Kitano Tenmangu turns from late November. This guide does not confirm this year’s forecast.',
-      linkHref: 'https://kyoto.travel',
-      linkLabel: 'Kyoto City Official Travel Guide',
-    },
-    placesIntro: sampleIntro + ' Stays are left off this page so a sample hotel rate is not read as a price.',
-    placesTitle: 'Which neighbourhood<br>for which day?',
-    compare: {
-      eyebrow: 'Autumn bases',
-      title: 'Higashiyama or Arashiyama for the maples?',
-      body: 'The catalogue does not choose for you. Southern Higashiyama has Kiyomizu-dera’s wooden stage over the maples. Arashiyama’s Tenryu-ji turns in mid-to-late November. Northern Higashiyama has Eikan-do, which the catalogue calls Kyoto’s best autumn temple, with a night opening, and Nanzen-ji, whose maples turn late in November. Pick one neighbourhood a day.',
-    },
-    budget: {
-      eyebrow: 'Budget',
-      title: 'What does an autumn week cost?',
-      body: 'The catalogue does not give a trip-wide cost. It does say the best kaiseki and ryokan dinners book out weeks ahead in November. Sample figures are not a quote.',
-    },
-    areaNotes: {
-      higashiyama: 'Kiyomizu-dera’s stage over the maples, with an autumn evening opening. Sannenzaka and Ninenzaka lead down from it. Kodai-ji’s evening illumination is popular.',
-      gion: 'Hanamikoji’s wooden machiya, Yasaka Shrine lit after dark, and Pontocho beside the river. Be quiet if you see a maiko.',
-      central: 'Nishiki Market before the crowds, and Nijo Castle, whose garden the catalogue puts at its best in mid-November.',
-      arashiyama: 'Tenryu-ji’s pond garden, with maples in mid-to-late November. The bamboo grove is the same day’s walk, not a second base.',
-      northwest: 'Kinkaku-ji at opening time. Kitano Tenmangu’s maples turn from late November. Ryoan-ji is the rock garden, sat on the veranda.',
-      'n-higashiyama': 'Ginkaku-ji and the Philosopher’s Path. Eikan-do has a night opening in autumn. Nanzen-ji’s maples turn late in November.',
-      fushimi: 'Fushimi Inari’s gates, early or at dusk. Tofuku-ji is the catalogue’s most famous autumn temple, with maples under the Tsutenkyo bridge. Arrive at opening time.',
-      'ohara-kurama': 'The northern hills. Sanzen-in’s moss garden is described as soft autumn colour, understated rather than a peak-week crush.',
-      uji: 'Tea country south of the city. Byodo-in’s phoenix hall is the catalogue’s reason to make the trip.',
-    },
-    getting: {
-      eyebrow: 'Getting around',
-      title: 'Walk a neighbourhood. Do not cross the city twice.',
-      body: [
-        'The catalogue’s rule is one area a day. Buses are slow at busy times, and the famous temples are busiest from mid-morning.',
-        'If your month is earlier or later than the mid-November to early-December peak, the catalogue says to shift the order rather than assume every temple is at its colour.',
-      ],
-    },
-    routes: {
-      eyebrow: 'Sample route shapes',
-      title: 'Autumn, without collecting every temple.',
-      intro: 'Shapes from the catalogue’s lengths. Not bookings, and not a promise of this year’s foliage dates.',
-      items: [
-        { label: 'About 5 days', title: 'East bank only', body: 'Southern Higashiyama, Gion, and Northern Higashiyama. Kiyomizu at opening or for the evening opening. Leave Arashiyama and Fushimi if the days are short.' },
-        { label: 'About 7 days', title: 'Add the west and the river', body: 'The east-bank days, then Arashiyama for Tenryu-ji, and a morning at Fushimi Inari. Central Kyoto, including Nijo’s mid-November garden, fits one day.' },
-        { label: 'About 10 days', title: 'Hills and Uji', body: 'The week above, plus the north-west (Kinkaku-ji at opening, Kitano Tenmangu if you are here late in November), a day toward Ohara, and Uji for tea.' },
-      ],
-    },
-    faq: {
-      eyebrow: 'Quick answers',
-      title: 'Questions the catalogue already answers.',
-      items: [
-        { q: 'Can I start a Kyoto trip in the planner?', a: 'Not as a preset. Kyoto stays off the new-trip list so older saved trips still open, and a new plan does not pretend the city is bookable from the menu. Use Call me back or a quote, or open a blank plan and tell the designer.' },
-        { q: 'When should I book the important meals?', a: 'The catalogue says the best kaiseki and ryokan dinners book out weeks ahead in November. Markets and casual soba or udon are the easier meals.' },
-        { q: 'Which temple for late November?', a: 'Kitano Tenmangu from late November, and Nanzen-ji late in the month. Tenryu-ji is mid-to-late November. The peak for the famous gardens is still described as mid-November to early December.' },
-        { q: 'Is this live availability?', a: 'No. The catalogue is sample data. A designer confirms what can be held.' },
-      ],
-    },
-    cta: {
-      title: 'Ask a designer<br>about Kyoto.',
-      lede: 'Kyoto is not in the new-trip list. The button opens a blank plan. A quote or a call is how a designer takes the autumn dates.',
-      plannerLabel: 'Open a blank plan',
     },
   },
   {

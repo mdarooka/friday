@@ -194,7 +194,6 @@ function Footer() {
         { label: 'Goa guide', href: 'goa-guide.html' },
         { label: 'Rajasthan guide', href: 'rajasthan-guide.html' },
         { label: 'Sri Lanka guide', href: 'srilanka-guide.html' },
-        { label: 'Kyoto guide', href: 'kyoto-guide.html' },
         { label: 'Ladakh guide', href: 'ladakh-guide.html' },
         { label: 'Field Notes', href: 'field-notes.html' },
         { label: 'Plan a trip', href: 'trip.html' },

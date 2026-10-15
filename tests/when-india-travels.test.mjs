@@ -122,9 +122,7 @@ test('Ladakh is only a May/June suggestion, Kyoto is never suggested, and places
     }
   }
   assert.ok(ladakh > 0);
-  const withoutFooter = html.replace(/<footer[\s\S]*<\/footer>/g, '');
-  assert.doesNotMatch(withoutFooter, /kyoto/i, 'Kyoto is not a break suggestion');
-  assert.match(html, /href="kyoto-guide\.html">Kyoto guide/);
+  assert.doesNotMatch(html, /kyoto/i, 'Kyoto is not a break suggestion and has no public guide link');
   assert.ok(places.size >= 20, 'a wide spread of places');
   for (const place of ['Coorg', 'Andaman Islands', 'Meghalaya', 'Bhutan', 'Himachal Pradesh', 'Vietnam']) assert.ok(places.has(place), place);
 });

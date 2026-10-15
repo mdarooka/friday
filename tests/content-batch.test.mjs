@@ -1,25 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { ORDER } = require('../build/trip-data/index.js');
 const read = (file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 
-test('new guides are public catalogue pages and Kyoto stays off the new-trip list', async () => {
+test('new guides are public catalogue pages and Kyoto has no public guide', async () => {
   const sitemap = await read('sitemap.xml');
-  for (const file of ['srilanka-guide.html', 'kyoto-guide.html', 'ladakh-guide.html', 'note-goa-for-diwali.html', 'note-rajasthan-for-diwali.html', 'note-what-friday-shipped.html']) {
+  for (const file of ['srilanka-guide.html', 'ladakh-guide.html', 'note-goa-for-diwali.html', 'note-rajasthan-for-diwali.html', 'note-what-friday-shipped.html']) {
     assert.match(sitemap, new RegExp(file));
   }
+  assert.doesNotMatch(sitemap, /kyoto-guide\.html/);
+  assert.equal(existsSync(new URL('../kyoto-guide.html', import.meta.url)), false);
   assert.deepEqual(ORDER, ['goa', 'kerala', 'rajasthan', 'ladakh', 'srilanka']);
   assert.equal(ORDER.includes('kyoto'), false);
-  const kyoto = await read('kyoto-guide.html');
-  assert.match(kyoto, /data-guide-feedback="kyoto"/);
-  assert.match(kyoto, /href="trip\.html\?from_guide=kyoto#\/new"/);
-  assert.doesNotMatch(kyoto, /trip\.html\?destination=kyoto/);
-  assert.match(kyoto, /mid-November to early December/);
-  assert.match(kyoto, /Sample catalogue|sample data/i);
+  for (const file of ['guides.html', 'field-notes.html', 'note-goa-for-diwali.html', 'note-rajasthan-for-diwali.html', 'note-what-friday-shipped.html', 'index.html']) {
+    assert.doesNotMatch(await read(file), /kyoto-guide\.html/, file);
+  }
   const ladakh = await read('ladakh-guide.html');
   assert.match(ladakh, /3,500 m/);
   assert.match(ladakh, /after day three|after at least three nights/i);

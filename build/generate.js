@@ -1310,6 +1310,8 @@ ${PageHero({
 });
 const liveNotePages = new Set(D.fieldNotes.map((n) => `note-${n.slug}.html`));
 fs.readdirSync(OUT).filter((file) => /^note-.+\.html$/.test(file) && !liveNotePages.has(file)).forEach((file) => fs.unlinkSync(path.join(OUT, file)));
+const liveGuidePages = new Set(guideFiles());
+fs.readdirSync(OUT).filter((file) => /^[a-z0-9-]+-guide\.html$/.test(file) && !liveGuidePages.has(file)).forEach((file) => fs.unlinkSync(path.join(OUT, file)));
 
 /* =================================================== 11. Commission */
 
