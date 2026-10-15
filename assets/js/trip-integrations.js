@@ -451,12 +451,6 @@
     if (designerNav) designerNav.appendChild(contactRail);
     var callbackCta = contactRail.querySelector('[data-designer-cta]');
     var whatsappCta = contactRail.querySelector('[data-designer-whatsapp]');
-    var talkChip = doc.createElement('button');
-    talkChip.type = 'button';
-    talkChip.className = 'fx-talk-chip';
-    talkChip.textContent = 'Call me back';
-    doc.body.appendChild(talkChip);
-    talkChip.addEventListener('click', function () { callbackCta.click(); });
     var knownNumber = '';
     var loadedStatus = Object.create(null);
     var currentStatus = null;
@@ -508,9 +502,7 @@
       whatsappCta.hidden = false;
     }
     function syncStickyContact() {
-      var gated = !!doc.querySelector('.fx-auth[data-auth-gate]');
-      callbackCta.hidden = gated;
-      talkChip.hidden = gated;
+      callbackCta.hidden = !!doc.querySelector('.fx-auth[data-auth-gate]');
       var trip = currentTrip(); updateWhatsApp(trip); refreshStatus();
     }
     callbackCta.addEventListener('click', function () {

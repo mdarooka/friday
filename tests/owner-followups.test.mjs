@@ -115,31 +115,28 @@ test('served sitemap hides villa pages while none are published, and the file on
   assert.match(listed.result, /villas\.html/);
 });
 
-test('guide pages carry a talk bar, the planner chip is separate, and empty villas hide in the client', async () => {
+test('designer calls stay on the existing callback, and empty villas hide in the client', async () => {
   const guide = await read('goa-guide.html');
   const weekend = await read('mumbai-quiet-weekend.html');
   const about = await read('about.html');
-  for (const html of [guide, weekend]) {
-    assert.match(html, /data-talk-bar/);
-    assert.match(html, /Talk to a designer/);
-    assert.match(html, /href="contact\.html\?topic=[^"]+#callback-title"/);
-    assert.match(html, />Call me back</);
-  }
-  assert.doesNotMatch(about, /data-talk-bar/);
+  assert.match(guide, /data-guide-cta="callback"[^>]*>Talk to a designer/);
+  assert.match(weekend, /contact\.html\?from=mumbai-quiet-weekend/);
+  assert.match(weekend, /Ask Friday to plan this weekend/);
+  for (const html of [guide, weekend, about]) assert.doesNotMatch(html, /data-talk-bar/);
   const siteCss = await read('assets/css/friday.css');
   const plannerCss = await read('assets/css/trip.css');
   const friday = await read('assets/js/friday.js');
   const workspace = await read('assets/js/trip-workspace.js');
   const integrations = await read('assets/js/trip-integrations.js');
   assert.match(siteCss, /\.nav__link\s*\{[^}]*letter-spacing:\s*\.21em/);
-  assert.match(siteCss, /\.talk-bar\s*\{[^}]*position:\s*fixed/);
-  assert.match(plannerCss, /\.fx-talk-chip\s*\{[^}]*position:\s*fixed/);
+  assert.doesNotMatch(siteCss, /\.talk-bar\s*\{/);
+  assert.doesNotMatch(plannerCss, /\.fx-talk-chip/);
   assert.doesNotMatch(plannerCss, /\.fx-planner-contact\s*\{[^}]*position:\s*fixed/);
+  assert.match(integrations, /Talk to your designer/);
+  assert.doesNotMatch(integrations, /fx-talk-chip/);
   assert.match(friday, /\/api\/villas/);
   assert.match(friday, /a\[href="villas\.html"\], a\[href="\/villas\.html"\]/);
   assert.match(friday, /data\.villas\.length/);
   assert.match(workspace, /data-ws="quote"/);
   assert.match(workspace, /Ask for a quote/);
-  assert.match(integrations, /fx-talk-chip/);
-  assert.match(integrations, /Call me back/);
 });

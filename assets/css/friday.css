@@ -1247,37 +1247,3 @@ a:hover > .offering-art.plate--photo > .plate__svg { transform: none; transition
 @media (max-width: 800px) {
   .phero-bg--fade { background-size: 100% 83.125vw, 190% auto; background-position: center bottom, 38% bottom; padding-bottom: 76vw; }
 }
-
-/* A small corner pill on guides. It stays out of the header and the printed page. */
-.talk-bar {
-  position: fixed;
-  right: 1rem;
-  bottom: max(1rem, env(safe-area-inset-bottom));
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  gap: .7rem;
-  max-width: calc(100vw - 2rem);
-  padding: .4rem .45rem .4rem .95rem;
-  background: var(--paper);
-  color: var(--ink);
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  box-shadow: 0 8px 24px rgba(21, 20, 15, .08);
-}
-.talk-bar__label {
-  margin: 0;
-  font-size: .68rem;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--fg-soft);
-  white-space: nowrap;
-}
-.talk-bar .btn { min-height: 44px; }
-@media (max-width: 720px) {
-  .talk-bar { left: 1rem; right: 1rem; justify-content: space-between; }
-  body:has(.talk-bar) { padding-bottom: 5.5rem; }
-}
-@media print {
-  .talk-bar { display: none !important; }
-}

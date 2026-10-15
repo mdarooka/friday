@@ -226,15 +226,7 @@ function Footer() {
 
 /* ------------------------------------------------------------ the shell */
 
-function talkBar(title) {
-  const topic = encodeURIComponent(String(title || 'this guide'));
-  return `<aside class="talk-bar" data-talk-bar>
-  <p class="talk-bar__label">Talk to a designer</p>
-  <a class="btn btn--sm btn--solid" href="contact.html?topic=${topic}#callback-title">Call me back</a>
-</aside>`;
-}
-
-function layout({ title, description, body, active, lightHead, canonical, social, robots, extraStyles = [], extraScripts = [], extraHead = '', nativeAnalytics = true, talk = null }) {
+function layout({ title, description, body, active, lightHead, canonical, social, robots, extraStyles = [], extraScripts = [], extraHead = '', nativeAnalytics = true }) {
   /* `social` = { image, alt } overrides the default share card (see build/social-cards.js). `image` must be absolute. */
   const socialImage = (social && social.image) || SOCIAL_IMAGE;
   const socialAlt = (social && social.alt) || 'A coastal travel scene with Friday’s thoughtful journeys message';
@@ -271,7 +263,7 @@ ${Header(active)}
 ${body}
 </main>
 ${Footer()}
-${talk ? `${talkBar(talk)}\n` : ''}${nativeAnalytics ? '<script src="assets/js/native-page-analytics.js"></script>\n' : ''}<script src="assets/js/friday-analytics.js"></script>
+${nativeAnalytics ? '<script src="assets/js/native-page-analytics.js"></script>\n' : ''}<script src="assets/js/friday-analytics.js"></script>
 <script src="assets/js/quote-analytics.js"></script>
 <script src="assets/js/friday.js"></script>
 ${extraScripts.map((src) => `<script src="${esc(src)}"></script>`).join('\n')}
