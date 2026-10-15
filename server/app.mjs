@@ -34,6 +34,8 @@ import { quoteDigestMode, digestRecipient, runQuoteDigest, startQuoteDigestLoop 
 import { PREQUOTE_ITEMS, issueChecklist, saveChecklist, getChecklist } from './prequote-checklist.mjs';
 import { briefingAutosendMode, runBriefingSweep, startBriefingLoop, REQUIRED_DRY_RUN_DAYS } from './briefing-scheduler.mjs';
 import { ensureRobotsMeta, hostPolicy, isPrivateSurface, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, hiddenRobotsTxt, ROBOTS_NOINDEX, visitorHost, isPublicProxyRequest, PROXY_HEADER } from './canonical-host.mjs';
+import { deployInfo } from './deploy-info.mjs';
+import { opsStatus } from './ops-status.mjs';
 const scrypt = promisify(scryptCallback);
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = x => createHash('sha256').update(x).digest('hex');
@@ -365,7 +367,8 @@ export function createApp(options = {}) {
       }
       rate('api:'+ip,240);
       /* Liveness does not touch the database, so the container stays healthy while a scaled-to-zero database service wakes up. */
-      if (url.pathname==='/api/health' && ['GET','HEAD'].includes(method)) return send(200,{ok:true,itineraryProvider:itineraries.name,knowledge:{sources:knowledge.sources,chars:knowledge.chars}});
+      const healthBody = () => ({ ok: true, itineraryProvider: itineraries.name, knowledge: { sources: knowledge.sources, chars: knowledge.chars }, ...deployInfo(env) });
+      if (url.pathname==='/api/health' && ['GET','HEAD'].includes(method)) return send(200, healthBody());
       await startup;
       if (!['GET','HEAD'].includes(method) && url.pathname!=='/api/cron/briefings' && url.pathname!=='/api/cron/quote-digest' && url.pathname!=='/api/cron/guide-feedback-digest' && url.pathname!=='/api/inbound/trip-email') {
         // Production accepts only explicitly configured origins. Elsewhere (127.0.0.1, a LAN address, a dev proxy) an Origin that matches the
@@ -411,7 +414,7 @@ export function createApp(options = {}) {
         if(!audit)return;
         await store.updateAiConversationEvent(db,{eventKey:audit.eventKey,ownerId:user.id,conversationId:audit.conversationId,content:auditContent(content),status,updated:new Date().toISOString()});
       };
-      if (p==='/api/health') {allow('GET','HEAD');return send(200,{ok:true,itineraryProvider:itineraries.name,knowledge:{sources:knowledge.sources,chars:knowledge.chars}});}
+      if (p==='/api/health') {allow('GET','HEAD');return send(200, healthBody());}
       if (p==='/api/capabilities' && method==='GET') {const researchReady=!!(config.apiKey&&config.model&&(!(config.provider==='claude'&&config.searchProvider==='perplexity')||config.searchApiKey));const whatsappRaw=String(env.FRIDAY_WHATSAPP_NUMBER||'').trim();const whatsappNumber=/^\+?[0-9\s().-]+$/.test(whatsappRaw)?whatsappRaw.replace(/\D/g,''):'';return send(200,{authRequired:!localAuthBypass,localAuthBypass,authProvider:hexclaveSelected?'hexclave':'local',authConfigured:hexclaveAuth.configured,hexclaveProjectId:hexclaveAuth.projectId,auditOwnerId:user&&user.id||null,research:researchReady,gmail:googleOAuthConfigured,calendar:googleOAuthConfigured,googleOAuth:googleOAuthConfigured,places:placesConfigured,liveFares:false,socialExtraction:researchReady,airportCount:airportData().length,whatsappNumber:/^\d{8,15}$/.test(whatsappNumber)?whatsappNumber:''});}
       if (p==='/api/newsletter/unsubscribe') {
         allow('GET','HEAD','POST');
@@ -433,7 +436,7 @@ export function createApp(options = {}) {
         if(!subscriber||subscriber.consent_at!==consentAt||subscriber.status!=='subscribed')invalid();
         if(method==='GET'||method==='HEAD'){
           const escapedToken=token.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-          const page=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Unsubscribe · Friday</title><link rel="stylesheet" href="/assets/css/friday.css"><style>body{min-height:100vh;background:var(--paper);color:var(--ink)}.unsubscribe{width:min(100% - 3rem,680px);margin:0 auto;padding:clamp(3rem,9vh,7rem) 0}.unsubscribe .wordmark{display:inline-block;margin-bottom:clamp(3rem,9vh,6rem)}.unsubscribe h1{font-family:var(--serif);font-size:clamp(2.8rem,7vw,5rem);font-weight:400;line-height:1}.unsubscribe p{max-width:36rem;line-height:1.65}.unsubscribe__actions{display:flex;align-items:center;flex-wrap:wrap;gap:1.5rem;margin-top:2rem}.unsubscribe #status{min-height:1.5em}</style></head><body><main class="unsubscribe"><a class="wordmark" href="/index.html" aria-label="Friday — home"><span class="wordmark__name">Friday</span></a><p class="eyebrow">Newsletter preferences</p><h1>Unsubscribe from Friday emails?</h1><p>Confirm below to stop newsletter emails for ${address.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}.</p><div class="unsubscribe__actions"><button class="btn btn--solid" id="confirm" type="button">Unsubscribe <span class="arrow" aria-hidden="true">&rarr;</span></button><a class="link" href="/index.html">Return to Friday</a></div><p id="status" role="status" aria-live="polite"></p></main><script>document.querySelector('#confirm').addEventListener('click',async()=>{const b=document.querySelector('#confirm'),s=document.querySelector('#status');b.disabled=true;try{const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${escapedToken}'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Please try again.');s.textContent='You are unsubscribed.';b.hidden=true;}catch(e){s.textContent=e.message;b.disabled=false;}})</script></body></html>`;
+          const page=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Unsubscribe · Friday</title><link rel="stylesheet" href="/assets/css/friday.css"><style>body{min-height:100vh;background:var(--paper);color:var(--ink)}.unsubscribe{width:min(100% - 3rem,680px);margin:0 auto;padding:clamp(3rem,9vh,7rem) 0}.unsubscribe .wordmark{display:inline-block;margin-bottom:clamp(3rem,9vh,6rem)}.unsubscribe h1{font-family:var(--serif);font-size:clamp(2.8rem,7vw,5rem);font-weight:400;line-height:1}.unsubscribe p{max-width:36rem;line-height:1.65}.unsubscribe__actions{display:flex;align-items:center;flex-wrap:wrap;gap:1.5rem;margin-top:2rem}.unsubscribe #status{min-height:1.5em}</style></head><body><main class="unsubscribe"><a class="wordmark" href="/" aria-label="Friday — home"><span class="wordmark__name">Friday</span></a><p class="eyebrow">Newsletter preferences</p><h1>Unsubscribe from Friday emails?</h1><p>Confirm below to stop newsletter emails for ${address.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}.</p><div class="unsubscribe__actions"><button class="btn btn--solid" id="confirm" type="button">Unsubscribe <span class="arrow" aria-hidden="true">&rarr;</span></button><a class="link" href="/">Return to Friday</a></div><p id="status" role="status" aria-live="polite"></p></main><script>document.querySelector('#confirm').addEventListener('click',async()=>{const b=document.querySelector('#confirm'),s=document.querySelector('#status');b.disabled=true;try{const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${escapedToken}'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Please try again.');s.textContent='You are unsubscribed.';b.hidden=true;}catch(e){s.textContent=e.message;b.disabled=false;}})</script></body></html>`;
           res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow, noarchive'});res.end(method==='HEAD'?undefined:page);return;
         }
         await store.unsubscribeNewsletterSubscriber(db,address,new Date().toISOString());
@@ -868,7 +871,8 @@ export function createApp(options = {}) {
       }
       if(p==='/api/admin/status'){
         allow('GET','HEAD');if(!user)fail(401,'Please sign in.');
-        return send(200,{user:{email:user.email||null,name:user.name||null},access:isAdmin,capabilities:{villas:isVillaAdmin,quotes:isQuoteAdmin,aiReview:isAiReviewAdmin,enquiries:isAdmin,newsletter:isAdmin,emailOutbox:isAdmin},setup:{emailConfigured:emailService.configured,commissionEmailConfigured:emailService.configured&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL||'')}});
+        const ops=isAdmin?await opsStatus(db,{env,compareMain:!options.memory}):{deploy:deployInfo(env),jobs:null};
+        return send(200,{user:{email:user.email||null,name:user.name||null},access:isAdmin,capabilities:{villas:isVillaAdmin,quotes:isQuoteAdmin,aiReview:isAiReviewAdmin,enquiries:isAdmin,newsletter:isAdmin,emailOutbox:isAdmin},setup:{emailConfigured:emailService.configured,commissionEmailConfigured:emailService.configured&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.FRIDAY_ENQUIRY_EMAIL||'')},deploy:ops.deploy,jobs:ops.jobs});
       }
       if(p==='/api/admin/briefings'){
         allow('GET','HEAD');if(!user)fail(401,'Please sign in.');if(!isAdmin)fail(403,'Your account does not have Friday admin access.');
@@ -922,13 +926,16 @@ export function createApp(options = {}) {
         const dbConfig=resolveDatabaseConfig(env,{memory:!!options.memory});
         if(dbConfig.kind!=='postgres')fail(503,'Backups need a PostgreSQL database.');
         await db.query('select 1');   // wake a scaled-to-zero database; the pool retries cold starts
+        const backupId=randomUUID(),backupStarted=new Date().toISOString();
+        try{await store.insertBackupRun(db,{id:backupId,started:backupStarted});}catch(error){console.error(`[friday] backup run was not recorded: ${error.message}`);}
+        const recordBackup=async outcome=>{try{await store.finishBackupRun(db,{id:backupId,finished:new Date().toISOString(),outcome});}catch(error){console.error(`[friday] backup run was not finished: ${error.message}`);}};
         const pc=dbConfig.poolConfig,flags=['--format=custom','--no-owner','--no-privileges'];
         if(pc.connectionString)flags.push('--dbname='+pc.connectionString);
         const dumpEnv=pc.connectionString?process.env:{...process.env,PGHOST:pc.host,PGPORT:String(pc.port),PGUSER:pc.user,PGPASSWORD:pc.password,PGDATABASE:pc.database};
         await new Promise(resolve=>{
           const child=spawn('pg_dump',flags,{env:dumpEnv,stdio:['ignore','pipe','pipe']});
           let stderr='',settled=false;
-          const finish=why=>{if(settled)return;settled=true;if(why){console.error(`[friday] db backup failed: ${why}${stderr?` | ${stderr.slice(-1000).replace(/\s+/g,' ')}`:''}`.split(pc.password||pc.connectionString||'\0').join('***'));if(res.headersSent)res.destroy();else send(500,{error:'Backup failed.'});}resolve();};
+          const finish=why=>{if(settled)return;settled=true;recordBackup(why?'failed':'good').finally(()=>{if(why){console.error(`[friday] db backup failed: ${why}${stderr?` | ${stderr.slice(-1000).replace(/\s+/g,' ')}`:''}`.split(pc.password||pc.connectionString||'\0').join('***'));if(res.headersSent)res.destroy();else send(500,{error:'Backup failed.'});}resolve();});};
           child.stderr.on('data',d=>{stderr+=d;});
           child.on('error',e=>finish('spawn error: '+e.message));
           child.on('close',(code,signal)=>finish(code===0&&!signal?'':'pg_dump exited '+(code??signal)));
@@ -1134,7 +1141,7 @@ export function createApp(options = {}) {
         const bestTime=str(body.bestTime,'best time',20,true);
         if(!['morning','afternoon','evening'].includes(bestTime)) fail(422,'Choose a time of day for the call.');
         const submittedEntryPoint=str(body.entryPoint,'entry point',20,true);
-        if(!['planner','contact'].includes(submittedEntryPoint)) fail(422,'This callback request could not be placed.');
+        if(!['planner','contact','villas'].includes(submittedEntryPoint)) fail(422,'This callback request could not be placed.');
         const tripId=body.tripId==null||body.tripId===''?null:str(body.tripId,'trip link',160);
         if(tripId&&!/^[A-Za-z0-9_-]+$/.test(tripId)) fail(422,'This trip link is not valid.');
         const topic=body.topic==null||body.topic===''?null:str(body.topic,'topic',200);

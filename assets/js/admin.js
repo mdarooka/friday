@@ -74,6 +74,7 @@
     dom.loginNote = $('[data-admin-login-note]', dom.page);
     dom.state = $('[data-admin-state]', dom.page);
     dom.workspace = $('[data-admin-workspace]', dom.page);
+    dom.ops = $('[data-admin-ops]', dom.page);
     dom.tabs = $$('.admin-tab', dom.page);
     dom.panels = $$('.admin-panel', dom.page);
 
@@ -143,6 +144,23 @@
       dom.login.hidden = false;
       if (dom.loginNote) dom.loginNote.textContent = msg || '';
     }
+  }
+
+  function renderOps(statusRes) {
+    if (!dom.ops) return;
+    var jobs = statusRes && statusRes.jobs;
+    var deploy = statusRes && statusRes.deploy;
+    if (!jobs) { dom.ops.hidden = true; return; }
+    function when(job) {
+      if (!job || !job.finished) return 'no good run yet';
+      return formatDate(job.finished) + (job.mode ? ' · ' + job.mode : '');
+    }
+    var commit = deploy && deploy.commit ? String(deploy.commit).slice(0, 7) : 'unknown';
+    var built = deploy && deploy.builtAt ? ' · built ' + formatDate(deploy.builtAt) : '';
+    var main = deploy && deploy.main ? String(deploy.main).slice(0, 7) : '';
+    var compare = main ? (deploy.matchesMain ? ' · matches main ' + main : ' · main is ' + main) : '';
+    dom.ops.hidden = false;
+    dom.ops.textContent = 'Deployed ' + commit + built + compare + '. Last good: backup ' + when(jobs.backup) + '; T-7 briefings ' + when(jobs.briefings) + '; quote digest ' + when(jobs.quoteDigest) + '; guide digest ' + when(jobs.guideDigest) + '.';
   }
 
   function showWorkspace(user) {
@@ -1119,6 +1137,7 @@
 
       return FridayAdmin.getStatus().then(function (statusRes) {
         state.setup = statusRes.setup || {};
+        renderOps(statusRes);
         showWorkspace(state.user);
         switchTab(initialTab());
       }).catch(function (err) {

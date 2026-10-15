@@ -514,7 +514,7 @@ test('carousel script: arrows scroll one card and disable at each end; reduced m
   assert.equal(calm.track.scrolled[0].behavior, 'auto');
 });
 
-test('When India travels is linked from the footer, field notes, the Mumbai guide, the guides and the homepage, not the top nav', async () => {
+test('When India travels is linked from the header, footer, field notes, the Mumbai guide, the guides and the homepage', async () => {
   const index = await read('index.html');
   const mumbai = await read('mumbai-quiet-weekend.html');
   const notes = await read('field-notes.html');
@@ -522,7 +522,9 @@ test('When India travels is linked from the footer, field notes, the Mumbai guid
   for (const page of [index, mumbai, notes, guides, html]) {
     assert.match(page, /<ul class="foot__list">[^]*?<li><a href="when-india-travels\.html">When India travels<\/a><\/li>/);
     const header = page.match(/<header[^]*?<\/header>/)[0];
-    assert.doesNotMatch(header, /when-india-travels\.html/);
+    const nav = header.match(/<nav class="nav"[\s\S]*?<\/nav>/)[0];
+    assert.ok(nav.indexOf('href="guides.html"') < nav.indexOf('href="when-india-travels.html"'));
+    assert.ok(nav.indexOf('href="when-india-travels.html"') < nav.indexOf('href="villas.html"'));
     assert.doesNotMatch(page, /long-weekends\.html/);
   }
   assert.match(notes, /href="when-india-travels\.html"[^>]*>[^]*?When India travels/);

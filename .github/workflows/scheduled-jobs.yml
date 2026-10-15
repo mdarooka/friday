@@ -4,14 +4,20 @@ name: Scheduled jobs
 # calls wake it and run each sweep. Every sweep is idempotent, so a retry or a
 # manual re-run never double-sends.
 #
+# GitHub Actions cron often starts late, especially near the top of an hour.
+# These schedules fire about 45 minutes before the in-process clocks (which stay
+# at 09:00 and 09:30 IST) and off the hour, so a delayed run still lands near
+# 9 AM IST. The earlier UTC times are the same UTC date as the old schedules,
+# so the once-per-day and once-per-week guards do not see a second day.
+#
 # Required GitHub repo secret: FRIDAY_CRON_SECRET (same value as the Hexclave
 # project secret of the same name, at least 32 characters).
 
 on:
   schedule:
-    - cron: "30 3 * * *"   # 09:00 IST daily: T-7 trip briefings
-    - cron: "0 4 * * *"    # 09:30 IST daily: designer quote-queue digest
-    - cron: "30 3 * * 1"   # 09:00 IST Mondays: guide feedback digest
+    - cron: "45 2 * * *"   # 08:15 IST daily: T-7 trip briefings, aimed at ~09:00 IST after Actions delay
+    - cron: "15 3 * * *"   # 08:45 IST daily: designer quote-queue digest, aimed at ~09:30 IST
+    - cron: "45 2 * * 1"   # 08:15 IST Mondays: guide feedback digest, aimed at ~09:00 IST
   workflow_dispatch:
     inputs:
       job:
@@ -33,8 +39,8 @@ env:
 jobs:
   briefings:
     name: T-7 briefings
-    if: github.event_name == 'schedule' && github.event.schedule == '30 3 * * *' || github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","briefings"]'), inputs.job)
-    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && github.event.schedule == '45 2 * * *' || github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","briefings"]'), inputs.job)
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Trigger briefing sweep
@@ -47,8 +53,8 @@ jobs:
 
   quote-digest:
     name: Quote digest
-    if: github.event_name == 'schedule' && github.event.schedule == '0 4 * * *' || github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","quote-digest"]'), inputs.job)
-    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && github.event.schedule == '15 3 * * *' || github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","quote-digest"]'), inputs.job)
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Trigger quote digest
@@ -61,8 +67,8 @@ jobs:
 
   guide-feedback-digest:
     name: Guide feedback digest
-    if: github.event_name == 'schedule' && github.event.schedule == '30 3 * * 1' || github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","guide-feedback-digest"]'), inputs.job)
-    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && github.event.schedule == '45 2 * * 1' || github.event_name == 'workflow_dispatch' && contains(fromJSON('["all","guide-feedback-digest"]'), inputs.job)
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Trigger guide feedback digest

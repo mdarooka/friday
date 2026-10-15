@@ -29,9 +29,10 @@ const legacyPage = /^(?:ethos|method|designers|alliances|compositions|wild|drive
 const page = (file, opts) => {
   if (legacyPage.test(file)) return;
   const privatePage = file === 'admin.html' || file === 'admin-villas.html';
-  if (!privatePage && !opts.robots) publicPages.push(file);
-  const extraScripts = [...(privatePage ? [] : ['assets/js/guide-analytics.js']), ...(opts.extraScripts || [])];
-  written.push(write(file, layout({ ...opts, canonical: privatePage || opts.robots ? null : file, robots: privatePage ? 'noindex, nofollow' : (opts.robots || null), extraScripts })));
+  /* villa.html has no listing id; the real homes are villa.html?id=… and stay out of the sitemap. */
+  if (!privatePage && !opts.robots && file !== 'villa.html') publicPages.push(file);
+  const extraScripts = [...(privatePage ? [] : ['assets/js/guide-analytics.js']), ...(opts.extraScripts || [])].filter((src) => src !== 'assets/js/native-page-analytics.js');
+  written.push(write(file, layout({ ...opts, canonical: privatePage || opts.robots ? null : file, robots: privatePage ? 'noindex, nofollow' : (opts.robots || null), extraScripts, nativeAnalytics: !privatePage })));
 };
 
 /* ========================================================== 1. Home */
@@ -1438,7 +1439,7 @@ ${PageHero({
   <p>Friday saves the messages in your AI planning conversations, including what you send and Friday’s replies. A small team of people on Friday’s allowlist can read these saved messages to improve trip suggestions and service quality, and to prepare quotes you request. Chats have no automatic deletion period; they are removed when your account deletion request is completed. You can request deletion in Preferences under Your data, or email <a href="mailto:manavdarooka1@gmail.com">manavdarooka1@gmail.com</a> as a fallback. Copies in backups may remain for the period stated below.</p>
   <h2 class="h3" style="margin:2.5rem 0 .8rem">Who processes information</h2>
   <ul>
-    <li><strong>Hexclave</strong> hosts Friday’s website and server-side services, and provides account authentication, email delivery through its shared email service, and, if configured, encrypted trip storage in its Data Vault. The exact data region is not confirmed; data may be stored in India or abroad, with safeguards to protect it. On account pages where Friday’s Hexclave browser app runs, its current settings enable automatic usage analytics and session replay. Friday’s villa and contact pages also record page visits and clicks through Hexclave Analytics. Those records may include page visits, URLs, click locations, clicked text and links, and the page content shown during a replay, such as trip details and visible chat messages; the SDK masks form inputs by default. Hexclave Clickmaps can show aggregate patterns from these click events. When quote-request measurement is active, Hexclave Analytics receives a quote event with a request reference, the page category (enquiry, planner, villa or package), first-visit campaign source, medium and campaign, and the referring-site hostname; the event does not include your name, email, phone number or message text. The browser stores this attribution and a short event queue in local storage until cleared. The separate client that sends quote events turns off its own automatic analytics and replay capture. When you choose Google or Microsoft sign-in, that provider processes your sign-in and profile details.</li>
+    <li><strong>Hexclave</strong> hosts Friday’s website and server-side services, and provides account authentication, email delivery through its shared email service, and, if configured, encrypted trip storage in its Data Vault. The exact data region is not confirmed; data may be stored in India or abroad, with safeguards to protect it. On account pages where Friday’s Hexclave browser app runs, its current settings enable automatic usage analytics and session replay. Friday’s public pages also record page visits and clicks through Hexclave Analytics. Those records may include page visits, URLs, click locations, clicked text and links, and the page content shown during a replay, such as trip details and visible chat messages; the SDK masks form inputs by default. Hexclave Clickmaps can show aggregate patterns from these click events. When quote-request measurement is active, Hexclave Analytics receives a quote event with a request reference, the page category (enquiry, planner, villa or package), first-visit campaign source, medium and campaign, and the referring-site hostname; the event does not include your name, email, phone number or message text. The browser stores this attribution and a short event queue in local storage until cleared. The separate client that sends quote events turns off its own automatic analytics and replay capture. When you choose Google or Microsoft sign-in, that provider processes your sign-in and profile details.</li>
     <li><strong>Google</strong> provides the Gmail and Calendar APIs you choose to connect, Google Places search and details, and Google Fonts used to display the site. Opening a Google Maps link takes you to Google.</li>
     <li><strong>Anthropic</strong> (Claude) processes prompts or drafts only when an AI feature is configured and you use it.</li>
   </ul>
@@ -1502,7 +1503,7 @@ const notFoundBody = `
       <h1 class="h2">This page wandered off.</h1>
       <p class="lede" style="margin-top:1rem">The address may have changed, or the page may not be here. Let’s get you back to Friday.</p>
       <div class="grid" style="margin-top:2rem;align-items:start">
-        <p class="c-6 c-md-12"><a class="link" href="index.html">Go home <span class="arrow">&rarr;</span></a></p>
+        <p class="c-6 c-md-12"><a class="link" href="/">Go home <span class="arrow">&rarr;</span></a></p>
         <p class="c-6 c-md-12"><a class="link" href="kerala-guide.html">Explore the Kerala guide <span class="arrow">&rarr;</span></a></p>
         <p class="c-6 c-md-12"><a class="link" href="trip.html">Plan a trip <span class="arrow">&rarr;</span></a></p>
         <p class="c-6 c-md-12"><a class="link" href="contact.html">Contact Friday <span class="arrow">&rarr;</span></a></p>
@@ -1534,7 +1535,7 @@ const scriptsWritten = Object.keys(tripScripts).map((file) => {
 const redirectPage = (file, target, label) => {
   const safeTarget = T.esc(target);
   const canonicalHref = T.esc(publicUrl(target, PUBLIC_ORIGIN));
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="0;url=${safeTarget}"><link rel="canonical" href="${canonicalHref}"><title>${label} · Friday</title><link rel="stylesheet" href="assets/css/friday.css"></head><body><main style="min-height:100vh;display:grid;place-items:center;padding:2rem;text-align:center"><div><a class="wordmark" href="index.html"><span class="wordmark__name">Friday</span></a><p style="margin-top:2rem">This page has moved.</p><p><a class="link" href="${safeTarget}">Continue to ${label} <span class="arrow">&rarr;</span></a></p></div></main><script>location.replace(${JSON.stringify(target)})</script></body></html>`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="0;url=${safeTarget}"><link rel="canonical" href="${canonicalHref}"><title>${label} · Friday</title><link rel="stylesheet" href="assets/css/friday.css"></head><body><main style="min-height:100vh;display:grid;place-items:center;padding:2rem;text-align:center"><div><a class="wordmark" href="/"><span class="wordmark__name">Friday</span></a><p style="margin-top:2rem">This page has moved.</p><p><a class="link" href="${safeTarget}">Continue to ${label} <span class="arrow">&rarr;</span></a></p></div></main><script>location.replace(${JSON.stringify(target)})</script></body></html>`;
   written.push(write(file, html));
 };
 [

@@ -115,11 +115,13 @@ function Header(active) {
   return `
 <header class="head" data-head>
   <div class="head__in">
-    <a class="wordmark" href="index.html" aria-label="${esc(D.brand.name)} — home">
+    <a class="wordmark" href="/" aria-label="${esc(D.brand.name)} — home">
       <span class="wordmark__name">${esc(D.brand.name)}</span>
     </a>
 
     <nav class="nav" aria-label="Primary">
+      ${topLink('guides.html', 'Guides')}
+      ${topLink('when-india-travels.html', 'When India travels')}
       ${topLink('villas.html', 'Villas')}
       ${topLink('departures.html', 'Packages')}
       ${topLink('about.html', 'About Friday')}
@@ -141,6 +143,8 @@ function Header(active) {
     <div class="menu__grid">
       <div class="menu__col">
         <p class="menu__h">Explore</p>
+        <a class="menu__link" href="guides.html"${currentAttr('guides.html')}>Guides</a>
+        <a class="menu__link" href="when-india-travels.html"${currentAttr('when-india-travels.html')}>When India travels</a>
         <a class="menu__link" href="villas.html"${currentAttr('villas.html')}>Villas</a>
         <a class="menu__link" href="departures.html"${currentAttr('departures.html')}>Packages</a>
       </div>
@@ -179,16 +183,16 @@ function Footer() {
 <footer class="foot inverse">
   <div class="wrap">
     <div class="foot__grid">
-      <a class="foot__brand" href="index.html" aria-label="Friday — home">${D.brand.name}</a>
+      <a class="foot__brand" href="/" aria-label="Friday — home">${D.brand.name}</a>
       <div class="foot__links">
       ${col('Explore', [
+        { label: 'Travel guides', href: 'guides.html' },
+        { label: 'When India travels', href: 'when-india-travels.html' },
         { label: 'Villas', href: 'villas.html' },
         { label: 'Packages', href: 'departures.html' },
-        { label: 'Travel guides', href: 'guides.html' },
         { label: 'Kerala guide', href: 'kerala-guide.html' },
         { label: 'Goa guide', href: 'goa-guide.html' },
         { label: 'Rajasthan guide', href: 'rajasthan-guide.html' },
-        { label: 'When India travels', href: 'when-india-travels.html' },
         { label: 'Field Notes', href: 'field-notes.html' },
         { label: 'Plan a trip', href: 'trip.html' },
       ])}
@@ -220,7 +224,7 @@ function Footer() {
 
 /* ------------------------------------------------------------ the shell */
 
-function layout({ title, description, body, active, lightHead, canonical, social, robots, extraStyles = [], extraScripts = [], extraHead = '' }) {
+function layout({ title, description, body, active, lightHead, canonical, social, robots, extraStyles = [], extraScripts = [], extraHead = '', nativeAnalytics = true }) {
   /* `social` = { image, alt } overrides the default share card (see build/social-cards.js). `image` must be absolute. */
   const socialImage = (social && social.image) || SOCIAL_IMAGE;
   const socialAlt = (social && social.alt) || 'A coastal travel scene with Friday’s thoughtful journeys message';
@@ -257,7 +261,7 @@ ${Header(active)}
 ${body}
 </main>
 ${Footer()}
-<script src="assets/js/friday-analytics.js"></script>
+${nativeAnalytics ? '<script src="assets/js/native-page-analytics.js"></script>\n' : ''}<script src="assets/js/friday-analytics.js"></script>
 <script src="assets/js/quote-analytics.js"></script>
 <script src="assets/js/friday.js"></script>
 ${extraScripts.map((src) => `<script src="${esc(src)}"></script>`).join('\n')}

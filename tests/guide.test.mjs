@@ -101,7 +101,7 @@ test('production metadata uses Friday’s canonical domain when no build origin 
   assert.match(sitemap, /<loc>https:\/\/fridaytravel\.vercel\.app\/<\/loc>/);
   assert.doesNotMatch(sitemap, /\/index\.html/);
   assert.match(sitemap, /https:\/\/fridaytravel\.vercel\.app\/field-notes\.html/);
-  assert.match(sitemap, /https:\/\/fridaytravel\.vercel\.app\/villa\.html/);
+  assert.doesNotMatch(sitemap, /https:\/\/fridaytravel\.vercel\.app\/villa\.html/);
   assert.match(robots, /Sitemap: https:\/\/fridaytravel\.vercel\.app\/sitemap\.xml/);
 });
 

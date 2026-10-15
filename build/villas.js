@@ -56,7 +56,7 @@ function villaSubmissionBody() {
 
 function adminVillasBody() {
   return `<div class="villa-site villa-admin wrap" data-villa-page="admin">
-    <section class="villa-admin__head"><div><p class="eyebrow">Friday team</p></div><a class="villa-back" href="index.html">Back to Friday</a></section>
+    <section class="villa-admin__head"><div><p class="eyebrow">Friday team</p></div><a class="villa-back" href="/">Back to Friday</a></section>
     <section class="villa-admin__login" data-admin-login hidden><div class="villa-admin__card"><p class="eyebrow">Team access</p><h2 class="h3">Sign in to continue</h2><p class="card__d">Use your Friday team account. The planner can remain in guest mode.</p><form data-admin-login-form><label class="villa-label" for="admin-email">Email</label><input class="villa-input" id="admin-email" name="email" type="email" autocomplete="username" required><label class="villa-label" for="admin-password">Password</label><input class="villa-input" id="admin-password" name="password" type="password" autocomplete="current-password" required><button class="btn btn--solid" type="submit">Sign in</button><p class="villa-form-note" data-admin-login-note role="status"></p></form></div></section>
     <p class="villa-state" data-admin-state>Checking team access&hellip;</p>
     <div class="villa-admin__workspace" data-admin-workspace hidden>
