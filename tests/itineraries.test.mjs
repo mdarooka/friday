@@ -21,7 +21,16 @@ test('GET /api/health is public and reports the itinerary provider and knowledge
   assert.equal(r.result.ok, true);
   assert.equal(r.result.itineraryProvider, 'local');
   assert.ok(Array.isArray(r.result.knowledge.sources) && typeof r.result.knowledge.chars === 'number');
+  assert.equal(r.result.commit, null);
+  assert.equal(r.result.builtAt, null);
   assert.equal((await request('/api/health', 'POST', {})).status, 405);
+});
+
+test('GET /api/health reports a build-arg commit and build time', async (t) => {
+  const { request } = await startApp(t, { env: { FRIDAY_COMMIT_SHA: 'abc1234', FRIDAY_BUILD_TIME: '2026-10-15T08:00:00Z' } });
+  const r = await request('/api/health');
+  assert.equal(r.result.commit, 'abc1234');
+  assert.equal(r.result.builtAt, '2026-10-15T08:00:00.000Z');
 });
 
 test('GET /api/destinations lists all six with trip types and durations', async (t) => {

@@ -35,6 +35,10 @@
 .villa-empty { grid-column: 1/-1; padding: clamp(2rem, 6vw, 5rem); text-align: center; border: 1px solid var(--rule-soft); }
 .villa-empty h3 { font: 300 2rem/1.1 var(--serif); }
 .villa-empty p { max-width: 34rem; margin: .8rem auto 0; color: var(--fg-mute); }
+.villa-empty--ask { text-align: center; }
+.villa-ask { max-width: 28rem; margin: 1.6rem auto 0; text-align: left; }
+.villa-ask .field { margin-bottom: 1rem; }
+.villa-ask__links { display: flex; flex-wrap: wrap; gap: .8rem 1.4rem; justify-content: center; margin-top: 1.4rem; }
 .villa-host-cta { padding-block: clamp(3.5rem, 8vw, 7rem); }
 .villa-host-cta__in { display: flex; align-items: center; justify-content: space-between; gap: 3rem; }
 .villa-host-cta .card__d { max-width: 33rem; }

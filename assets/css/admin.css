@@ -25,6 +25,15 @@
   margin-top: 1.5rem;
 }
 
+.admin-ops {
+  margin: 0 0 1.25rem;
+  padding: .9rem 1rem;
+  border: 1px solid var(--rule);
+  font-size: var(--admin-text);
+  line-height: 1.5;
+  color: var(--fg-mute);
+}
+
 /* Tab navigation */
 .admin-tabs {
   display: flex;

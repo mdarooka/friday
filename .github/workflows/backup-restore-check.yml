@@ -2,7 +2,9 @@ name: Weekly backup restore check
 
 on:
   schedule:
-    - cron: '0 6 * * 1'   # Mondays 06:00 UTC (11:30 IST)
+    # Mondays 05:15 UTC (10:45 IST). About 45 minutes before the old 11:30 IST
+    # target, and off the hour, so a delayed Actions run still lands near it.
+    - cron: '15 5 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -14,14 +16,14 @@ concurrency:
 
 jobs:
   restore:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
       BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
 

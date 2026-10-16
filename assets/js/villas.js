@@ -17,6 +17,17 @@
   function villaCard(v) {
     return '<a class="villa-card" href="villa.html?id=' + encodeURIComponent(v.id) + '"><div class="villa-card__art" aria-hidden="true"><span class="villa-card__glyph"></span></div><div class="villa-card__body"><p class="villa-card__city">' + esc(v.city || '') + '</p><h3 class="villa-card__name">' + esc(v.name || 'Friday stay') + '</h3><div class="villa-card__meta">' + (v.bedrooms ? '<span>' + esc(v.bedrooms) + ' bedrooms</span>' : '') + (v.maxGuests ? '<span>Sleeps ' + esc(v.maxGuests) + '</span>' : '') + '</div>' + (v.description ? '<p class="villa-card__desc">' + esc(v.description) + '</p>' : '') + '<span class="villa-card__link">Explore this home &rarr;</span></div></a>';
   }
+  function askForVilla() {
+    return '<div class="villa-empty villa-empty--ask"><h3>Ask for a villa</h3><p>The collection is still taking shape. Tell a designer where and when you would like to stay.</p><form class="villa-ask" data-villa-ask>' +
+      '<div class="field"><label class="field__label" for="villa-ask-name">Your name</label><input class="field__input" id="villa-ask-name" name="name" type="text" maxlength="100" required autocomplete="name"></div>' +
+      '<div class="field"><label class="field__label" for="villa-ask-phone">Phone number</label><input class="field__input" id="villa-ask-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="10 digits or +91" maxlength="18" required></div>' +
+      '<div class="field"><label class="field__label" for="villa-ask-time">Best time to call</label><select class="field__select" id="villa-ask-time" name="bestTime" required><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></div>' +
+      '<div class="field"><label class="field__label" for="villa-ask-where">Where and when</label><input class="field__input" id="villa-ask-where" name="topic" type="text" maxlength="200" placeholder="A coast in December, a quiet house near the hills"></div>' +
+      '<button class="btn btn--solid" type="submit">Ask for a villa <span class="arrow">&rarr;</span></button>' +
+      '<p class="card__d" data-signin-hint="designer">You&rsquo;ll need to sign in to send this. <a class="link" href="trip.html?signin=designer&amp;return=villas.html">Sign in or create an account</a></p>' +
+      '<p class="card__d" data-villa-ask-status role="status" aria-live="polite"></p></form>' +
+      '<p class="villa-ask__links"><a class="link" href="mumbai-quiet-weekend.html">Mumbai quiet weekend <span class="arrow">&rarr;</span></a><a class="link" href="contact.html#callback-title">Call me back <span class="arrow">&rarr;</span></a></p></div>';
+  }
   function initIndex(root) {
     var list = $('[data-villa-list]', root), count = $('[data-villa-count]', root), form = $('[data-villa-search]', root), input = $('#villa-location', root), q = new URLSearchParams(location.search).get('location') || new URLSearchParams(location.search).get('q') || '';
     input.value = q;
@@ -24,9 +35,34 @@
       var term = input.value.trim().toLowerCase();
       var shown = items.filter(function (v) { return !term || [v.name, v.city, v.address, v.description].join(' ').toLowerCase().indexOf(term) >= 0; });
       count.textContent = shown.length ? shown.length + (shown.length === 1 ? ' home' : ' homes') : '';
-      list.innerHTML = shown.length ? shown.map(villaCard).join('') : '<div class="villa-empty"><h3>' + (items.length ? 'No homes in that area yet.' : 'The collection is taking shape.') + '</h3><p>' + (items.length ? 'Try a nearby town or region.' : 'Friday only publishes homes that have been reviewed. Please check back soon or introduce a villa you love.') + '</p></div>';
+      list.innerHTML = shown.length ? shown.map(villaCard).join('') : (items.length ? '<div class="villa-empty"><h3>No homes in that area yet.</h3><p>Try a nearby town or region.</p></div>' : askForVilla());
     }
     form.addEventListener('submit', function (e) { e.preventDefault(); var next = new URL(location.href); next.searchParams.set('location', input.value.trim()); history.replaceState(null, '', next.pathname + next.search); api('/api/villas').then(function (r) { draw(r.villas || []); }).catch(function () { list.innerHTML = '<p class="villa-state">The collection could not load. Please try again.</p>'; }); });
+    list.addEventListener('submit', function (e) {
+      var ask = e.target.closest('[data-villa-ask]');
+      if (!ask) return;
+      e.preventDefault();
+      if (!ask.reportValidity()) return;
+      var button = $('button[type="submit"]', ask), status = $('[data-villa-ask-status]', ask), entries = new FormData(ask);
+      var data = { name: entries.get('name'), phone: entries.get('phone'), bestTime: entries.get('bestTime'), entryPoint: 'villas' };
+      var topic = String(entries.get('topic') || '').trim();
+      if (topic) data.topic = topic;
+      button.disabled = true;
+      if (status) status.textContent = 'Sending your request…';
+      var auth = window.FridayAuth;
+      (auth ? auth.user() : Promise.resolve(null)).then(function (user) {
+        if (!user) throw Object.assign(new Error('You\u2019ll need to sign in to send this.'), { signIn: true });
+        return auth.headers();
+      }).then(function (headers) {
+        return api('/api/callbacks', 'POST', data, headers);
+      }).then(function (result) {
+        ask.reset();
+        if (status) status.textContent = result.delivery && result.delivery.notification === 'provider_accepted' ? 'Thanks. A designer has your number and will call at that time.' : 'Your request is saved. A designer will call at that time.';
+      }).catch(function (err) {
+        if (status) status.textContent = err.message || 'Your request could not be saved. Please try again.';
+        if (err.signIn && status && auth) status.append(' ', (function () { var link = document.createElement('a'); link.className = 'link'; link.href = auth.signInUrl('designer'); link.textContent = 'Sign in or create an account'; return link; })());
+      }).then(function () { button.disabled = false; });
+    });
     input.addEventListener('input', function () { if (!input.value.trim()) draw(window.__fridayVillas || []); else draw(window.__fridayVillas || []); });
     api('/api/villas').then(function (r) { window.__fridayVillas = r.villas || []; draw(window.__fridayVillas); }).catch(function () { list.innerHTML = '<div class="villa-empty"><h3>We could not load the collection.</h3><p>Please try again in a moment.</p><button type="button" class="villa-chip" data-retry>Try again</button></div>'; list.addEventListener('click', function (e) { if (e.target.closest('[data-retry]')) api('/api/villas').then(function (r) { window.__fridayVillas = r.villas || []; draw(window.__fridayVillas); }); }); });
   }

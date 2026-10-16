@@ -51,6 +51,12 @@ test('callback requests validate Indian numbers, enter the quotes queue, and not
   const otherStatus = await request('/api/callbacks?tripId=trip_123', 'GET', undefined, { cookie: other.cookie });
   assert.deepEqual(otherStatus.result.requests, []);
   assert.equal((await db.one('SELECT count(*) AS n FROM callback_requests')).n, 1);
+  const villaAsk = await request('/api/callbacks', 'POST', { name: 'Meera Shah', phone: '9876543210', bestTime: 'morning', entryPoint: 'villas', topic: 'A quiet house in December' }, { cookie: admin.cookie });
+  assert.equal(villaAsk.status, 201);
+  const villaRow = (await request('/api/admin/quotes', 'GET', undefined, { cookie: admin.cookie })).result.quotes.find(row => row.id === villaAsk.result.id);
+  assert.equal(villaRow.entryPoint, 'villas');
+  assert.equal(villaRow.topic, 'A quiet house in December');
+  assert.equal(villaRow.kind, 'callback');
 });
 
 test('callback route rate-limits repeat submissions', async t => {

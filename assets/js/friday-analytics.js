@@ -57,6 +57,14 @@
 
   function client() {
     if (!clientPromise) {
+      var shared = window.FridayNativePageAnalytics && window.FridayNativePageAnalytics.client;
+      if (shared && typeof shared.then === 'function') {
+        clientPromise = shared.then(function (app) {
+          if (!app) throw new Error('Friday analytics is unavailable.');
+          return app;
+        }).catch(function (error) { clientPromise = null; throw error; });
+        return clientPromise;
+      }
       clientPromise = fetch('/api/capabilities', { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (response) {
         if (!response.ok) throw new Error('Friday analytics is unavailable.');
         return response.json();

@@ -2,7 +2,10 @@ name: Nightly database backup
 
 on:
   schedule:
-    - cron: '30 20 * * *'   # 02:00 IST
+    # 01:15 IST. About 45 minutes before the 02:00 IST target, and off the hour,
+    # because GitHub Actions cron often starts late. A delayed run still lands
+    # near 02:00 IST, on the same UTC date as the old 20:30 UTC schedule.
+    - cron: '45 19 * * *'
   workflow_dispatch:
 
 permissions:
@@ -13,7 +16,7 @@ concurrency:
 
 jobs:
   backup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Download and encrypt dump
@@ -39,7 +42,7 @@ jobs:
           openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass env:BACKUP_PASSPHRASE -in friday.dump -out "$out"
           rm -f friday.dump
           echo "Encrypted backup: $(wc -c < "$out") bytes"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: friday-db-backup
           path: friday-*.dump.enc

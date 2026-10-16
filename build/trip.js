@@ -87,9 +87,9 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
 </head>
 <body class="fx">
 <header class="fx-start-header" data-start-header>
-  <a class="fx-start-header__wordmark" href="index.html" aria-label="Friday home">Friday</a>
+  <a class="fx-start-header__wordmark" href="/" aria-label="Friday home">Friday</a>
   <nav class="fx-start-header__nav" aria-label="Friday website">
-    <a href="villas.html">Villas</a><a href="departures.html">Packages</a><a href="about.html">About Friday</a>
+    <a href="guides.html">Guides</a><a href="when-india-travels.html">When India travels</a><a href="villas.html">Villas</a><a href="departures.html">Packages</a><a href="about.html">About Friday</a>
   </nav>
 </header>
 <div class="fx-app" data-app>
@@ -106,7 +106,7 @@ ${FONT_LINKS.replace("Inter:wght@300;400;500&", "Inter:wght@300;400;500;600&")}
   </main>
 </div>
 <div data-layer></div>
-<noscript><p style="padding:2rem;font-family:sans-serif">Friday's planner needs JavaScript. The rest of the site does not: <a href="index.html">back to Friday</a>.</p></noscript>
+<noscript><p style="padding:2rem;font-family:sans-serif">Friday's planner needs JavaScript. The rest of the site does not: <a href="/">back to Friday</a>.</p></noscript>
 </body>
 </html>`;
 }

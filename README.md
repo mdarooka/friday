@@ -37,11 +37,11 @@ Vercel (`vercel.json`, project `friday-travel`) is only a reverse proxy: it serv
 
 The Deploy app is in alpha, and its service region is not confirmed here (it may not be in India). Backups go to 30-day GitHub Actions artifacts, encrypted before upload (see below); copy them elsewhere if you need longer retention. Disk size can only be grown, not reduced.
 
-After the first deployment, write a test record, restart and redeploy the service, and confirm that the record remains. Take a `pg_dump` and test restoring it into a scratch database before storing important data. The public `/api/health` endpoint is available, and the Dockerfile includes a health check for it.
+After the first deployment, write a test record, restart and redeploy the service, and confirm that the record remains. Take a `pg_dump` and test restoring it into a scratch database before storing important data. The public `/api/health` endpoint is available, and the Dockerfile includes a health check for it. Health also reports `commit` and `builtAt` when the image is built with `--build-arg FRIDAY_COMMIT_SHA` and `--build-arg FRIDAY_BUILD_TIME`, or when the host sets `VERCEL_GIT_COMMIT_SHA` and `VERCEL_GIT_COMMIT_TIMESTAMP`. The admin console compares that commit with `main` when GitHub’s public API answers within a second and a half. Hexclave Deploy does not pass those build-args unless the image build is given them; until then `commit` is null. Do not put a token in the image for that comparison.
 
 ### Nightly database backup
 
-Hexclave Deploy has no cron, so `.github/workflows/db-backup.yml` runs daily at 02:00 IST. It calls `GET /api/cron/db-backup` on `https://fridaytravel.vercel.app` (the web image bundles the PostgreSQL 17 `pg_dump`), encrypts the dump with AES-256 on the runner, and uploads only the `.dump.enc` file as an artifact kept for 30 days. The repository is public, so nothing but ciphertext is ever stored or logged.
+Hexclave Deploy has no cron, so `.github/workflows/db-backup.yml` is scheduled at 19:45 UTC (01:15 IST). GitHub Actions cron often starts late, especially near the top of an hour, so the workflow fires about 45 minutes before the 02:00 IST target and off the hour. A delayed run still lands near 02:00 IST. It calls `GET /api/cron/db-backup` on `https://fridaytravel.vercel.app` (the web image bundles the PostgreSQL 17 `pg_dump`), encrypts the dump with AES-256 on the runner, and uploads only the `.dump.enc` file as an artifact kept for 30 days. The repository is public, so nothing but ciphertext is ever stored or logged.
 
 One-time setup:
 
@@ -64,7 +64,7 @@ Restore into a scratch database first, and delete `friday.dump` afterwards becau
 
 #### Weekly restore check
 
-`.github/workflows/backup-restore-check.yml` runs every Monday at 06:00 UTC (and on Run workflow). It checks that the newest nightly backup is less than 36 hours old, downloads and decrypts it, restores it into a scratch PostgreSQL 17 container, counts rows in the core tables (`users` must not be empty), and writes the timing and counts to the run's summary. The scratch container is removed afterwards.
+`.github/workflows/backup-restore-check.yml` is scheduled for Mondays at 05:15 UTC / 10:45 IST (and on Run workflow), about 45 minutes before the old 11:30 IST target so a delayed Actions run still lands near it. It checks that the newest nightly backup is less than 36 hours old, downloads and decrypts it, restores it into a scratch PostgreSQL 17 container, counts rows in the core tables (`users` must not be empty), and writes the timing and counts to the run's summary. The scratch container is removed afterwards.
 
 It fails, and so emails the person who last changed the schedule (GitHub's failure notice), when the backup is missing or stale, the decrypt fails, or the restore or a table check fails. The nightly backup fails the same way. For a faster alert, set `BACKUP_ALERT_WEBHOOK_URL` (optional) to an incoming-webhook URL from Slack, Discord or any service that accepts a JSON POST with `text` or `content`; both workflows post to it on failure and skip it when it is unset.
 
@@ -190,7 +190,7 @@ Only the Claude provider uses it; the local generator is unaffected.
 
 ## Scheduled jobs
 
-The host scales to zero, so in-process timers are unreliable. `.github/workflows/scheduled-jobs.yml` wakes the service and calls `POST /api/cron/briefings` (daily 03:30 UTC / 09:00 IST), `/api/cron/quote-digest` (daily 04:00 UTC) and `/api/cron/guide-feedback-digest` (Mondays 03:30 UTC). Each returns a JSON summary and is idempotent per day or week, so retries and manual runs never double-send. The job can also be started from the Actions tab (workflow_dispatch).
+The host scales to zero, so in-process timers are unreliable. Those timers stay at 09:00 IST for T-7 briefings and the guide digest, and 09:30 IST for the quote digest. `.github/workflows/scheduled-jobs.yml` wakes the service earlier, because GitHub Actions cron is often delayed: `POST /api/cron/briefings` at 02:45 UTC / 08:15 IST, `/api/cron/quote-digest` at 03:15 UTC / 08:45 IST, and `/api/cron/guide-feedback-digest` on Mondays at 02:45 UTC / 08:15 IST. The aim is for the T-7 briefing to land around 09:00 IST. The earlier times are still the same UTC date as the old schedules, and each sweep is idempotent per day or week, so a retry or the in-process timer does not double-send. The job can also be started from the Actions tab (workflow_dispatch).
 
 The owner must set the same secret in two places:
 

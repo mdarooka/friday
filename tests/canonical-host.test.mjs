@@ -112,7 +112,11 @@ test('public pages canonicalize to fridaytravel.vercel.app and private pages do 
   assert.match(moved, /<link rel="canonical" href="https:\/\/fridaytravel\.vercel\.app\/departures\.html">/);
   const sitemap = await readFile(new URL('../sitemap.xml', import.meta.url), 'utf8');
   const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
-  for (const url of canonicalUrls) assert.ok(urls.includes(url), url);
+  for (const url of canonicalUrls) {
+    if (url.endsWith('/villa.html')) continue;
+    assert.ok(urls.includes(url), url);
+  }
+  assert.equal(urls.includes(`${canonical}/villa.html`), false);
   assert.doesNotMatch(sitemap, /peach/);
 });
 

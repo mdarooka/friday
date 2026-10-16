@@ -11,7 +11,7 @@ function adminBody() {
       <div class="admin-user-bar" data-admin-user-bar hidden>
         <span class="admin-user-name" data-admin-user-name></span>
         <button type="button" class="villa-text-button" data-admin-logout>Sign out</button>
-        <a class="villa-back" href="index.html">&larr; Back to Friday</a>
+        <a class="villa-back" href="/">&larr; Back to Friday</a>
       </div>
     </section>
 
@@ -34,6 +34,7 @@ function adminBody() {
     <p class="villa-state" data-admin-state>Checking team access&hellip;</p>
 
     <div class="admin-workspace" data-admin-workspace hidden>
+      <p class="admin-ops" data-admin-ops hidden></p>
       <nav class="admin-tabs" role="tablist" aria-label="Admin console navigation">
         <button type="button" class="admin-tab is-active" role="tab" aria-selected="true" data-tab="villas">Villas &amp; Submissions</button>
         <button type="button" class="admin-tab" role="tab" aria-selected="false" data-tab="quotes">Quote Delivery</button>
