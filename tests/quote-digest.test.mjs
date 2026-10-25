@@ -98,3 +98,16 @@ test('callback status endpoint: auth, 404/422, and done callbacks leave the dige
   assert.equal((await post(ctx, staff, { status: 'open' }, cid)).status, 200);
   assert.equal((await collectQueue({ db, store: store2, now: new Date() })).length, 1);
 });
+
+test('quote digest cron stays hidden without a long secret and runs from the proxy-safe header', async t => {
+  const { startApp } = await import('./helpers.mjs');
+  const secret = 'q'.repeat(40);
+  const off = await startApp(t);
+  assert.equal((await off.request('/api/cron/quote-digest', 'POST')).status, 404);
+  const app = await startApp(t, { env: { FRIDAY_CRON_SECRET: secret, FRIDAY_QUOTE_DIGEST: 'off' } });
+  const hidden = await app.request('/api/cron/quote-digest', 'POST', undefined, { headers: { 'x-friday-cron-secret': 'short' } });
+  assert.equal(hidden.status, 401);
+  const ran = await app.request('/api/cron/quote-digest', 'POST', undefined, { headers: { 'x-friday-cron-secret': secret } });
+  assert.equal(ran.status, 200);
+  assert.deepEqual(ran.result, { skipped: 'off' });
+});

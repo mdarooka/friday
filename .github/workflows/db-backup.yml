@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: db-backup
@@ -16,6 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - name: Download and encrypt dump
         env:
           FRIDAY_BACKUP_SECRET: ${{ secrets.FRIDAY_BACKUP_SECRET }}
@@ -23,22 +29,24 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          if [ -z "$FRIDAY_BACKUP_SECRET" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
-            echo "::error::FRIDAY_BACKUP_SECRET and BACKUP_PASSPHRASE must both be set as repository secrets."
+          if [ -z "${BACKUP_PASSPHRASE}" ]; then
+            printf '%s\n' "BACKUP_PASSPHRASE is not set as a GitHub Actions secret, so the dump cannot be encrypted. Keep a copy of it offline; without it the backups cannot be read." > cron-error.txt
+            echo "::error::BACKUP_PASSPHRASE must be set as a repository secret."
             exit 1
           fi
-          curl --fail --silent --show-error --retry 3 --retry-all-errors --retry-delay 20 --max-time 600 \
-            -H "Authorization: Bearer $FRIDAY_BACKUP_SECRET" \
-            -o friday.dump https://fridaytravel.vercel.app/api/cron/db-backup
-          if [ "$(head -c 5 friday.dump)" != "PGDMP" ]; then
-            rm -f friday.dump
-            echo "::error::Response was not a pg_dump custom-format archive."
-            exit 1
-          fi
+          node scripts/cron-call.mjs \
+            --url https://fridaytravel.vercel.app/api/cron/db-backup \
+            --method GET \
+            --secret-env FRIDAY_BACKUP_SECRET \
+            --secret-name FRIDAY_BACKUP_SECRET \
+            --expect pgdump \
+            --out friday.dump \
+            --error-file cron-error.txt
           out="friday-$(date -u +%Y-%m-%d).dump.enc"
           openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass env:BACKUP_PASSPHRASE -in friday.dump -out "$out"
           rm -f friday.dump
           echo "Encrypted backup: $(wc -c < "$out") bytes"
+
       - uses: actions/upload-artifact@v4
         with:
           name: friday-db-backup
@@ -46,15 +54,20 @@ jobs:
           retention-days: 30
           if-no-files-found: error
           compression-level: 0
-      - name: Alert the owners (only when the backup failed)
+
+      - name: Alert the owners
         if: failure()
         env:
+          GH_TOKEN: ${{ github.token }}
           ALERT_WEBHOOK_URL: ${{ secrets.BACKUP_ALERT_WEBHOOK_URL }}
         run: |
-          echo "::error::Nightly database backup failed. See the run log."
-          if [ -z "$ALERT_WEBHOOK_URL" ]; then
-            echo "BACKUP_ALERT_WEBHOOK_URL is not set; GitHub's failure email is the only alert."
-            exit 0
-          fi
-          body="{\"text\":\"Friday nightly database backup FAILED: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\",\"content\":\"Friday nightly database backup FAILED: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}"
-          curl --fail --silent --show-error --max-time 30 -H 'Content-Type: application/json' -d "$body" "$ALERT_WEBHOOK_URL" >/dev/null
+          set -euo pipefail
+          detail="$(cat cron-error.txt 2>/dev/null || true)"
+          if [ -z "$detail" ]; then detail="The nightly database backup failed. See the run log."; fi
+          node scripts/workflow-alert.mjs --title "Friday nightly database backup is failing" --detail "$detail"
+
+      - name: Close the failure alert
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/workflow-alert.mjs --resolve --title "Friday nightly database backup is failing"

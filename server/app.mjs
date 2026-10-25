@@ -31,6 +31,7 @@ import { extractBooking, htmlToText, jsonLdObjects } from './booking-extraction.
 import { carryVerification, verifyBooking } from './booking-confidence.mjs';
 import { forwardAddressFor, forwardTokenFromRecipient, inboundSecretMatches, newForwardToken, saveForwardedBooking } from './forward-booking.mjs';
 import { quoteDigestMode, digestRecipient, runQuoteDigest, startQuoteDigestLoop } from './quote-digest.mjs';
+import { presentedCronSecret } from './cron-auth.mjs';
 import { PREQUOTE_ITEMS, issueChecklist, saveChecklist, getChecklist } from './prequote-checklist.mjs';
 import { briefingAutosendMode, runBriefingSweep, startBriefingLoop, REQUIRED_DRY_RUN_DAYS } from './briefing-scheduler.mjs';
 import { ensureRobotsMeta, hostPolicy, isPrivateSurface, rewritePublicHtml, rewriteRobotsSitemap, rewriteSitemapOrigins, hiddenRobotsTxt, ROBOTS_NOINDEX, visitorHost, isPublicProxyRequest, PROXY_HEADER } from './canonical-host.mjs';
@@ -906,7 +907,7 @@ export function createApp(options = {}) {
         const cronSecret=String(env.FRIDAY_CRON_SECRET||'');
         if(cronSecret.length<32)fail(404,'Not found.');
         allow('POST');rate('cron-guide-digest:'+ip,10);
-        const given=/^Bearer (.+)$/.exec(req.headers.authorization||'')?.[1]||'';
+        const given=presentedCronSecret(req.headers);
         const digest=x=>createHash('sha256').update(x).digest();
         if(!timingSafeEqual(digest(given),digest(cronSecret)))fail(401,'Unauthorized.');
         return send(200,await guideDigestSweep({now:new Date()}));
@@ -916,7 +917,7 @@ export function createApp(options = {}) {
         const backupSecret=String(env.FRIDAY_BACKUP_SECRET||'');
         if(backupSecret.length<32)fail(404,'Not found.');
         allow('GET');rate('cron-db-backup:'+ip,10);
-        const given=/^Bearer (.+)$/.exec(req.headers.authorization||'')?.[1]||'';
+        const given=presentedCronSecret(req.headers);
         const digest=x=>createHash('sha256').update(x).digest();
         if(!timingSafeEqual(digest(given),digest(backupSecret)))fail(401,'Unauthorized.');
         const dbConfig=resolveDatabaseConfig(env,{memory:!!options.memory});
@@ -943,7 +944,7 @@ export function createApp(options = {}) {
         const cronSecret=String(env.FRIDAY_CRON_SECRET||'');
         if(cronSecret.length<32)fail(404,'Not found.');
         allow('POST');rate('cron-briefings:'+ip,10);
-        const given=/^Bearer (.+)$/.exec(req.headers.authorization||'')?.[1]||'';
+        const given=presentedCronSecret(req.headers);
         const digest=x=>createHash('sha256').update(x).digest();
         if(!timingSafeEqual(digest(given),digest(cronSecret)))fail(401,'Unauthorized.');
         return send(200,await briefingSweep({now:new Date()}));
@@ -952,7 +953,7 @@ export function createApp(options = {}) {
         const cronSecret=String(env.FRIDAY_CRON_SECRET||'');
         if(cronSecret.length<32)fail(404,'Not found.');
         allow('POST');rate('cron-quote-digest:'+ip,10);
-        const given=/^Bearer (.+)$/.exec(req.headers.authorization||'')?.[1]||'';
+        const given=presentedCronSecret(req.headers);
         const digest=x=>createHash('sha256').update(x).digest();
         if(!timingSafeEqual(digest(given),digest(cronSecret)))fail(401,'Unauthorized.');
         return send(200,await quoteDigestSweep({now:new Date()}));

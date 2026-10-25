@@ -4,8 +4,11 @@ name: Scheduled jobs
 # calls wake it and run each sweep. Every sweep is idempotent, so a retry or a
 # manual re-run never double-sends.
 #
-# Required GitHub repo secret: FRIDAY_CRON_SECRET (same value as the Hexclave
-# project secret of the same name, at least 32 characters).
+# FRIDAY_CRON_SECRET (32+ characters) has to exist in two places, with the same
+# value: the Hexclave project secret, and this repository's Actions secret.
+# Unset or shorter on Hexclave, the route answers 404. Unset on GitHub, the
+# job stops before the call. A failure opens a GitHub issue. Set
+# BACKUP_ALERT_WEBHOOK_URL as well for a Slack or Discord ping.
 
 on:
   schedule:
@@ -22,6 +25,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: scheduled-jobs-${{ github.event.schedule || github.run_id }}
@@ -37,13 +41,37 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Trigger briefing sweep
         env:
           FRIDAY_CRON_SECRET: ${{ secrets.FRIDAY_CRON_SECRET }}
         run: |
-          if [ -z "$FRIDAY_CRON_SECRET" ]; then echo "::error::FRIDAY_CRON_SECRET repo secret is not set"; exit 1; fi
-          curl --fail --silent --show-error --max-time 300 --retry 3 --retry-all-errors --retry-delay 20 \
-            -X POST -H "Authorization: Bearer $FRIDAY_CRON_SECRET" "$FRIDAY_URL/api/cron/briefings"
+          set -euo pipefail
+          node scripts/cron-call.mjs \
+            --url "$FRIDAY_URL/api/cron/briefings" \
+            --method POST \
+            --secret-env FRIDAY_CRON_SECRET \
+            --secret-name FRIDAY_CRON_SECRET \
+            --expect json \
+            --error-file cron-error.txt
+      - name: Alert the owners
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALERT_WEBHOOK_URL: ${{ secrets.BACKUP_ALERT_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          detail="$(cat cron-error.txt 2>/dev/null || true)"
+          if [ -z "$detail" ]; then detail="The T-7 briefing job failed. See the run log."; fi
+          node scripts/workflow-alert.mjs --title "Friday briefing job is failing" --detail "$detail"
+      - name: Close the failure alert
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/workflow-alert.mjs --resolve --title "Friday briefing job is failing"
 
   quote-digest:
     name: Quote digest
@@ -51,13 +79,37 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Trigger quote digest
         env:
           FRIDAY_CRON_SECRET: ${{ secrets.FRIDAY_CRON_SECRET }}
         run: |
-          if [ -z "$FRIDAY_CRON_SECRET" ]; then echo "::error::FRIDAY_CRON_SECRET repo secret is not set"; exit 1; fi
-          curl --fail --silent --show-error --max-time 300 --retry 3 --retry-all-errors --retry-delay 20 \
-            -X POST -H "Authorization: Bearer $FRIDAY_CRON_SECRET" "$FRIDAY_URL/api/cron/quote-digest"
+          set -euo pipefail
+          node scripts/cron-call.mjs \
+            --url "$FRIDAY_URL/api/cron/quote-digest" \
+            --method POST \
+            --secret-env FRIDAY_CRON_SECRET \
+            --secret-name FRIDAY_CRON_SECRET \
+            --expect json \
+            --error-file cron-error.txt
+      - name: Alert the owners
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALERT_WEBHOOK_URL: ${{ secrets.BACKUP_ALERT_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          detail="$(cat cron-error.txt 2>/dev/null || true)"
+          if [ -z "$detail" ]; then detail="The quote digest job failed. See the run log."; fi
+          node scripts/workflow-alert.mjs --title "Friday quote digest job is failing" --detail "$detail"
+      - name: Close the failure alert
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/workflow-alert.mjs --resolve --title "Friday quote digest job is failing"
 
   guide-feedback-digest:
     name: Guide feedback digest
@@ -65,10 +117,34 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Trigger guide feedback digest
         env:
           FRIDAY_CRON_SECRET: ${{ secrets.FRIDAY_CRON_SECRET }}
         run: |
-          if [ -z "$FRIDAY_CRON_SECRET" ]; then echo "::error::FRIDAY_CRON_SECRET repo secret is not set"; exit 1; fi
-          curl --fail --silent --show-error --max-time 300 --retry 3 --retry-all-errors --retry-delay 20 \
-            -X POST -H "Authorization: Bearer $FRIDAY_CRON_SECRET" "$FRIDAY_URL/api/cron/guide-feedback-digest"
+          set -euo pipefail
+          node scripts/cron-call.mjs \
+            --url "$FRIDAY_URL/api/cron/guide-feedback-digest" \
+            --method POST \
+            --secret-env FRIDAY_CRON_SECRET \
+            --secret-name FRIDAY_CRON_SECRET \
+            --expect json \
+            --error-file cron-error.txt
+      - name: Alert the owners
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALERT_WEBHOOK_URL: ${{ secrets.BACKUP_ALERT_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          detail="$(cat cron-error.txt 2>/dev/null || true)"
+          if [ -z "$detail" ]; then detail="The guide feedback digest job failed. See the run log."; fi
+          node scripts/workflow-alert.mjs --title "Friday guide feedback digest job is failing" --detail "$detail"
+      - name: Close the failure alert
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/workflow-alert.mjs --resolve --title "Friday guide feedback digest job is failing"
