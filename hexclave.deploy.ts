@@ -52,9 +52,11 @@ export const deploy: HexclaveDeploymentConfig = ({ secret, service, hexclave }) 
         GOOGLE_PLACES_API_KEY: secret("GOOGLE_PLACES_API_KEY", ""),
         ANTHROPIC_API_KEY: secret("ANTHROPIC_API_KEY", ""),
         FRIDAY_BRIEFING_AUTOSEND: "dry-run",
-        FRIDAY_CRON_SECRET: secret("FRIDAY_CRON_SECRET", ""),
-        // Bearer secret for GET /api/cron/db-backup (the nightly GitHub Actions backup); empty keeps the route off.
-        FRIDAY_BACKUP_SECRET: secret("FRIDAY_BACKUP_SECRET", ""),
+        // No default: a deploy without these project secrets fails instead of shipping a server
+        // whose cron routes hide themselves with a 404. Both must be at least 32 characters.
+        FRIDAY_CRON_SECRET: secret("FRIDAY_CRON_SECRET"),
+        // Bearer secret for GET /api/cron/db-backup (the nightly GitHub Actions backup).
+        FRIDAY_BACKUP_SECRET: secret("FRIDAY_BACKUP_SECRET"),
       },
     },
     // Private PostgreSQL, reachable only from other services in this project (raw TCP). It scales to zero, so the web

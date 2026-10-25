@@ -43,14 +43,16 @@ After the first deployment, write a test record, restart and redeploy the servic
 
 Hexclave Deploy has no cron, so `.github/workflows/db-backup.yml` runs daily at 02:00 IST. It calls `GET /api/cron/db-backup` on `https://fridaytravel.vercel.app` (the web image bundles the PostgreSQL 17 `pg_dump`), encrypts the dump with AES-256 on the runner, and uploads only the `.dump.enc` file as an artifact kept for 30 days. The repository is public, so nothing but ciphertext is ever stored or logged.
 
+The route is part of the web service. A response of `404` with `{"error":"Not found."}` means `FRIDAY_BACKUP_SECRET` on that service is unset or shorter than 32 characters, so the route is hiding itself. It does not mean the file failed to deploy. `401` with `Please sign in` means the running image predates the route and needs a redeploy. `401` with `Unauthorized` means the GitHub secret and the Hexclave secret differ. The caller sends the secret as `Authorization` and as `X-Friday-Cron-Secret`, because the Vercel proxy can drop `Authorization`. These values are Hexclave project secrets and GitHub Actions secrets. A Vercel environment variable never reaches the app; Vercel only proxies the public host to Hexclave.
+
 One-time setup:
 
-1. Generate two values with `openssl rand -base64 48`.
-2. Set the first as `FRIDAY_BACKUP_SECRET` both as a Hexclave project secret and as a GitHub Actions secret.
-3. Set the second as `BACKUP_PASSPHRASE` only as a GitHub Actions secret, and keep a copy offline. If it is lost, backups cannot be read.
-4. Redeploy Hexclave so the new image and secret go live.
+1. Generate two values with `openssl rand -base64 48` (each is longer than 32 characters). If `FRIDAY_BACKUP_SECRET` is already a GitHub Actions secret, keep that value and do not generate a second one.
+2. Set `FRIDAY_BACKUP_SECRET` as a Hexclave project secret (Project Settings → Secrets) and, if it is not there already, as a GitHub Actions secret. The two values must be identical.
+3. Set `BACKUP_PASSPHRASE` only as a GitHub Actions secret, and keep a copy offline. If it is lost, backups cannot be read.
+4. Redeploy the Hexclave web service. `hexclave.deploy.ts` does not default these secrets, so the deploy stops until `FRIDAY_BACKUP_SECRET` and `FRIDAY_CRON_SECRET` are both set. The running process only sees a secret that was present at deploy time.
 
-No backups are taken until the secrets are set and the new image is deployed. Run one by hand from Actions → Nightly database backup → Run workflow. GitHub disables scheduled workflows after 60 days without repository activity, so check the Actions tab occasionally.
+No backups are taken until that redeploy has gone out. Run one by hand from Actions → Nightly database backup → Run workflow. GitHub disables scheduled workflows after 60 days without repository activity, so check the Actions tab occasionally.
 
 Restore (needs a PostgreSQL 17 client):
 
@@ -66,7 +68,7 @@ Restore into a scratch database first, and delete `friday.dump` afterwards becau
 
 `.github/workflows/backup-restore-check.yml` runs every Monday at 06:00 UTC (and on Run workflow). It checks that the newest nightly backup is less than 36 hours old, downloads and decrypts it, restores it into a scratch PostgreSQL 17 container, counts rows in the core tables (`users` must not be empty), and writes the timing and counts to the run's summary. The scratch container is removed afterwards.
 
-It fails, and so emails the person who last changed the schedule (GitHub's failure notice), when the backup is missing or stale, the decrypt fails, or the restore or a table check fails. The nightly backup fails the same way. For a faster alert, set `BACKUP_ALERT_WEBHOOK_URL` (optional) to an incoming-webhook URL from Slack, Discord or any service that accepts a JSON POST with `text` or `content`; both workflows post to it on failure and skip it when it is unset.
+It fails when the backup is missing or stale, the decrypt fails, or the restore or a table check fails. The nightly backup fails the same way. Either failure opens (or comments on) a GitHub issue titled `Friday nightly database backup is failing` or `Friday backup restore check is failing`, and a later successful run closes that issue. The repository's Actions workflow permissions need to allow issues to be written; if they are read-only, the alert step says so. For a ping in Slack or Discord as well, set `BACKUP_ALERT_WEBHOOK_URL` (optional) to an incoming-webhook URL that accepts a JSON POST with `text` or `content`. The workflows post to it on failure and skip it when it is unset.
 
 Secrets used by the two workflows (Settings → Secrets and variables → Actions):
 
@@ -192,10 +194,12 @@ Only the Claude provider uses it; the local generator is unaffected.
 
 The host scales to zero, so in-process timers are unreliable. `.github/workflows/scheduled-jobs.yml` wakes the service and calls `POST /api/cron/briefings` (daily 03:30 UTC / 09:00 IST), `/api/cron/quote-digest` (daily 04:00 UTC) and `/api/cron/guide-feedback-digest` (Mondays 03:30 UTC). Each returns a JSON summary and is idempotent per day or week, so retries and manual runs never double-send. The job can also be started from the Actions tab (workflow_dispatch).
 
-The owner must set the same secret in two places:
+The owner must set the same secret in two places, then redeploy the Hexclave web service so the running process receives it. Secrets are applied at deploy time.
 
-1. `FRIDAY_CRON_SECRET` (32+ characters) in the Hexclave project secrets. Unset or shorter, the cron routes return 404.
-2. `FRIDAY_CRON_SECRET` as a GitHub repository secret (Settings, Secrets and variables, Actions) with the identical value. The workflow fails early if it is missing.
+1. `FRIDAY_CRON_SECRET` (32+ characters) in the Hexclave project secrets (Project Settings → Secrets). Unset or shorter, the cron routes return 404 even though they are deployed.
+2. `FRIDAY_CRON_SECRET` as a GitHub repository secret (Settings → Secrets and variables → Actions) with the identical value. The workflow fails before the call when it is missing, and opens a GitHub issue (`Friday quote digest job is failing`, and the same for briefings and the guide digest).
+
+A Vercel environment variable is not one of those places.
 
 ## Rebuild the public pages
 

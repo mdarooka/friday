@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   actions: read
+  issues: write
 
 concurrency:
   group: backup-restore-check
@@ -104,12 +105,12 @@ jobs:
       - name: Alert the owners (only when a check failed)
         if: failure()
         env:
+          GH_TOKEN: ${{ github.token }}
           ALERT_WEBHOOK_URL: ${{ secrets.BACKUP_ALERT_WEBHOOK_URL }}
-        run: |
-          echo "::error::Weekly backup restore check failed. See the job summary."
-          if [ -z "$ALERT_WEBHOOK_URL" ]; then
-            echo "BACKUP_ALERT_WEBHOOK_URL is not set; GitHub's failure email is the only alert."
-            exit 0
-          fi
-          body="{\"text\":\"Friday backup restore check FAILED: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\",\"content\":\"Friday backup restore check FAILED: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}"
-          curl --fail --silent --show-error --max-time 30 -H 'Content-Type: application/json' -d "$body" "$ALERT_WEBHOOK_URL" >/dev/null
+        run: node scripts/workflow-alert.mjs --title "Friday backup restore check is failing" --detail "The weekly restore check failed. The job summary says whether the backup is missing, the passphrase does not decrypt it, or the restored database failed a table check."
+
+      - name: Close the failure alert
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/workflow-alert.mjs --resolve --title "Friday backup restore check is failing"
